@@ -92,7 +92,7 @@ export default function Home() {
     <main className="shell">
       <header className="topbar">
         <div className="brand"><span className="brand-mark">◒</span><span>My Day</span><span className="brand-pill">PRIVATE CALENDAR</span></div>
-        <div className="top-actions"><span className="sync-label">{userEmail ? "ChatGPTでログイン中" : "サンプル表示中"}</span><button className="ghost-button" onClick={() => userEmail ? setSettingsOpen(true) : loadCalendar()}>{userEmail ? "アカウント" : "ChatGPTでログイン"}</button></div>
+        <div className="top-actions"><span className="sync-label">{userEmail ? "ChatGPTでログイン中" : "サンプル表示中"}</span>{userEmail ? <button className="ghost-button" onClick={() => setSettingsOpen(true)}>アカウント</button> : <a className="ghost-button" href="/signin-with-chatgpt?return_to=/">ChatGPTでログイン</a>}</div>
       </header>
 
       <section className="intro"><div><p className="eyebrow">YOUR SPACE, YOUR RHYTHM</p><h1>今日を、少しだけ<br /><em>軽くする。</em></h1><p className="subcopy">予定とタスクをひとつに。あなたのペースで使う、静かなカレンダー。</p></div><button className="primary-button" onClick={() => openNew()}>＋ 予定を追加</button></section>
