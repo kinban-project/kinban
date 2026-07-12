@@ -1,7 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { getDb } from "../../../db";
-import { events } from "../../../db/schema";
+import { attachments, events } from "../../../db/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,10 @@ export async function GET() {
   if (!user) return unauthorized();
   const db = getDb();
   const rows = await db.select().from(events).where(eq(events.ownerEmail, user.email)).orderBy(desc(events.date), desc(events.startTime));
-  return Response.json({ email: user.email, events: rows });
+  const files = await db.select().from(attachments).where(eq(attachments.ownerEmail, user.email));
+  const fileMap = new Map<string, typeof files>();
+  for (const file of files) fileMap.set(file.eventId, [...(fileMap.get(file.eventId) ?? []), file]);
+  return Response.json({ email: user.email, events: rows.map((event) => ({ ...event, attachments: fileMap.get(event.id) ?? [] })) });
 }
 
 export async function POST(request: Request) {
@@ -38,5 +41,5 @@ export async function POST(request: Request) {
   };
   const db = getDb();
   await db.insert(events).values(event);
-  return Response.json({ event }, { status: 201 });
+  return Response.json({ event: { ...event, attachments: [] } }, { status: 201 });
 }
