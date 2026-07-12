@@ -17,7 +17,8 @@ export async function GET() {
   const files = await db.select().from(attachments).where(eq(attachments.ownerEmail, user.email));
   const fileMap = new Map<string, typeof files>();
   for (const file of files) fileMap.set(file.eventId, [...(fileMap.get(file.eventId) ?? []), file]);
-  return Response.json({ email: user.email, events: rows.map((event) => ({ ...event, attachments: fileMap.get(event.id) ?? [] })) });
+  const usedBytes = files.reduce((total, file) => total + file.size, 0);
+  return Response.json({ email: user.email, usedBytes, events: rows.map((event) => ({ ...event, attachments: fileMap.get(event.id) ?? [] })) });
 }
 
 export async function POST(request: Request) {

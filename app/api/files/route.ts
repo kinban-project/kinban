@@ -4,6 +4,7 @@ import { attachments } from "../../../db/schema";
 import { env } from "cloudflare:workers";
 
 export const dynamic = "force-dynamic";
+const MAX_FILE_BYTES = 1024 * 1024;
 
 export async function POST(request: Request) {
   const user = await getChatGPTUser();
@@ -12,7 +13,7 @@ export async function POST(request: Request) {
   const file = form.get("file");
   const eventId = String(form.get("eventId") ?? "");
   if (!(file instanceof File) || !eventId) return Response.json({ error: "file and eventId are required" }, { status: 400 });
-  if (file.size > 10 * 1024 * 1024) return Response.json({ error: "Files must be 10MB or smaller" }, { status: 413 });
+  if (file.size > MAX_FILE_BYTES) return Response.json({ error: "添付ファイルは1MB以下にしてください" }, { status: 413 });
   if (!env.FILES) return Response.json({ error: "R2 binding FILES is unavailable" }, { status: 500 });
 
   try {
