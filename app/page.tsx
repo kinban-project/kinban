@@ -21,6 +21,25 @@ function formatDate(key: string) { return new Intl.DateTimeFormat("ja-JP", { mon
 function daysForMonth(year: number, month: number) { const first = new Date(year, month, 1); const start = new Date(year, month, 1 - first.getDay()); return Array.from({ length: 42 }, (_, i) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + i)); }
 function emptyForm(date: string): FormState { return { title: "", date, startTime: "09:00", endTime: "10:00", category: "仕事", notes: "" }; }
 
+async function prepareAttachment(file: File): Promise<{ file: File; optimized: boolean }> {
+  if (!file.type.startsWith("image/") || file.size <= 1.5 * 1024 * 1024) return { file, optimized: false };
+  try {
+    const bitmap = await createImageBitmap(file);
+    const canvas = document.createElement("canvas");
+    const scale = Math.min(1, 1600 / bitmap.width, 1600 / bitmap.height);
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.82));
+    if (!blob || blob.size >= file.size) return { file, optimized: false };
+    const name = file.name.replace(/\.[^.]+$/, "") + ".jpg";
+    return { file: new File([blob], name, { type: "image/jpeg", lastModified: Date.now() }), optimized: true };
+  } catch {
+    return { file, optimized: false };
+  }
+}
+
 export default function Home() {
   const [cursor, setCursor] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedDate, setSelectedDate] = useState(todayKey);
@@ -71,12 +90,16 @@ export default function Home() {
         setNotice("添付ファイルの保存に失敗しました。ファイルサイズは10MB以下にしてください。");
       } else {
         try {
-          const body = new FormData(); body.append("file", attachment); body.append("eventId", saved.id);
+          const prepared = await prepareAttachment(attachment);
+          const body = new FormData(); body.append("file", prepared.file); body.append("eventId", saved.id);
           const upload = await fetch("/api/files", { method: "POST", body });
           if (!upload.ok) {
-            const result = await upload.json().catch(() => ({})) as { error?: string };
-            setNotice(result.error ? `添付ファイルの保存に失敗しました。${result.error}` : "添付ファイルの保存に失敗しました。");
+            const raw = await upload.text();
+            let result: { error?: string } = {};
+            try { result = JSON.parse(raw) as { error?: string }; } catch { /* empty or platform-generated response */ }
+            setNotice(result.error ? `添付ファイルの保存に失敗しました。${result.error}` : `添付ファイルの保存に失敗しました。（HTTP ${upload.status}）`);
           } else {
+            if (prepared.optimized) setNotice("画像サイズが大きかったため、軽量化して保存しました。");
             await loadCalendar();
           }
         } catch {
