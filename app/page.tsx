@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type EventItem = {
   id: string;
@@ -45,6 +45,8 @@ export default function Home() {
   const days = useMemo(() => daysForMonth(cursor.getFullYear(), cursor.getMonth()), [cursor]);
   const selectedEvents = events.filter((event) => event.date === selectedDate).sort((a, b) => a.startTime.localeCompare(b.startTime));
   const openEvents = events.filter((event) => !event.completed).length;
+
+  useEffect(() => { void loadCalendar(); }, []);
 
   async function loadCalendar() {
     const response = await fetch("/api/calendar");
