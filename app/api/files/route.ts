@@ -15,12 +15,17 @@ export async function POST(request: Request) {
   if (file.size > 10 * 1024 * 1024) return Response.json({ error: "Files must be 10MB or smaller" }, { status: 413 });
   if (!env.FILES) return Response.json({ error: "R2 binding FILES is unavailable" }, { status: 500 });
 
-  const id = crypto.randomUUID();
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-  const objectKey = `${user.email}/${eventId}/${id}-${safeName}`;
-  await env.FILES.put(objectKey, file.stream(), { httpMetadata: { contentType: file.type || "application/octet-stream" } });
-  const db = getDb();
-  const attachment = { id, ownerEmail: user.email, eventId, objectKey, filename: file.name, contentType: file.type || "application/octet-stream", size: file.size };
-  await db.insert(attachments).values(attachment);
-  return Response.json({ attachment }, { status: 201 });
+  try {
+    const id = crypto.randomUUID();
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+    const objectKey = `${user.email}/${eventId}/${id}-${safeName}`;
+    await env.FILES.put(objectKey, file.stream(), { httpMetadata: { contentType: file.type || "application/octet-stream" } });
+    const db = getDb();
+    const attachment = { id, ownerEmail: user.email, eventId, objectKey, filename: file.name, contentType: file.type || "application/octet-stream", size: file.size };
+    await db.insert(attachments).values(attachment);
+    return Response.json({ attachment }, { status: 201 });
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "unknown upload error";
+    return Response.json({ error: `R2への保存に失敗しました。${reason}` }, { status: 500 });
+  }
 }

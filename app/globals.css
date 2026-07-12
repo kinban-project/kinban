@@ -28,3 +28,4 @@ button { cursor: pointer; }
 .no-files { color: var(--muted); padding: 20px 0; font-size: 12px; }
 .detail-actions { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--line); padding-top: 20px; margin-top: 20px; }
 .danger-button { border: 0; background: transparent; color: #bb695f; font-size: 12px; padding: 12px 0; }
+.upload-notice { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); z-index: 10; width: min(600px, calc(100% - 32px)); display: flex; gap: 14px; align-items: center; justify-content: space-between; background: #fff4e8; color: #8a542b; border: 1px solid #edc9a8; border-radius: 12px; padding: 13px 16px; box-shadow: 0 12px 32px rgba(40, 35, 24, .12); font-size: 12px; line-height: 1.5; }.upload-notice button { border: 0; background: transparent; color: inherit; font-size: 19px; }

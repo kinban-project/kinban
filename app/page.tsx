@@ -33,6 +33,7 @@ export default function Home() {
   const [form, setForm] = useState<FormState>(emptyForm(todayKey));
   const [attachment, setAttachment] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const days = useMemo(() => daysForMonth(cursor.getFullYear(), cursor.getMonth()), [cursor]);
   const selectedEvents = events.filter((event) => event.date === selectedDate).sort((a, b) => a.startTime.localeCompare(b.startTime));
   const openEvents = events.filter((event) => !event.completed).length;
@@ -66,9 +67,22 @@ export default function Home() {
       if (response.ok) saved = (await response.json() as { event: EventItem }).event;
     }
     if (saved && attachment && !saved.id.startsWith("demo-")) {
-      const body = new FormData(); body.append("file", attachment); body.append("eventId", saved.id);
-      await fetch("/api/files", { method: "POST", body });
-      await loadCalendar();
+      if (attachment.size > 10 * 1024 * 1024) {
+        setNotice("添付ファイルの保存に失敗しました。ファイルサイズは10MB以下にしてください。");
+      } else {
+        try {
+          const body = new FormData(); body.append("file", attachment); body.append("eventId", saved.id);
+          const upload = await fetch("/api/files", { method: "POST", body });
+          if (!upload.ok) {
+            const result = await upload.json().catch(() => ({})) as { error?: string };
+            setNotice(result.error ? `添付ファイルの保存に失敗しました。${result.error}` : "添付ファイルの保存に失敗しました。");
+          } else {
+            await loadCalendar();
+          }
+        } catch {
+          setNotice("添付ファイルの保存に失敗しました。ファイルが大きすぎるか、通信に失敗した可能性があります。");
+        }
+      }
     } else if (saved) {
       setEvents((current) => [...current.filter((item) => item.id !== saved!.id), saved!]);
     }
@@ -92,6 +106,7 @@ export default function Home() {
   function changeMonth(amount: number) { setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + amount, 1)); }
 
   return <main className="shell">
+    {notice && <div className="upload-notice" role="alert">{notice}<button onClick={() => setNotice(null)} aria-label="閉じる">×</button></div>}
     <header className="topbar"><div className="brand"><span className="brand-mark">◒</span><span>My Day</span><span className="brand-pill">PRIVATE CALENDAR</span></div><div className="top-actions"><span className="sync-label">{userEmail ? "ChatGPTでログイン中" : "サンプル表示中"}</span>{userEmail ? <button className="ghost-button" onClick={() => setSettingsOpen(true)}>アカウント</button> : <a className="ghost-button" href="/signin-with-chatgpt?return_to=/">ChatGPTでログイン</a>}</div></header>
     <section className="intro"><div><p className="eyebrow">YOUR SPACE, YOUR RHYTHM</p><h1>今日を、少しだけ<br /><em>軽くする。</em></h1><p className="subcopy">予定とタスクをひとつに。あなたのペースで使う、静かなカレンダー。</p></div><button className="primary-button" onClick={() => openNew()}>＋ 予定を追加</button></section>
     <section className="dashboard">
@@ -100,7 +115,7 @@ export default function Home() {
     </section>
     <section className="bottom-row"><div className="tip-card"><span className="tip-icon">✦</span><div><p className="eyebrow">A LITTLE NOTE</p><h3>すべてを埋めなくていい。</h3><p>空白の時間も、あなたの予定です。</p></div></div><div className="storage-card"><div className="storage-top"><span>添付ファイル</span><strong>R2 STORAGE</strong></div><div className="storage-bar"><span /></div><p>タスクに資料・画像・メモを添付できます</p></div></section>
 
-    {editorOpen && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditorOpen(false); }}><form className="modal" onSubmit={handleSave}><div className="modal-head"><div><p className="eyebrow">{editingId ? "EDIT ITEM" : "NEW ITEM"}</p><h2>{editingId ? "予定を編集" : "予定を追加"}</h2></div><button type="button" className="close-button" onClick={() => setEditorOpen(false)}>×</button></div><label>タイトル<input autoFocus required value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} placeholder="例：資料を仕上げる" /></label><div className="form-row"><label>日付<input type="date" value={form.date} onChange={(event) => { setForm({ ...form, date: event.target.value }); setSelectedDate(event.target.value); }} /></label><label>カテゴリ<select value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })}><option>仕事</option><option>生活</option><option>予定</option></select></label></div><div className="form-row"><label>開始<input type="time" value={form.startTime} onChange={(event) => setForm({ ...form, startTime: event.target.value })} /></label><label>終了<input type="time" value={form.endTime} onChange={(event) => setForm({ ...form, endTime: event.target.value })} /></label></div><label>メモ<textarea rows={3} value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} placeholder="必要ならメモを残せます" /></label>{!editingId && <label className="file-input">添付ファイル<input type="file" accept="image/*,.pdf,.txt,.doc,.docx,.xls,.xlsx" onChange={(event) => setAttachment(event.target.files?.[0] ?? null)} /><span>{attachment ? `⌕ ${attachment.name}` : "ファイルを選択（R2に保存）"}</span></label>}{editingId && <label className="file-input">添付ファイルを追加<input type="file" accept="image/*,.pdf,.txt,.doc,.docx,.xls,.xlsx" onChange={(event) => setAttachment(event.target.files?.[0] ?? null)} /><span>{attachment ? `⌕ ${attachment.name}` : "新しいファイルを追加"}</span></label>}<div className="modal-footer"><span>{userEmail ? "この予定はあなたのアカウントに保存されます" : "サンプル表示では変更は一時的です"}</span><button className="primary-button" type="submit" disabled={saving}>{saving ? "保存中…" : "保存する"}</button></div></form></div>}
+    {editorOpen && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditorOpen(false); }}><form className="modal" onSubmit={handleSave}><div className="modal-head"><div><p className="eyebrow">{editingId ? "EDIT ITEM" : "NEW ITEM"}</p><h2>{editingId ? "予定を編集" : "予定を追加"}</h2></div><button type="button" className="close-button" onClick={() => setEditorOpen(false)}>×</button></div><label>タイトル<input autoFocus required value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} placeholder="例：資料を仕上げる" /></label><div className="form-row"><label>日付<input type="date" value={form.date} onChange={(event) => { setForm({ ...form, date: event.target.value }); setSelectedDate(event.target.value); }} /></label><label>カテゴリ<select value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })}><option>仕事</option><option>生活</option><option>予定</option></select></label></div><div className="form-row"><label>開始<input type="time" value={form.startTime} onChange={(event) => setForm({ ...form, startTime: event.target.value })} /></label><label>終了<input type="time" value={form.endTime} onChange={(event) => setForm({ ...form, endTime: event.target.value })} /></label></div><label>メモ<textarea rows={3} value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} placeholder="必要ならメモを残せます" /></label>{!editingId && <label className="file-input">添付ファイル<input type="file" accept="image/*,.pdf,.txt,.doc,.docx,.xls,.xlsx" onChange={(event) => setAttachment(event.target.files?.[0] ?? null)} /><span>{attachment ? `⌕ ${attachment.name}` : "ファイルを選択（10MBまで）"}</span></label>}{editingId && <label className="file-input">添付ファイルを追加<input type="file" accept="image/*,.pdf,.txt,.doc,.docx,.xls,.xlsx" onChange={(event) => setAttachment(event.target.files?.[0] ?? null)} /><span>{attachment ? `⌕ ${attachment.name}` : "新しいファイルを追加（10MBまで）"}</span></label>}<div className="modal-footer"><span>{userEmail ? "この予定はあなたのアカウントに保存されます" : "サンプル表示では変更は一時的です"}</span><button className="primary-button" type="submit" disabled={saving}>{saving ? "保存中…" : "保存する"}</button></div></form></div>}
     {detailEvent && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setDetailEvent(null); }}><div className="modal detail-modal"><div className="modal-head"><div><p className="eyebrow">DETAIL</p><h2>{detailEvent.title}</h2></div><button className="close-button" onClick={() => setDetailEvent(null)}>×</button></div><div className="detail-meta"><span className={`category ${detailEvent.category === "生活" ? "life" : detailEvent.category === "予定" ? "plan" : "work"}`}>{detailEvent.category}</span><span>{formatDate(detailEvent.date)}</span><span>{detailEvent.startTime} — {detailEvent.endTime}</span></div>{detailEvent.notes && <div className="detail-notes">{detailEvent.notes}</div>}{detailEvent.attachments?.length ? <div className="detail-files"><p className="eyebrow">ATTACHMENTS</p>{detailEvent.attachments.map((file) => <div className="file-preview" key={file.id}>{file.contentType.startsWith("image/") ? <img src={`/api/files/${file.id}`} alt={file.filename} /> : <span className="file-icon">⌕</span>}<div><strong>{file.filename}</strong><small>{Math.round(file.size / 1024)}KB</small></div><a href={`/api/files/${file.id}`} target="_blank" rel="noreferrer">開く</a></div>)}</div> : <div className="no-files">添付ファイルはありません</div>}<div className="detail-actions"><button className="danger-button" onClick={() => void deleteEvent(detailEvent)}>削除</button><button className="primary-button" onClick={() => openEdit(detailEvent)}>編集する</button></div></div></div>}
     {settingsOpen && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSettingsOpen(false); }}><div className="modal small-modal"><div className="modal-head"><div><p className="eyebrow">ACCOUNT</p><h2>あなたのMy Day</h2></div><button className="close-button" onClick={() => setSettingsOpen(false)}>×</button></div><p className="settings-copy">予定と添付ファイルは、ChatGPTでログインしたアカウントごとに分けて保存されます。</p>{userEmail ? <><div className="account-chip">◉　{userEmail}</div><a className="signout" href="/signout-with-chatgpt?return_to=/">ログアウト</a></> : <><p className="settings-copy">今はサンプル表示です。ログインすると、自分専用のカレンダーとして使えます。</p><a className="primary-button link-button" href="/signin-with-chatgpt?return_to=/">ChatGPTでログインする</a></>}</div></div>}
   </main>;
