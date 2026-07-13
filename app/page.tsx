@@ -141,6 +141,11 @@ export default function Home() {
   const formatSize = (bytes: number) => bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)}KB` : `${(bytes / 1024 / 1024).toFixed(2)}MB`;
 
   return <main className="shell">
+    <aside className="demo-warning" role="note" aria-label="デモサイトの注意事項">
+      <strong>デモ用サイトです</strong>
+      <p>予告なく終了する可能性があります。登録した情報（予定・メモ・添付ファイル等）は漏洩する可能性があります。</p>
+      <p>重要な情報や、実際の予定は登録しないでください。</p>
+    </aside>
     {notice && <div className="upload-notice" role="alert">{notice}<button onClick={() => setNotice(null)} aria-label="閉じる">×</button></div>}
     <header className="topbar"><div className="brand"><span className="brand-mark">◒</span><span>My Day</span><span className="brand-pill">PRIVATE CALENDAR</span></div><div className="top-actions"><a className="ghost-button" href="/api-guide">APIガイド</a><span className="sync-label">{userEmail ? "ChatGPTでログイン中" : "サンプル表示中"}</span>{userEmail ? <button className="ghost-button" onClick={() => setSettingsOpen(true)}>アカウント</button> : <a className="ghost-button" href="/signin-with-chatgpt?return_to=/">ChatGPTでログイン</a>}</div></header>
     <section className="intro"><div><p className="eyebrow">YOUR SPACE, YOUR RHYTHM</p><h1>今日を、少しだけ<br /><em>軽くする。</em></h1><p className="subcopy">予定とタスクをひとつに。あなたのペースで使う、静かなカレンダー。</p></div><button className="primary-button" onClick={() => openNew()}>＋ 予定を追加</button></section>
