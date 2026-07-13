@@ -24,3 +24,13 @@ export const attachments = sqliteTable("attachments", {
   size: integer("size").notNull(),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
+
+export const apiTokens = sqliteTable("api_tokens", {
+  id: text("id").primaryKey(),
+  ownerEmail: text("owner_email").notNull(),
+  name: text("name").notNull().default("My Day API key"),
+  tokenHash: text("token_hash").notNull().unique(),
+  tokenPrefix: text("token_prefix").notNull(),
+  lastUsedAt: text("last_used_at"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
