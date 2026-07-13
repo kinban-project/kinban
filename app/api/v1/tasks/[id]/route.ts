@@ -5,6 +5,7 @@ import { requireApiIdentity } from "../../../api-auth";
 import { env } from "cloudflare:workers";
 
 export const dynamic = "force-dynamic";
+const CATEGORIES = ["仕事", "生活", "予定"] as const;
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   const identity = await requireApiIdentity(request);
@@ -21,6 +22,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (identity instanceof Response) return identity;
   const { id } = await context.params;
   const payload = await request.json() as { completed?: boolean; title?: string; date?: string; startTime?: string; endTime?: string; category?: string; notes?: string };
+  if (payload.category && !CATEGORIES.includes(payload.category as typeof CATEGORIES[number])) return Response.json({ error: "category must be one of: 仕事, 生活, 予定" }, { status: 400 });
   const update = Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined));
   const [event] = await getDb().update(events).set(update).where(and(eq(events.id, id), eq(events.ownerEmail, identity.email))).returning();
   if (!event) return Response.json({ error: "Task not found" }, { status: 404 });
