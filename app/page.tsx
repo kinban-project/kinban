@@ -7,7 +7,8 @@ type EventItem = { id: string; title: string; date: string; startTime: string; e
 type FormState = { title: string; date: string; startTime: string; endTime: string; category: string; notes: string };
 
 const today = new Date();
-const todayKey = today.toISOString().slice(0, 10);
+function dateKey(date: Date) { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`; }
+const todayKey = dateKey(today);
 const MAX_FILE_BYTES = 1024 * 1024;
 const SAFE_IMAGE_BYTES = 900 * 1024;
 const monthNames = ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"];
@@ -18,7 +19,6 @@ const demoEvents: EventItem[] = [
   { id: "demo-3", title: "企画の下書き", date: todayKey, startTime: "13:00", endTime: "14:30", category: "仕事", notes: "", completed: false },
 ];
 
-function dateKey(date: Date) { return date.toISOString().slice(0, 10); }
 function formatDate(key: string) { return new Intl.DateTimeFormat("ja-JP", { month: "long", day: "numeric", weekday: "short" }).format(new Date(`${key}T00:00:00`)); }
 function daysForMonth(year: number, month: number) { const first = new Date(year, month, 1); const start = new Date(year, month, 1 - first.getDay()); return Array.from({ length: 42 }, (_, i) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + i)); }
 function emptyForm(date: string): FormState { return { title: "", date, startTime: "09:00", endTime: "10:00", category: "仕事", notes: "" }; }
