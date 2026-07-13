@@ -40,3 +40,8 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+
+# Separate reference materials kept outside this application repository
+/docs/
+/assets/
+/screenshots/
