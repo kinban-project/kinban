@@ -1,24 +1,57 @@
-import { desc, eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { getDb } from "../../../db";
-import { attachments, events } from "../../../db/schema";
+import { accountProfiles, attachments, events, groupMembers, groups as groupTable, shiftAssignments, shiftSlots } from "../../../db/schema";
+import { getMembership } from "../groups/group-access";
 
 export const dynamic = "force-dynamic";
 
+const chunk = <T,>(items: T[], size: number) => {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) chunks.push(items.slice(index, index + size));
+  return chunks;
+};
+
 function unauthorized() {
-  return Response.json({ error: "ChatGPT sign-in is required." }, { status: 401 });
+  return Response.json({ error: "ログインが必要です" }, { status: 401 });
 }
 
 export async function GET() {
   const user = await getChatGPTUser();
   if (!user) return unauthorized();
   const db = getDb();
-  const rows = await db.select().from(events).where(eq(events.ownerEmail, user.email)).orderBy(desc(events.date), desc(events.startTime));
+  const memberships = await db.select().from(groupMembers).where(eq(groupMembers.userEmail, user.email));
+  const [profile] = await db.select().from(accountProfiles).where(eq(accountProfiles.userEmail, user.email)).limit(1);
+  const groupTableRows = memberships.length ? await db.select().from(groupTable).where(inArray(groupTable.id, memberships.map((item) => item.groupId))) : [];
+  const visibleGroupIds = memberships.filter((item) => item.showInPersonal).map((item) => item.groupId);
+  const personalDisplayName = memberships.find((item) => item.userEmail === user.email)?.displayName?.trim() || profile?.nickname?.trim() || user.email.split("@")[0];
+  const personalRows = await db.select().from(events).where(eq(events.ownerEmail, user.email));
+  const eventGroupRows = visibleGroupIds.length ? await db.select().from(events).where(inArray(events.groupId, visibleGroupIds)) : [];
+  const candidateRows = [...new Map([...personalRows, ...eventGroupRows].map((event) => [event.id, event])).values()];
+  const shiftPlanIds = [...new Set(candidateRows.map((event) => event.shiftPlanId).filter((id): id is string => Boolean(id)))];
+  const shiftSlotRows = shiftPlanIds.length ? await db.select().from(shiftSlots).where(inArray(shiftSlots.planId, shiftPlanIds)) : [];
+  const assignmentChunks = await Promise.all(chunk(shiftSlotRows.map((slot) => slot.id), 50).map((slotIds) => slotIds.length ? db.select().from(shiftAssignments).where(inArray(shiftAssignments.slotId, slotIds)) : Promise.resolve([])));
+  const assignedSlotIds = new Set(assignmentChunks.flat().filter((assignment) => assignment.userEmail === user.email).map((assignment) => assignment.slotId));
+  const slotByEventKey = new Set(shiftSlotRows.filter((slot) => assignedSlotIds.has(slot.id)).map((slot) => `${slot.planId}|${slot.date}|${slot.startTime}`));
+  const rows = candidateRows.filter((event) => {
+    if (event.groupId && !visibleGroupIds.includes(event.groupId)) return false;
+    if (!event.shiftPlanId) return !event.groupId || visibleGroupIds.includes(event.groupId);
+    return slotByEventKey.has(`${event.shiftPlanId}|${event.date}|${event.startTime}`);
+  }).sort((a, b) => `${b.date}${b.startTime}`.localeCompare(`${a.date}${a.startTime}`));
   const files = await db.select().from(attachments).where(eq(attachments.ownerEmail, user.email));
   const fileMap = new Map<string, typeof files>();
   for (const file of files) fileMap.set(file.eventId, [...(fileMap.get(file.eventId) ?? []), file]);
   const usedBytes = files.reduce((total, file) => total + file.size, 0);
-  return Response.json({ email: user.email, usedBytes, events: rows.map((event) => ({ ...event, attachments: fileMap.get(event.id) ?? [] })) });
+  return Response.json({
+    email: user.email,
+    usedBytes,
+    groups: memberships.map((membership) => ({ ...membership, name: groupTableRows.find((group) => group.id === membership.groupId)?.name ?? membership.groupId })),
+    events: rows.map((event) => {
+      const membership = event.groupId ? memberships.find((item) => item.groupId === event.groupId) : null;
+      const groupName = event.groupId ? groupTableRows.find((group) => group.id === event.groupId)?.name ?? event.groupId : null;
+      return { ...event, title: event.title, notes: event.shiftPlanId ? `担当：${personalDisplayName}` : event.notes, groupName, attachments: fileMap.get(event.id) ?? [], readOnly: Boolean(event.shiftPlanId || (event.groupId && membership?.role !== "owner" && membership?.role !== "editor")) };
+    }),
+  });
 }
 
 export async function POST(request: Request) {
@@ -28,19 +61,17 @@ export async function POST(request: Request) {
   const title = payload.title?.trim() ?? "";
   const date = payload.date?.trim() ?? "";
   if (!title || !date) return Response.json({ error: "title and date are required" }, { status: 400 });
-
+  const groupId = payload.groupId ?? null;
+  if (groupId) {
+    const membership = await getMembership(groupId, user.email);
+    if (!membership) return Response.json({ error: "このグループのメンバーではありません" }, { status: 403 });
+    if (membership.role !== "owner" && membership.role !== "editor") return Response.json({ error: "グループ予定を編集する権限がありません" }, { status: 403 });
+  }
   const event = {
-    id: crypto.randomUUID(),
-    ownerEmail: user.email,
-    title,
-    date,
-    startTime: payload.startTime ?? "",
-    endTime: payload.endTime ?? "",
-    category: payload.category ?? "仕事",
-    notes: payload.notes ?? "",
-    completed: false,
+    id: crypto.randomUUID(), ownerEmail: user.email, groupId, title, date,
+    startTime: payload.startTime ?? "", endTime: payload.endTime ?? "",
+    category: payload.category ?? "予定", notes: payload.notes ?? "", completed: false,
   };
-  const db = getDb();
-  await db.insert(events).values(event);
-  return Response.json({ event: { ...event, attachments: [] } }, { status: 201 });
+  await getDb().insert(events).values(event);
+  return Response.json({ event: { ...event, attachments: [], readOnly: false } }, { status: 201 });
 }

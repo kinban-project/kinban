@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { env } from "cloudflare:workers";
 
 export type ChatGPTUser = {
   displayName: string;
@@ -18,6 +19,11 @@ const CALLBACK_PATH = "/callback";
 
 export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
   const requestHeaders = await headers();
+  if (process.env.LOCAL_MODE === "true" || (env as { LOCAL_MODE?: string }).LOCAL_MODE === "true") {
+    const localId = requestHeaders.get("x-dev-user-id") || process.env.LOCAL_USER_ID || (env as { LOCAL_USER_ID?: string }).LOCAL_USER_ID || "local-user";
+    const email = localId.includes("@") ? localId : `${localId}@local.test`;
+    return { displayName: localId, email, fullName: localId };
+  }
   const email = requestHeaders.get(USER_EMAIL_HEADER);
   if (!email) return null;
 

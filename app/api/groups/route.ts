@@ -1,0 +1,37 @@
+import { and, eq, inArray } from "drizzle-orm";
+import { getChatGPTUser } from "../../chatgpt-auth";
+import { getDb } from "../../../db";
+import { groupJoinRequests, groupMembers, groups } from "../../../db/schema";
+
+export const dynamic = "force-dynamic";
+
+function identityRequired() {
+  return Response.json({ error: "ログインが必要です" }, { status: 401 });
+}
+
+export async function GET() {
+  const user = await getChatGPTUser();
+  if (!user) return identityRequired();
+  const db = getDb();
+  const memberships = await db.select().from(groupMembers).where(eq(groupMembers.userEmail, user.email));
+  const owned = await db.select().from(groups).where(eq(groups.ownerEmail, user.email));
+  const ids = [...new Set([...memberships.map((item) => item.groupId), ...owned.map((item) => item.id)])];
+  const rows = ids.length ? await db.select().from(groups).where(inArray(groups.id, ids)) : [];
+  const requests = await db.select().from(groupJoinRequests).where(and(eq(groupJoinRequests.userEmail, user.email), eq(groupJoinRequests.status, "pending")));
+  return Response.json({ groups: rows.map((group) => ({ ...group, membership: memberships.find((item) => item.groupId === group.id) ?? { role: "owner", showInPersonal: true }, pendingJoin: requests.some((item) => item.groupId === group.id) })) });
+}
+
+export async function POST(request: Request) {
+  const user = await getChatGPTUser();
+  if (!user) return identityRequired();
+  const body = await request.json() as { name?: string; description?: string };
+  const name = body.name?.trim() ?? "";
+  if (!name) return Response.json({ error: "グループ名は必須です" }, { status: 400 });
+  const id = crypto.randomUUID();
+  const db = getDb();
+  await db.batch([
+    db.insert(groups).values({ id, name, description: body.description?.trim() ?? "", ownerEmail: user.email }),
+    db.insert(groupMembers).values({ id: crypto.randomUUID(), groupId: id, userEmail: user.email, role: "owner", showInPersonal: true }),
+  ]);
+  return Response.json({ group: { id, name, description: body.description?.trim() ?? "", ownerEmail: user.email, membership: { role: "owner", showInPersonal: true } } }, { status: 201 });
+}

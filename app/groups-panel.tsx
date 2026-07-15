@@ -1,0 +1,77 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { getLocalUserId, localApiFetch, setLocalUserId } from "./local-api";
+
+type Group = { id: string; name: string; description: string; ownerEmail: string; membership: { role: string; showInPersonal: boolean }; pendingJoin?: boolean };
+type GroupDetail = { currentEmail: string; group: Group; membership: { role: string; showInPersonal: boolean }; members: Array<{ userEmail: string; displayName?: string | null; role: string; showInPersonal: boolean }>; requests: Array<{ id: string; userEmail: string; status: string }> };
+
+export default function GroupsPanel({ onChanged }: { onChanged: () => void }) {
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [selected, setSelected] = useState<GroupDetail | null>(null);
+  const [name, setName] = useState("");
+  const [joinId, setJoinId] = useState("");
+  const [notice, setNotice] = useState<string | null>(null);
+  const [userId, setUserId] = useState(getLocalUserId());
+
+  async function loadGroups() {
+    const response = await localApiFetch("/api/groups");
+    if (response.ok) setGroups((await response.json() as { groups: Group[] }).groups);
+  }
+
+  useEffect(() => { const timer = window.setTimeout(() => void loadGroups(), 0); return () => window.clearTimeout(timer); }, []);
+
+  async function createGroup(event: React.FormEvent) {
+    event.preventDefault();
+    const response = await localApiFetch("/api/groups", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
+    if (!response.ok) return setNotice("グループを作成できませんでした");
+    setName(""); setNotice("グループを作成しました"); await loadGroups(); onChanged();
+  }
+
+  async function joinGroup(event: React.FormEvent) {
+    event.preventDefault();
+    const response = await localApiFetch(`/api/groups/${joinId}/join`, { method: "POST" });
+    setNotice(response.ok ? "参加申請を送りました" : ((await response.json().catch(() => ({})) as { error?: string }).error ?? "参加申請に失敗しました"));
+    setJoinId(""); await loadGroups();
+  }
+
+  async function openGroup(group: Group) {
+    const response = await localApiFetch(`/api/groups/${group.id}`);
+    if (response.ok) setSelected(await response.json() as GroupDetail);
+  }
+
+  async function updateMember(body: { userEmail: string; role?: string; showInPersonal?: boolean; displayName?: string }) {
+    if (!selected) return;
+    await localApiFetch(`/api/groups/${selected.group.id}/members`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    await openGroup(selected.group); await loadGroups(); onChanged();
+  }
+
+  async function handleRequest(requestId: string, action: "approve" | "reject") {
+    if (!selected) return;
+    await localApiFetch(`/api/groups/${selected.group.id}/requests`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId, action }) });
+    await openGroup(selected.group); await loadGroups();
+  }
+
+  async function leaveGroup() {
+    if (!selected || !window.confirm("このグループから退会しますか？ownerの場合は別メンバーへ自動で引き継ぎます。")) return;
+    const response = await localApiFetch(`/api/groups/${selected.group.id}/members`, { method: "DELETE" });
+    setNotice(response.ok ? "グループから退会しました" : "退会できませんでした");
+    setSelected(null); await loadGroups(); onChanged();
+  }
+
+  async function deleteGroup() {
+    if (!selected || selected.membership.role !== "owner" || !window.confirm("グループを削除しますか？予定も削除されます。")) return;
+    const response = await localApiFetch(`/api/groups/${selected.group.id}`, { method: "DELETE" });
+    setNotice(response.ok ? "グループを削除しました" : "グループを削除できませんでした");
+    setSelected(null); await loadGroups(); onChanged();
+  }
+
+  return <section className="groups-card">
+    <div className="groups-head"><div><p className="eyebrow">GROUP CALENDARS</p><h2>グループ予定</h2><p>グループの予定は個人カレンダーにも表示されます。</p></div><span className="group-user">{userId}</span></div>
+    {process.env.NEXT_PUBLIC_LOCAL_MODE === "true" && <div className="local-user-switch"><label>開発ユーザー<input value={userId} onChange={(event) => { setUserId(event.target.value); setLocalUserId(event.target.value); }} onBlur={() => { void loadGroups(); onChanged(); }} /></label><small>認証なしのローカルテストです</small></div>}
+    <div className="group-actions"><form onSubmit={createGroup}><input required value={name} onChange={(event) => setName(event.target.value)} placeholder="新しいグループ名" /><button className="primary-button">グループを作成</button></form><form onSubmit={joinGroup}><input required value={joinId} onChange={(event) => setJoinId(event.target.value)} placeholder="グループIDで参加申請" /><button className="ghost-button">参加申請</button></form></div>
+    {notice && <p className="group-notice" role="status">{notice}</p>}
+    <div className="group-list">{groups.length ? groups.map((group) => <article className="group-item" key={group.id}><div><strong>{group.name}</strong><small>ID: {group.id}</small><span>{group.membership.role} ・ {group.membership.showInPersonal ? "個人カレンダーに表示" : "個人カレンダーに非表示"}</span></div>{group.pendingJoin ? <em>承認待ち</em> : <button className="ghost-button" onClick={() => void openGroup(group)}>詳細</button>}</article>) : <p className="group-empty">まだ参加しているグループはありません。</p>}</div>
+    {selected && <div className="group-detail"><div className="modal-head"><div><p className="eyebrow">GROUP</p><h3>{selected.group.name}</h3><small>{selected.group.id}</small></div><button className="close-button" onClick={() => setSelected(null)}>×</button></div><label className="toggle-line"><input type="checkbox" checked={selected.membership.showInPersonal} onChange={(event) => void updateMember({ userEmail: selected.currentEmail, showInPersonal: event.target.checked })} /> 個人カレンダーに表示</label><h4>メンバー</h4>{selected.members.map((member) => <div className="member-row" key={member.userEmail}><span><strong>{member.displayName?.trim() || member.userEmail.split("@")[0]}</strong><small>{member.userEmail}</small></span>{(selected.membership.role === "owner" || member.userEmail === selected.currentEmail) && <input className="member-name-input" defaultValue={member.displayName ?? ""} placeholder="グループ内の名前" onBlur={(event) => { const value = event.currentTarget.value.trim(); if (value !== (member.displayName ?? "")) void updateMember({ userEmail: member.userEmail, displayName: value }); }} />}{selected.membership.role === "owner" && member.userEmail !== selected.group.ownerEmail ? <select value={member.role} onChange={(event) => void updateMember({ userEmail: member.userEmail, role: event.target.value })}><option value="member">member</option><option value="editor">editor</option></select> : <small>{member.role}</small>}</div>)}{selected.membership.role === "owner" && selected.requests.filter((request) => request.status === "pending").length > 0 && <><h4>参加申請</h4>{selected.requests.filter((request) => request.status === "pending").map((request) => <div className="member-row" key={request.id}><span>{request.userEmail}</span><span><button className="small-action" onClick={() => void handleRequest(request.id, "approve")}>承認</button><button className="small-action danger" onClick={() => void handleRequest(request.id, "reject")}>拒否</button></span></div>)}</>}<div className="group-detail-actions"><button className="ghost-button" onClick={() => void leaveGroup()}>グループから退会</button>{selected.membership.role === "owner" && <button className="small-action danger" onClick={() => void deleteGroup()}>グループを削除</button>}</div></div>}
+  </section>;
+}
