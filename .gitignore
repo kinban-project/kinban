@@ -40,6 +40,7 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+/pet_runs/
 
 # Separate reference materials kept outside this application repository
 /docs/
