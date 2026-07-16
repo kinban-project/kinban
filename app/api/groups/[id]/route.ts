@@ -1,7 +1,7 @@
 import { eq, inArray } from "drizzle-orm";
 import { getChatGPTUser } from "../../../chatgpt-auth";
 import { getDb } from "../../../../db";
-import { attachments, events, groupJoinRequests, groupMembers, groups } from "../../../../db/schema";
+import { attachments, events, groupJoinRequests, groupMembers, groupPreferences, groups, shiftAvailability } from "../../../../db/schema";
 import { env } from "cloudflare:workers";
 import { getGroup, getMembership } from "../group-access";
 
@@ -18,7 +18,24 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const db = getDb();
   const members = await db.select().from(groupMembers).where(eq(groupMembers.groupId, id));
   const requests = membership.role === "owner" ? await db.select().from(groupJoinRequests).where(eq(groupJoinRequests.groupId, id)) : [];
-  const safeMembers = membership.role === "owner" || membership.role === "editor" ? members : members.map(({ adminNote: _adminNote, ...member }) => member);
+  const isAdmin = membership.role === "owner" || membership.role === "editor";
+  const visiblePreferenceEmails = isAdmin ? members.map((member) => member.userEmail) : [user.email];
+  const preferences = visiblePreferenceEmails.length
+    ? await db.select().from(groupPreferences).where(eq(groupPreferences.groupId, id))
+    : [];
+  const availability = visiblePreferenceEmails.length
+    ? await db.select().from(shiftAvailability).where(eq(shiftAvailability.groupId, id))
+    : [];
+  const safeMembers = members.map(({ adminNote, ...member }) => ({
+    ...member,
+    ...(isAdmin || member.userEmail === user.email ? { adminNote: isAdmin ? adminNote : undefined } : {}),
+    preference: visiblePreferenceEmails.includes(member.userEmail)
+      ? preferences.find((preference) => preference.userEmail === member.userEmail) ?? null
+      : null,
+    availability: visiblePreferenceEmails.includes(member.userEmail)
+      ? availability.filter((entry) => entry.userEmail === member.userEmail)
+      : [],
+  }));
   return Response.json({ currentEmail: user.email, group, membership, members: safeMembers, requests });
 }
 
