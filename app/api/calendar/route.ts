@@ -1,7 +1,7 @@
 import { eq, inArray } from "drizzle-orm";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { getDb } from "../../../db";
-import { accountProfiles, attachments, events, groupMembers, groups as groupTable, shiftAssignments, shiftSlots } from "../../../db/schema";
+import { accountProfiles, attachments, events, groupJoinRequests, groupMembers, groups as groupTable, shiftAssignments, shiftSlots } from "../../../db/schema";
 import { getMembership } from "../groups/group-access";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +23,7 @@ export async function GET() {
   const memberships = await db.select().from(groupMembers).where(eq(groupMembers.userEmail, user.email));
   const [profile] = await db.select().from(accountProfiles).where(eq(accountProfiles.userEmail, user.email)).limit(1);
   const groupTableRows = memberships.length ? await db.select().from(groupTable).where(inArray(groupTable.id, memberships.map((item) => item.groupId))) : [];
+  const pendingMemberRequests = memberships.length ? await db.select().from(groupJoinRequests).where(inArray(groupJoinRequests.groupId, memberships.map((item) => item.groupId))) : [];
   const visibleGroupIds = memberships.filter((item) => item.showInPersonal).map((item) => item.groupId);
   const personalDisplayName = memberships.find((item) => item.userEmail === user.email)?.displayName?.trim() || profile?.nickname?.trim() || user.email.split("@")[0];
   const personalRows = await db.select().from(events).where(eq(events.ownerEmail, user.email));
@@ -45,7 +46,7 @@ export async function GET() {
   return Response.json({
     email: user.email,
     usedBytes,
-    groups: memberships.map((membership) => ({ ...membership, name: groupTableRows.find((group) => group.id === membership.groupId)?.name ?? membership.groupId })),
+    groups: memberships.map((membership) => ({ ...membership, name: groupTableRows.find((group) => group.id === membership.groupId)?.name ?? membership.groupId, pendingMemberRequests: groupTableRows.find((group) => group.id === membership.groupId)?.ownerEmail === user.email ? pendingMemberRequests.filter((request) => request.groupId === membership.groupId && request.status === "pending").length : 0 })),
     events: rows.map((event) => {
       const membership = event.groupId ? memberships.find((item) => item.groupId === event.groupId) : null;
       const groupName = event.groupId ? groupTableRows.find((group) => group.id === event.groupId)?.name ?? event.groupId : null;
