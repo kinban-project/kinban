@@ -18,7 +18,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const db = getDb();
   const members = await db.select().from(groupMembers).where(eq(groupMembers.groupId, id));
   const requests = membership.role === "owner" ? await db.select().from(groupJoinRequests).where(eq(groupJoinRequests.groupId, id)) : [];
-  return Response.json({ currentEmail: user.email, group, membership, members, requests });
+  const safeMembers = membership.role === "owner" || membership.role === "editor" ? members : members.map(({ adminNote: _adminNote, ...member }) => member);
+  return Response.json({ currentEmail: user.email, group, membership, members: safeMembers, requests });
 }
 
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {

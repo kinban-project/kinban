@@ -12,14 +12,18 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const { id } = await context.params;
   const group = await getGroup(id);
   if (!group) return Response.json({ error: "グループが見つかりません" }, { status: 404 });
-  const body = await request.json() as { userEmail?: string; role?: "owner" | "editor" | "member"; showInPersonal?: boolean; displayName?: string };
+  const body = await request.json() as { userEmail?: string; role?: "owner" | "editor" | "member"; showInPersonal?: boolean; displayName?: string; adminNote?: string };
   if (!body.userEmail) return Response.json({ error: "userEmailが必要です" }, { status: 400 });
-  if (group.ownerEmail !== user.email && body.userEmail !== user.email) return Response.json({ error: "他のメンバーの設定変更にはowner権限が必要です" }, { status: 403 });
+  const self = await getMembership(id, user.email);
+  if (!self) return Response.json({ error: "グループのメンバーではありません" }, { status: 403 });
+  const isAdmin = self.role === "owner" || self.role === "editor";
+  if (!isAdmin && body.userEmail !== user.email) return Response.json({ error: "他のメンバーの設定変更には管理者権限が必要です" }, { status: 403 });
   if (body.role === "owner" && body.userEmail !== user.email) return Response.json({ error: "ownerの引き継ぎは別操作で行います" }, { status: 400 });
   const target = await getMembership(id, body.userEmail);
   if (!target) return Response.json({ error: "メンバーが見つかりません" }, { status: 404 });
   const displayName = typeof body.displayName === "string" ? body.displayName.trim().slice(0, 40) : undefined;
-  await getDb().update(groupMembers).set({ ...(body.role ? { role: body.role } : {}), ...(typeof body.showInPersonal === "boolean" ? { showInPersonal: body.showInPersonal } : {}), ...(displayName !== undefined ? { displayName } : {}) }).where(and(eq(groupMembers.groupId, id), eq(groupMembers.userEmail, body.userEmail)));
+  const adminNote = typeof body.adminNote === "string" ? body.adminNote.trim().slice(0, 500) : undefined;
+  await getDb().update(groupMembers).set({ ...(body.role ? { role: body.role } : {}), ...(typeof body.showInPersonal === "boolean" ? { showInPersonal: body.showInPersonal } : {}), ...(displayName !== undefined ? { displayName } : {}), ...(isAdmin && adminNote !== undefined ? { adminNote } : {}) }).where(and(eq(groupMembers.groupId, id), eq(groupMembers.userEmail, body.userEmail)));
   return Response.json({ ok: true });
 }
 
