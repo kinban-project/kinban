@@ -18,8 +18,9 @@ export async function GET() {
   const ids = [...new Set([...memberships.map((item) => item.groupId), ...owned.map((item) => item.id)])];
   const rows = ids.length ? await db.select().from(groups).where(inArray(groups.id, ids)) : [];
   const requests = await db.select().from(groupJoinRequests).where(and(eq(groupJoinRequests.userEmail, user.email), eq(groupJoinRequests.status, "pending")));
+  const pendingMemberRequests = ids.length ? await db.select().from(groupJoinRequests).where(and(inArray(groupJoinRequests.groupId, ids), eq(groupJoinRequests.status, "pending"))) : [];
   const periods = ids.length ? await db.select().from(shiftRequestPeriods).where(inArray(shiftRequestPeriods.groupId, ids)) : [];
-  return Response.json({ groups: rows.map((group) => { const nextRequestCloseDate = periods.filter((period) => period.groupId === group.id && period.status === "open" && period.closesOn).map((period) => period.closesOn).sort()[0] ?? null; return { ...group, membership: memberships.find((item) => item.groupId === group.id) ?? { role: "owner", showInPersonal: true }, pendingJoin: requests.some((item) => item.groupId === group.id), nextRequestCloseDate }; }) });
+  return Response.json({ groups: rows.map((group) => { const membership = memberships.find((item) => item.groupId === group.id); const nextRequestCloseDate = periods.filter((period) => period.groupId === group.id && period.status === "open" && period.closesOn).map((period) => period.closesOn).sort()[0] ?? null; return { ...group, membership: membership ?? { role: "owner", showInPersonal: true }, pendingJoin: requests.some((item) => item.groupId === group.id), pendingMemberRequests: group.ownerEmail === user.email ? pendingMemberRequests.filter((item) => item.groupId === group.id).length : 0, nextRequestCloseDate }; }) });
 }
 
 export async function POST(request: Request) {

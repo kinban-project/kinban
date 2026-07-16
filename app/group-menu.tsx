@@ -6,6 +6,7 @@ type Group = {
   name?: string;
   role: string;
   unreadAnnouncements?: number;
+  pendingMemberRequests?: number;
   nextRequestCloseDate?: string | null;
 };
 type Props = {
@@ -62,6 +63,7 @@ export default function GroupMenu({
       {groups.map((group) => {
         const manager = group.role === "owner" || group.role === "editor";
         const unread = group.unreadAnnouncements ?? 0;
+        const pendingMembers = group.pendingMemberRequests ?? 0;
         return (
           <div className="group-menu-row" key={group.groupId}>
             <strong className="group-menu-name">
@@ -115,11 +117,12 @@ export default function GroupMenu({
                       シフト割当
                     </button>
                     <button
-                      className="group-menu-button admin"
+                      className={`group-menu-button admin${pendingMembers > 0 ? " has-unread" : ""}`}
                       type="button"
                       onClick={() => onMembers(group.groupId)}
                     >
                       メンバー管理
+                      {pendingMembers > 0 && <span className="unread-badge">{pendingMembers}</span>}
                     </button>
                     <button
                       className="group-menu-button admin"
@@ -162,6 +165,7 @@ export default function GroupMenu({
                         </button>
                         <button onClick={() => onMembers(group.groupId)}>
                           メンバー管理
+                          {pendingMembers > 0 && <span className="unread-badge">{pendingMembers}</span>}
                         </button>
                         <button onClick={() => onAnnouncements(group.groupId)}>
                           お知らせ管理
