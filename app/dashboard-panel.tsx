@@ -10,6 +10,8 @@ type Plan = {
   startDate: string;
   endDate: string;
   requestStatus?: "pending" | "open" | "closed" | null;
+  requestSavedCount?: number;
+  requestMemberCount?: number;
 };
 export default function DashboardPanel({ groupId }: Props) {
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -82,6 +84,12 @@ export default function DashboardPanel({ groupId }: Props) {
                 <span>
                   {plan.startDate}〜{plan.endDate}
                 </span>
+                {getShiftDisplayStatus(plan) === "request-open" && (
+                  <small>
+                    希望保存 {plan.requestSavedCount ?? 0}/
+                    {plan.requestMemberCount ?? members}
+                  </small>
+                )}
                 <em className={getShiftDisplayStatus(plan)}>
                   {getShiftDisplayLabel(getShiftDisplayStatus(plan))}
                 </em>
