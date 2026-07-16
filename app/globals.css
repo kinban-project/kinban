@@ -85,6 +85,7 @@ button { cursor: pointer; }
 .shift-condition-form > label:first-child, .shift-condition-form > label:nth-child(2), .shift-condition-form > label:last-of-type, .shift-condition-form > button { grid-column: span 2; }
 .shift-condition-form label { color: #5f6962; font-size: 11px; font-weight: 700; }
 .field-help { display: block; margin-top: 5px; color: var(--muted); font-size: 10px; font-weight: 400; }
+.slot-input-mode { display: flex; align-items: center; gap: 12px; grid-column: 1 / -1; margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fbfcfa; }.slot-input-mode legend { padding: 0 5px; color: #5f6962; font-size: 11px; font-weight: 700; }.slot-input-mode label { display: inline-flex; align-items: center; gap: 5px; color: var(--ink); font-size: 11px; font-weight: 600; }.slot-input-mode input { width: auto; margin: 0; accent-color: var(--teal); }.custom-slots-input textarea { min-height: 220px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; line-height: 1.5; }
 .shift-condition-form input, .shift-condition-form select { display: block; width: 100%; margin-top: 6px; border: 1px solid var(--line); border-radius: 9px; background: #fbfcfa; padding: 10px; color: var(--ink); }
 .existing-plans { border-top: 1px solid var(--line); margin-top: 24px; padding-top: 16px; }
 .existing-plans h3 { font-size: 13px; margin: 0 0 8px; }

@@ -10,6 +10,7 @@ type Member = { userEmail: string; displayName?: string | null; role: string };
 type RequestPeriod = { id: string; groupId: string; planId: string; name: string; opensOn: string; closesOn: string; status: "pending" | "open" | "closed" };
 type Detail = { plan: Plan; slots: Slot[]; assignments: Array<{ slotId: string; userEmail: string }>; members: Member[]; closedDates?: string[]; requestPeriod?: RequestPeriod | null };
 type SlotRule = { role: string; requiredCount: string };
+type InputMode = "standard" | "custom";
 
 function defaultRequestCloseDate(startDate: string) {
   const minimum = new Date();
@@ -24,6 +25,13 @@ function defaultRequestCloseDate(startDate: string) {
 }
 
 const initial = { groupId: "", name: "7月後半シフト", startDate: "2026-07-16", endDate: "2026-07-31", requestCloseDate: defaultRequestCloseDate("2026-07-16"), openingTime: "09:00", closingTime: "18:00", slotMinutes: "60" };
+const customSlotExample = `{
+  "slots": [
+    { "date": "2026-07-16", "startTime": "10:00", "endTime": "14:00", "role": "ホール", "requiredCount": 2 },
+    { "date": "2026-07-16", "startTime": "10:00", "endTime": "14:00", "role": "厨房", "requiredCount": 2 },
+    { "date": "2026-07-16", "startTime": "14:00", "endTime": "18:00", "role": "ホール", "requiredCount": 1 }
+  ]
+}`;
 
 function dateKeys(start: string, end: string) {
   const dates: string[] = [];
@@ -46,6 +54,8 @@ export default function ShiftBuilder({ initialGroupId }: { initialGroupId?: stri
   const [form, setForm] = useState({ ...initial, groupId: initialGroupId ?? "" });
   const [notes, setNotes] = useState("");
   const [slotRules, setSlotRules] = useState<SlotRule[]>([{ role: "", requiredCount: "2" }]);
+  const [inputMode, setInputMode] = useState<InputMode>("standard");
+  const [customSlots, setCustomSlots] = useState(customSlotExample);
   const [closedDates, setClosedDates] = useState<string[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -96,7 +106,7 @@ export default function ShiftBuilder({ initialGroupId }: { initialGroupId?: stri
     event.preventDefault();
     setBusy(true);
     setNotice(null);
-    const response = await localApiFetch("/api/shifts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, notes, slotMinutes: Number(form.slotMinutes), slotRules: slotRules.map((rule) => ({ role: rule.role, requiredCount: Number(rule.requiredCount) })) }) });
+    const response = await localApiFetch("/api/shifts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, notes, slotMinutes: Number(form.slotMinutes), slotRules: inputMode === "standard" ? slotRules.map((rule) => ({ role: rule.role, requiredCount: Number(rule.requiredCount) })) : undefined, customSlots: inputMode === "custom" ? customSlots : undefined }) });
     const raw = await response.text();
     let data: { error?: string; plan?: Plan; slotCount?: number } = {};
     try { data = JSON.parse(raw) as { error?: string; plan?: Plan; slotCount?: number }; } catch { setNotice(`シフト計画の作成に失敗しました（HTTP ${response.status}）`); setBusy(false); return; }
@@ -122,10 +132,11 @@ export default function ShiftBuilder({ initialGroupId }: { initialGroupId?: stri
         <label>計画名<input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
         <div className="form-row"><label>開始日<input type="date" required value={form.startDate} onChange={(event) => setForm({ ...form, startDate: event.target.value, requestCloseDate: defaultRequestCloseDate(event.target.value) })} /></label><label>終了日<input type="date" required value={form.endDate} onChange={(event) => setForm({ ...form, endDate: event.target.value })} /></label></div>
         <label>シフト希望受付期限<input type="date" required value={form.requestCloseDate} onChange={(event) => setForm({ ...form, requestCloseDate: event.target.value })} /><small className="field-help">開始日の15日前を初期値にし、現在日時から2日以内にならないようにしています。必要に応じて変更できます。</small></label>
-        <div className="form-row"><label>開店／開始<input type="time" value={form.openingTime} onChange={(event) => setForm({ ...form, openingTime: event.target.value })} /></label><label>閉店／終了<input type="time" value={form.closingTime} onChange={(event) => setForm({ ...form, closingTime: event.target.value })} /></label></div>
-        <label>区切り時間<select value={form.slotMinutes} onChange={(event) => setForm({ ...form, slotMinutes: event.target.value })}><option value="15">15分</option><option value="30">30分</option><option value="60">1時間</option><option value="120">2時間</option></select></label>
+        <fieldset className="slot-input-mode"><legend>勤務枠の作り方</legend><label><input type="radio" checked={inputMode === "standard"} onChange={() => setInputMode("standard")} />通常設定</label><label><input type="radio" checked={inputMode === "custom"} onChange={() => setInputMode("custom")} />カスタム入力</label></fieldset>
+        {inputMode === "standard" && <div className="form-row"><label>開店／開始<input type="time" value={form.openingTime} onChange={(event) => setForm({ ...form, openingTime: event.target.value })} /></label><label>閉店／終了<input type="time" value={form.closingTime} onChange={(event) => setForm({ ...form, closingTime: event.target.value })} /></label></div>}
+        {inputMode === "standard" ? <><label>区切り時間<select value={form.slotMinutes} onChange={(event) => setForm({ ...form, slotMinutes: event.target.value })}><option value="30">30分</option><option value="60">1時間</option><option value="120">2時間</option></select></label>
+        <div className="slot-rules"><div className="slot-rules-head"><strong>担当・ポジションごとの必要人数</strong><small>例：厨房 3名、ホール 2名</small></div>{slotRules.map((rule, index) => <div className="slot-rule-row" key={index}><input value={rule.role} onChange={(event) => updateSlotRule(index, { role: event.target.value })} placeholder="担当・ポジション（例：厨房）" /><input type="number" min="1" max="50" value={rule.requiredCount} onChange={(event) => updateSlotRule(index, { requiredCount: event.target.value })} aria-label="必要人数" /><span>名</span>{slotRules.length > 1 && <button type="button" className="small-action danger" onClick={() => setSlotRules((current) => current.filter((_, ruleIndex) => ruleIndex !== index))}>削除</button>}</div>)}<button type="button" className="small-action" onClick={() => setSlotRules((current) => [...current, { role: "", requiredCount: "1" }])}>＋担当を追加</button></div></> : <label className="plan-notes custom-slots-input">カスタム勤務枠（JSON）<textarea rows={12} value={customSlots} onChange={(event) => setCustomSlots(event.target.value)} spellCheck={false} /><small className="field-help">slots配列に日付・開始時刻・終了時刻・担当・必要人数を指定します。時刻は30分単位です。</small></label>}
         <label className="plan-notes">勤務枠の方針・メモ<textarea rows={3} maxLength={2000} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="例：金土は混雑するため厚めに配置。祝日前は土曜扱い。" /></label>
-        <div className="slot-rules"><div className="slot-rules-head"><strong>担当・ポジションごとの必要人数</strong><small>例：厨房 3名、ホール 2名</small></div>{slotRules.map((rule, index) => <div className="slot-rule-row" key={index}><input value={rule.role} onChange={(event) => updateSlotRule(index, { role: event.target.value })} placeholder="担当・ポジション（例：厨房）" /><input type="number" min="1" max="50" value={rule.requiredCount} onChange={(event) => updateSlotRule(index, { requiredCount: event.target.value })} aria-label="必要人数" /><span>名</span>{slotRules.length > 1 && <button type="button" className="small-action danger" onClick={() => setSlotRules((current) => current.filter((_, ruleIndex) => ruleIndex !== index))}>削除</button>}</div>)}<button type="button" className="small-action" onClick={() => setSlotRules((current) => [...current, { role: "", requiredCount: "1" }])}>＋担当を追加</button></div>
         <button className="primary-button" disabled={busy || editableGroups.length === 0}>{busy ? "作成中…" : "勤務枠を作成"}</button>
       </form>
       <div className="existing-plans"><h3>既存のシフト計画</h3>{plans.length ? plans.map((plan) => <div key={plan.id} className="plan-row" role="button" tabIndex={0} onClick={() => void openPlan(plan.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") void openPlan(plan.id); }}><span><strong>{plan.name}</strong><small>{plan.startDate}〜{plan.endDate} ・ {plan.openingTime}〜{plan.closingTime}</small></span><span className="plan-open"><em className={plan.status}>{plan.status === "published" ? "公開済み" : "下書き"}</em>{plan.status === "draft" ? <button type="button" className="plan-delete" onClick={(event) => { event.stopPropagation(); void deletePlan(plan); }}>削除</button> : <b>割り当てを編集 →</b>}</span></div>) : <p>まだシフト計画はありません。</p>}</div>
