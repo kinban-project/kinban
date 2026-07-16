@@ -18,6 +18,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (!self) return Response.json({ error: "グループのメンバーではありません" }, { status: 403 });
   const isAdmin = self.role === "owner" || self.role === "editor";
   if (!isAdmin && body.userEmail !== user.email) return Response.json({ error: "他のメンバーの設定変更には管理者権限が必要です" }, { status: 403 });
+  if (body.role && self.role !== "owner") return Response.json({ error: "権限の変更はオーナーだけが実行できます" }, { status: 403 });
+  if (body.role && !["editor", "member"].includes(body.role)) return Response.json({ error: "指定できる権限が不正です" }, { status: 400 });
   if (body.role === "owner" && body.userEmail !== user.email) return Response.json({ error: "ownerの引き継ぎは別操作で行います" }, { status: 400 });
   const target = await getMembership(id, body.userEmail);
   if (!target) return Response.json({ error: "メンバーが見つかりません" }, { status: 404 });
