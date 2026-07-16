@@ -90,7 +90,15 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const validUsers = new Set(members.map((member) => member.userEmail));
   const requested = body.assignments ?? {};
   const allRows = slots.flatMap((slot) => [...new Set((requested[slot.id] ?? []).filter((email) => validUsers.has(email)))].map((userEmail) => ({ id: crypto.randomUUID(), slotId: slot.id, userEmail })));
-  const warnings = slots.flatMap((slot) => { const count = requested[slot.id]?.length ?? 0; return count < slot.requiredCount ? [`${slot.date} ${slot.startTime}：必要人数${slot.requiredCount}人に対して${count}人です`] : count > slot.requiredCount ? [`${slot.date} ${slot.startTime}：必要人数を${count - slot.requiredCount}人超えています`] : []; });
+  const warnings = slots.flatMap((slot) => { const count = new Set(requested[slot.id] ?? []).size; return count < slot.requiredCount ? [`${slot.date} ${slot.startTime}：必要人数${slot.requiredCount}人に対して${count}人です`] : count > slot.requiredCount ? [`${slot.date} ${slot.startTime}：必要人数を${count - slot.requiredCount}人超えています`] : []; });
+  const assignedSlots = slots.flatMap((slot) => [...new Set(requested[slot.id] ?? [])].map((userEmail) => ({ slot, userEmail })));
+  for (let index = 0; index < assignedSlots.length; index += 1) {
+    for (let nextIndex = index + 1; nextIndex < assignedSlots.length; nextIndex += 1) {
+      const left = assignedSlots[index];
+      const right = assignedSlots[nextIndex];
+      if (left.userEmail === right.userEmail && left.slot.date === right.slot.date && left.slot.startTime < right.slot.endTime && right.slot.startTime < left.slot.endTime) warnings.push(`${left.slot.date} ${left.userEmail}：${left.slot.role || "共通"}と${right.slot.role || "共通"}の時間帯が重複しています`);
+    }
+  }
   const status = body.status ?? plan.status;
   const statements = chunk(slots.map((slot) => slot.id), 50).map((slotIds) => db.delete(shiftAssignments).where(inArray(shiftAssignments.slotId, slotIds)));
   for (const rows of chunk(allRows, 8)) statements.push(db.insert(shiftAssignments).values(rows));
