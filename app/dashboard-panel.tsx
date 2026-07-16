@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { localApiFetch } from "./local-api";
+import { getShiftDisplayLabel, getShiftDisplayStatus } from "./shift-status";
 type Props = { groupId: string };
 type Plan = {
   id: string;
@@ -8,6 +9,7 @@ type Plan = {
   status: string;
   startDate: string;
   endDate: string;
+  requestStatus?: "pending" | "open" | "closed" | null;
 };
 export default function DashboardPanel({ groupId }: Props) {
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -59,16 +61,20 @@ export default function DashboardPanel({ groupId }: Props) {
             </div>
             <div>
               <strong>
-                {plans.filter((plan) => plan.status === "draft").length}
+                {
+                  plans.filter(
+                    (plan) => getShiftDisplayStatus(plan) === "request-open",
+                  ).length
+                }
               </strong>
-              <span>下書き</span>
+              <span>希望受付中</span>
             </div>
             <div>
               <strong>{announcements}</strong>
               <span>お知らせ</span>
             </div>
           </div>
-          <h3>最近の勤務枠</h3>
+          <h3>最近のシフト</h3>
           <div className="dashboard-plans">
             {plans.slice(0, 5).map((plan) => (
               <div key={plan.id}>
@@ -76,7 +82,9 @@ export default function DashboardPanel({ groupId }: Props) {
                 <span>
                   {plan.startDate}〜{plan.endDate}
                 </span>
-                <em>{plan.status === "published" ? "公開済み" : "下書き"}</em>
+                <em className={getShiftDisplayStatus(plan)}>
+                  {getShiftDisplayLabel(getShiftDisplayStatus(plan))}
+                </em>
               </div>
             ))}
           </div>

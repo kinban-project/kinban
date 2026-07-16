@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { localApiFetch } from "./local-api";
+import { getShiftDisplayLabel, getShiftDisplayStatus } from "./shift-status";
 
 type Group = { id: string; name: string; membership: { role: string } };
 type Plan = {
@@ -11,6 +12,7 @@ type Plan = {
   startDate: string;
   endDate: string;
   status: "draft" | "published";
+  requestStatus?: "pending" | "open" | "closed" | null;
 };
 type Slot = {
   id: string;
@@ -353,7 +355,7 @@ export default function ShiftAdjustment({
           {plans.map((plan) => (
             <option key={plan.id} value={plan.id}>
               {plan.name} ／ {plan.startDate}〜{plan.endDate} ／{" "}
-              {plan.status === "published" ? "公開済み" : "下書き"}
+              {getShiftDisplayLabel(getShiftDisplayStatus(plan))}
             </option>
           ))}
         </select>
@@ -500,10 +502,10 @@ export default function ShiftAdjustment({
                   {row.member.displayName || row.member.userEmail.split("@")[0]}
                 </strong>
                 <span>{row.days}日</span>
-          <span>{row.totalHours.toFixed(1)}時間</span>
-          <span className={row.updatedAt ? "" : "not-registered"}>
-            希望更新：{formatSubmissionTime(row.updatedAt)}
-          </span>
+                <span>{row.totalHours.toFixed(1)}時間</span>
+                <span className={row.updatedAt ? "" : "not-registered"}>
+                  希望更新：{formatSubmissionTime(row.updatedAt)}
+                </span>
                 {row.warnings && <em>基本設定の範囲外</em>}
               </div>
             ))}

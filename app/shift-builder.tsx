@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { localApiFetch } from "./local-api";
+import { getShiftDisplayLabel, getShiftDisplayStatus } from "./shift-status";
 
 type Group = { id: string; name: string; membership: { role: string } };
 type Plan = {
@@ -16,6 +17,7 @@ type Plan = {
   slotMinutes: number;
   defaultRequiredCount: number;
   status: "draft" | "published";
+  requestStatus?: "pending" | "open" | "closed" | null;
 };
 type Slot = {
   id: string;
@@ -35,6 +37,13 @@ type RequestPeriod = {
   closesOn: string;
   status: "pending" | "open" | "closed";
 };
+
+function displayStatus(plan: Plan, requestPeriod?: RequestPeriod | null) {
+  return getShiftDisplayStatus({
+    ...plan,
+    requestStatus: requestPeriod?.status ?? plan.requestStatus,
+  });
+}
 type Detail = {
   plan: Plan;
   slots: Slot[];
@@ -591,8 +600,8 @@ export default function ShiftBuilder({
                     </small>
                   </span>
                   <span className="plan-open">
-                    <em className={plan.status}>
-                      {plan.status === "published" ? "公開済み" : "下書き"}
+                    <em className={displayStatus(plan)}>
+                      {getShiftDisplayLabel(displayStatus(plan))}
                     </em>
                     {plan.status === "draft" ? (
                       <button
@@ -626,8 +635,10 @@ export default function ShiftBuilder({
                 {detail.plan.openingTime}〜{detail.plan.closingTime}
               </span>
             </div>
-            <span className={detail.plan.status}>
-              {detail.plan.status === "published" ? "公開済み" : "下書き"}
+            <span className={displayStatus(detail.plan, detail.requestPeriod)}>
+              {getShiftDisplayLabel(
+                displayStatus(detail.plan, detail.requestPeriod),
+              )}
             </span>
           </div>
           <div className="shift-actions shift-actions-top">

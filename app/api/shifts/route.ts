@@ -41,8 +41,11 @@ export async function GET(request: Request) {
   const groupId = new URL(request.url).searchParams.get("groupId");
   if (!groupId) return Response.json({ error: "groupIdが必要です" }, { status: 400 });
   if (!await getMembership(groupId, user.email)) return Response.json({ error: "グループのメンバーではありません" }, { status: 403 });
-  const plans = await getDb().select().from(shiftPlans).where(eq(shiftPlans.groupId, groupId)).orderBy(desc(shiftPlans.startDate));
-  return Response.json({ plans });
+  const db = getDb();
+  const plans = await db.select().from(shiftPlans).where(eq(shiftPlans.groupId, groupId)).orderBy(desc(shiftPlans.startDate));
+  const periods = await db.select().from(shiftRequestPeriods).where(eq(shiftRequestPeriods.groupId, groupId));
+  const requestStatusByPlan = new Map(periods.map((period) => [period.planId, period.status]));
+  return Response.json({ plans: plans.map((plan) => ({ ...plan, requestStatus: requestStatusByPlan.get(plan.id) ?? null })) });
 }
 
 export async function POST(request: Request) {
