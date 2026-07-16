@@ -11,6 +11,7 @@ type Group = {
 type Props = {
   groups: Group[];
   onApplications: () => void;
+  onCreateGroup: () => void;
   onBasic: (id: string) => void;
   onRequests: (id: string) => void;
   onRoster: (id: string) => void;
@@ -29,6 +30,7 @@ function requestLabel(date?: string | null) {
 export default function GroupMenu({
   groups,
   onApplications,
+  onCreateGroup,
   onBasic,
   onRequests,
   onRoster,
@@ -48,6 +50,13 @@ export default function GroupMenu({
           onClick={onApplications}
         >
           グループ申請
+        </button>
+        <button
+          className="group-menu-application"
+          type="button"
+          onClick={onCreateGroup}
+        >
+          グループ作成
         </button>
       </div>
       {groups.map((group) => {

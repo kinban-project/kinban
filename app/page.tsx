@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import GroupsPanel from "./groups-panel";
+import GroupEntryPanel from "./group-entry-panel";
 import ShiftBuilder from "./shift-builder";
 import ShiftRoster from "./shift-roster";
 import ProfilePanel from "./profile-panel";
@@ -170,6 +171,8 @@ export default function Home() {
   const [detailEvent, setDetailEvent] = useState<EventItem | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [groupsOpen, setGroupsOpen] = useState(false);
+  const [groupJoinOpen, setGroupJoinOpen] = useState(false);
+  const [groupCreateOpen, setGroupCreateOpen] = useState(false);
   const [shiftOpen, setShiftOpen] = useState(false);
   const [shiftAdjustmentOpen, setShiftAdjustmentOpen] = useState(false);
   const [shiftRosterOpen, setShiftRosterOpen] = useState(false);
@@ -423,7 +426,11 @@ export default function Home() {
         groups={groups}
         onApplications={() => {
           setMenuGroupId(undefined);
-          setGroupsOpen(true);
+          setGroupJoinOpen(true);
+        }}
+        onCreateGroup={() => {
+          setMenuGroupId(undefined);
+          setGroupCreateOpen(true);
         }}
         onBasic={(groupId) => openGroupTarget(groupId, "basic")}
         onRequests={(groupId) => openGroupTarget(groupId, "requests")}
@@ -863,6 +870,22 @@ export default function Home() {
                 void loadCalendar();
               }}
             />
+          </div>
+        </div>
+      )}
+      {groupJoinOpen && (
+        <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setGroupJoinOpen(false); }}>
+          <div className="modal small-modal">
+            <div className="modal-head"><div><p className="eyebrow">GROUP</p><h2>グループ申請</h2></div><button className="close-button" onClick={() => setGroupJoinOpen(false)}>×</button></div>
+            <GroupEntryPanel mode="join" />
+          </div>
+        </div>
+      )}
+      {groupCreateOpen && (
+        <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setGroupCreateOpen(false); }}>
+          <div className="modal small-modal">
+            <div className="modal-head"><div><p className="eyebrow">GROUP</p><h2>グループ作成</h2></div><button className="close-button" onClick={() => setGroupCreateOpen(false)}>×</button></div>
+            <GroupEntryPanel mode="create" />
           </div>
         </div>
       )}
