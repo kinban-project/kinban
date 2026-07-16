@@ -3,6 +3,7 @@ import { getChatGPTUser } from "../../../../chatgpt-auth";
 import { getDb } from "../../../../../db";
 import { groupJoinRequests, groupMembers } from "../../../../../db/schema";
 import { getGroup } from "../../group-access";
+import { recordAudit } from "../../../../audit-log";
 
 export const dynamic = "force-dynamic";
 
@@ -18,5 +19,6 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
   if (existing) return Response.json({ request: existing });
   const requestId = crypto.randomUUID();
   await db.insert(groupJoinRequests).values({ id: requestId, groupId: id, userEmail: user.email, status: "pending" });
+  await recordAudit({ groupId: id, userEmail: user.email, action: "group.join", entityType: "joinRequest", entityId: requestId, summary: "グループへの参加を申請しました" });
   return Response.json({ request: { id: requestId, groupId: id, userEmail: user.email, status: "pending" } }, { status: 201 });
 }

@@ -4,6 +4,7 @@ import { getDb } from "../../../../db";
 import { attachments, events, groupJoinRequests, groupMembers, groupPreferences, groups, shiftAvailability } from "../../../../db/schema";
 import { env } from "cloudflare:workers";
 import { getGroup, getMembership } from "../group-access";
+import { recordAudit } from "../../../audit-log";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,7 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
   const groupEvents = await db.select().from(events).where(eq(events.groupId, id));
   const groupFiles = groupEvents.length ? await db.select().from(attachments).where(eq(attachments.ownerEmail, group.ownerEmail)) : [];
   if (env.FILES) await Promise.all(groupFiles.filter((file) => groupEvents.some((event) => event.id === file.eventId)).map((file) => env.FILES.delete(file.objectKey)));
+  await recordAudit({ groupId: id, userEmail: user.email, action: "group.delete", entityType: "group", entityId: id, summary: `グループを削除: ${group.name}` });
   await db.batch([
     ...(groupEvents.length ? [db.delete(attachments).where(inArray(attachments.eventId, groupEvents.map((event) => event.id)))] : []),
     db.delete(events).where(eq(events.groupId, id)),

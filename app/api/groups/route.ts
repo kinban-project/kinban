@@ -2,6 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { getDb } from "../../../db";
 import { groupJoinRequests, groupMembers, groups, shiftRequestPeriods } from "../../../db/schema";
+import { recordAudit } from "../../audit-log";
 
 export const dynamic = "force-dynamic";
 
@@ -35,5 +36,6 @@ export async function POST(request: Request) {
     db.insert(groups).values({ id, name, description: body.description?.trim() ?? "", ownerEmail: user.email }),
     db.insert(groupMembers).values({ id: crypto.randomUUID(), groupId: id, userEmail: user.email, role: "owner", showInPersonal: true }),
   ]);
+  await recordAudit({ groupId: id, userEmail: user.email, action: "group.create", entityType: "group", entityId: id, summary: `グループを作成: ${name}` });
   return Response.json({ group: { id, name, description: body.description?.trim() ?? "", ownerEmail: user.email, membership: { role: "owner", showInPersonal: true } } }, { status: 201 });
 }

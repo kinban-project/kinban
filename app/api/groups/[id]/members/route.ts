@@ -3,6 +3,7 @@ import { getChatGPTUser } from "../../../../chatgpt-auth";
 import { getDb } from "../../../../../db";
 import { groupMembers, groups } from "../../../../../db/schema";
 import { getGroup, getMembership } from "../../group-access";
+import { recordAudit } from "../../../../audit-log";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (displayName !== undefined && body.userEmail !== user.email) return Response.json({ error: "グループ内ニックネームは本人が基本設定から変更してください" }, { status: 403 });
   const adminNote = typeof body.adminNote === "string" ? body.adminNote.trim().slice(0, 500) : undefined;
   await getDb().update(groupMembers).set({ ...(body.role ? { role: body.role } : {}), ...(typeof body.showInPersonal === "boolean" ? { showInPersonal: body.showInPersonal } : {}), ...(displayName !== undefined ? { displayName } : {}), ...(isAdmin && adminNote !== undefined ? { adminNote } : {}) }).where(and(eq(groupMembers.groupId, id), eq(groupMembers.userEmail, body.userEmail)));
+  await recordAudit({ groupId: id, userEmail: user.email, action: "group.member", entityType: "groupMember", entityId: body.userEmail, summary: `${body.userEmail}のメンバー情報を変更しました`, details: { role: body.role, displayName: displayName !== undefined, adminNote: adminNote !== undefined } });
   return Response.json({ ok: true });
 }
 
@@ -50,8 +52,10 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
       db.update(groupMembers).set({ role: "owner" }).where(and(eq(groupMembers.groupId, id), eq(groupMembers.userEmail, nextOwner.userEmail))),
       db.delete(groupMembers).where(and(eq(groupMembers.groupId, id), eq(groupMembers.userEmail, targetEmail))),
     ]);
+    await recordAudit({ groupId: id, userEmail: user.email, action: "group.member", entityType: "groupMember", entityId: targetEmail, summary: `${targetEmail}が退会し、代表管理者を引き継ぎました`, details: { transferredTo: nextOwner.userEmail } });
     return Response.json({ ok: true, transferredTo: nextOwner.userEmail });
   }
   await db.delete(groupMembers).where(and(eq(groupMembers.groupId, id), eq(groupMembers.userEmail, targetEmail)));
+  await recordAudit({ groupId: id, userEmail: user.email, action: "group.member", entityType: "groupMember", entityId: targetEmail, summary: `${targetEmail}がグループから退会しました` });
   return Response.json({ ok: true });
 }

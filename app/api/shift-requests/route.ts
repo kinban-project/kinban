@@ -3,6 +3,7 @@ import { getChatGPTUser } from "../../chatgpt-auth";
 import { getDb } from "../../../db";
 import { groupMembers, groupPreferences, groups, shiftAvailability, shiftPlans, shiftRequestPeriods, shiftRequestSubmissions, shiftRequests, shiftSlots } from "../../../db/schema";
 import { getMembership } from "../groups/group-access";
+import { recordAudit } from "../../audit-log";
 
 export const dynamic = "force-dynamic";
 const editable = (role: string) => role === "owner" || role === "editor";
@@ -47,6 +48,7 @@ export async function POST(request: Request) {
       db.delete(shiftAvailability).where(and(eq(shiftAvailability.groupId, groupId), eq(shiftAvailability.userEmail, user.email))),
       ...entries.map((entry) => db.insert(shiftAvailability).values({ id: crypto.randomUUID(), groupId, userEmail: user.email, dayOfWeek: entry.dayOfWeek, status: entry.status, startTime: entry.startTime ?? "", endTime: entry.endTime ?? "", note: entry.note?.trim() ?? "" })),
     ]);
+    await recordAudit({ groupId, userEmail: user.email, action: "preference.update", entityType: "shiftAvailability", entityId: groupId, summary: "勤務の基本希望を更新しました", details: { entryCount: entries.length } });
     return Response.json({ ok: true });
   }
 
@@ -74,6 +76,7 @@ export async function POST(request: Request) {
       ? db.update(shiftRequestSubmissions).set({ savedAt }).where(eq(shiftRequestSubmissions.id, submission.id))
       : db.insert(shiftRequestSubmissions).values({ id: crypto.randomUUID(), periodId: period.id, userEmail: user.email, savedAt });
     await db.batch([db.delete(shiftRequests).where(and(eq(shiftRequests.periodId, period.id), eq(shiftRequests.userEmail, user.email))), ...rows.map((row) => db.insert(shiftRequests).values(row)), submissionStatement]);
+    await recordAudit({ groupId, userEmail: user.email, action: "shift.request", entityType: "shiftRequestPeriod", entityId: period.id, summary: `勤務希望を保存: ${period.name}`, details: { count: rows.length, savedAt } });
     return Response.json({ ok: true, count: rows.length, savedAt });
   }
   return Response.json({ error: "不明な操作です" }, { status: 400 });

@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { getDb } from "../../../db";
 import { accountProfiles } from "../../../db/schema";
+import { recordAudit } from "../../audit-log";
 
 export const dynamic = "force-dynamic";
 
@@ -22,5 +23,6 @@ export async function PATCH(request: Request) {
   const [existing] = await db.select().from(accountProfiles).where(eq(accountProfiles.userEmail, user.email)).limit(1);
   if (existing) await db.update(accountProfiles).set({ nickname }).where(eq(accountProfiles.userEmail, user.email));
   else await db.insert(accountProfiles).values({ userEmail: user.email, nickname });
+  await recordAudit({ userEmail: user.email, action: "profile.update", entityType: "accountProfile", entityId: user.email, summary: "アカウントのニックネームを更新しました" });
   return Response.json({ ok: true, nickname });
 }

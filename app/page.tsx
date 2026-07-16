@@ -5,6 +5,7 @@ import GroupsPanel from "./groups-panel";
 import GroupEntryPanel from "./group-entry-panel";
 import ShiftBuilder from "./shift-builder";
 import ShiftRoster from "./shift-roster";
+import AuditLogPanel from "./audit-log-panel";
 import ProfilePanel from "./profile-panel";
 import ShiftRequests from "./shift-requests";
 import ShiftAdjustment from "./shift-adjustment";
@@ -181,6 +182,7 @@ export default function Home() {
   const [groupPreferencesOpen, setGroupPreferencesOpen] = useState(false);
   const [announcementsOpen, setAnnouncementsOpen] = useState(false);
   const [dashboardOpen, setDashboardOpen] = useState(false);
+  const [auditLogsOpen, setAuditLogsOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [groupId, setGroupId] = useState("");
   const [form, setForm] = useState<FormState>(emptyForm(todayKey));
@@ -448,6 +450,10 @@ export default function Home() {
         onDashboard={(groupId) => {
           setMenuGroupId(groupId);
           setDashboardOpen(true);
+        }}
+        onAuditLogs={(groupId) => {
+          setMenuGroupId(groupId);
+          setAuditLogsOpen(true);
         }}
       />
       <section className="intro compact-intro">
@@ -970,6 +976,11 @@ export default function Home() {
           <div className="modal groups-modal">
             <DashboardPanel groupId={menuGroupId} />
           </div>
+        </div>
+      )}
+      {auditLogsOpen && menuGroupId && (
+        <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setAuditLogsOpen(false); }}>
+          <div className="modal groups-modal"><AuditLogPanel groupId={menuGroupId} /></div>
         </div>
       )}
       {groupPreferencesOpen && menuGroupId && (

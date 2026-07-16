@@ -3,6 +3,7 @@ import { getChatGPTUser } from "../../../../chatgpt-auth";
 import { getDb } from "../../../../../db";
 import { groupJoinRequests, groupMembers } from "../../../../../db/schema";
 import { getGroup } from "../../group-access";
+import { recordAudit } from "../../../../audit-log";
 
 export const dynamic = "force-dynamic";
 
@@ -31,5 +32,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const statements = [db.update(groupJoinRequests).set({ status }).where(eq(groupJoinRequests.id, body.requestId))];
   if (status === "approved") statements.push(db.insert(groupMembers).values({ id: crypto.randomUUID(), groupId: id, userEmail: joinRequest.userEmail, role: "member", showInPersonal: true }));
   await db.batch(statements);
+  await recordAudit({ groupId: id, userEmail: user.email, action: "group.request", entityType: "joinRequest", entityId: body.requestId, summary: status === "approved" ? `${joinRequest.userEmail}の参加申請を承認しました` : `${joinRequest.userEmail}の参加申請を拒否しました` });
   return Response.json({ ok: true, status });
 }

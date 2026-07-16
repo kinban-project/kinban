@@ -4,6 +4,7 @@ import { getDb } from "../../../../../db";
 import { groupMembers, groupPreferences, shiftAvailability } from "../../../../../db/schema";
 import { getMembership } from "../../group-access";
 import { isValidShiftTime, shiftTimeToMinutes } from "../../../../shift-time";
+import { recordAudit } from "../../../../audit-log";
 
 export const dynamic = "force-dynamic";
 
@@ -43,5 +44,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     db.delete(shiftAvailability).where(and(eq(shiftAvailability.groupId, id), eq(shiftAvailability.userEmail, user.email))),
     ...entries.map((entry) => db.insert(shiftAvailability).values({ id: crypto.randomUUID(), groupId: id, userEmail: user.email, dayOfWeek: entry.dayOfWeek, status: entry.status, startTime: entry.startTime ?? "", endTime: entry.endTime ?? "", note: entry.note?.trim() ?? "" })),
   ]);
+  await recordAudit({ groupId: id, userEmail: user.email, action: "preference.update", entityType: "groupPreference", entityId: id, summary: "勤務の基本設定を更新しました", details: { availabilityCount: entries.length } });
   return Response.json({ ok: true });
 }

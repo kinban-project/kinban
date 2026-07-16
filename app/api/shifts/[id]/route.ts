@@ -4,6 +4,7 @@ import { getDb } from "../../../../db";
 import { accountProfiles, events, groupMembers, groupPreferences, groups, shiftAssignments, shiftAvailability, shiftPlans, shiftRequests, shiftRequestPeriods, shiftRequestSubmissions, shiftSlots } from "../../../../db/schema";
 import { getMembership } from "../../groups/group-access";
 import { isValidShiftTime, shiftDateTime, shiftTimeToMinutes } from "../../../shift-time";
+import { recordAudit } from "../../../audit-log";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +60,7 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
   statements.push(db.delete(shiftRequestPeriods).where(eq(shiftRequestPeriods.planId, id)));
   statements.push(db.delete(shiftPlans).where(eq(shiftPlans.id, id)));
   await db.batch(statements);
+  await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: "shift.delete", entityType: "shiftPlan", entityId: id, summary: `下書きシフトを削除: ${plan.name}` });
   return Response.json({ ok: true });
 }
 
@@ -80,6 +82,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const statements = [db.delete(shiftAssignments).where(inArray(shiftAssignments.slotId, slots.map((slot) => slot.id))), db.delete(shiftSlots).where(eq(shiftSlots.planId, id)), ...chunk(nextSlots, 8).map((rows) => db.insert(shiftSlots).values(rows)), db.update(shiftPlans).set({ notes: body.layout.notes?.trim().slice(0, 2000) ?? plan.notes }).where(eq(shiftPlans.id, id))];
     if (body.requestCloseDate && requestPeriod?.status === "pending") statements.push(db.update(shiftRequestPeriods).set({ closesOn: body.requestCloseDate }).where(eq(shiftRequestPeriods.id, requestPeriod.id)));
     await db.batch(statements);
+    await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: "shift.update", entityType: "shiftPlan", entityId: id, summary: `シフト枠を保存: ${plan.name}`, details: { slotCount: nextSlots.length, closedDates: body.layout.closedDates ?? [] } });
     if (body.action !== "start-requests") return Response.json({ ok: true, slotCount: nextSlots.length });
   }
   if (body.action === "start-requests") {
@@ -88,6 +91,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     if (!closesOn) return Response.json({ error: "シフト希望受付期限を設定してください" }, { status: 400 });
     const opensOn = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(new Date());
     await db.update(shiftRequestPeriods).set({ opensOn, closesOn, status: "open" }).where(eq(shiftRequestPeriods.id, requestPeriod.id));
+    await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: "shift.request.open", entityType: "shiftRequestPeriod", entityId: requestPeriod.id, summary: `勤務希望受付を開始: ${plan.name}`, details: { closesOn } });
     return Response.json({ ok: true, status: "open", opensOn, closesOn });
   }
   const members = await db.select().from(groupMembers).where(eq(groupMembers.groupId, plan.groupId));
@@ -116,5 +120,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     for (const rows of chunk(publishedEvents, 8)) statements.push(db.insert(events).values(rows));
   }
   await db.batch(statements);
+  await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: status === "published" ? "shift.publish" : "shift.assign", entityType: "shiftPlan", entityId: id, summary: status === "published" ? `シフトを公開: ${plan.name}` : `担当割り当てを保存: ${plan.name}`, details: { assignedCount: allRows.length, warnings: warnings.length } });
   return Response.json({ ok: true, status, warnings });
 }

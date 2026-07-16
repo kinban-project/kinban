@@ -21,6 +21,7 @@ type Props = {
   onMembers: (id: string) => void;
   onAnnouncements: (id: string) => void;
   onDashboard: (id: string) => void;
+  onAuditLogs: (id: string) => void;
 };
 
 function requestLabel(date?: string | null) {
@@ -40,6 +41,7 @@ export default function GroupMenu({
   onMembers,
   onAnnouncements,
   onDashboard,
+  onAuditLogs,
 }: Props) {
   const [openManagement, setOpenManagement] = useState<string | null>(null);
   return (
@@ -138,6 +140,9 @@ export default function GroupMenu({
                     >
                       ダッシュボード
                     </button>
+                    <button className="group-menu-button admin" type="button" onClick={() => onAuditLogs(group.groupId)}>
+                      操作ログ
+                    </button>
                   </div>
                   <div className="admin-compact">
                     <button
@@ -173,6 +178,7 @@ export default function GroupMenu({
                         <button onClick={() => onDashboard(group.groupId)}>
                           ダッシュボード
                         </button>
+                        <button onClick={() => onAuditLogs(group.groupId)}>操作ログ</button>
                       </div>
                     )}
                   </div>

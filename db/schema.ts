@@ -106,6 +106,18 @@ export const announcementReplies = sqliteTable("announcement_replies", {
   id: text("id").primaryKey(), announcementId: text("announcement_id").notNull(), userEmail: text("user_email").notNull(), body: text("body").notNull(), createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const auditLogs = sqliteTable("audit_logs", {
+  id: text("id").primaryKey(),
+  groupId: text("group_id"),
+  userEmail: text("user_email").notNull(),
+  action: text("action").notNull(),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id").notNull().default(""),
+  summary: text("summary").notNull(),
+  details: text("details").notNull().default(""),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const shiftAvailability = sqliteTable("shift_availability", {
   id: text("id").primaryKey(),
   groupId: text("group_id").notNull(),

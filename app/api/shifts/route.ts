@@ -10,6 +10,7 @@ import {
 } from "../../../db/schema";
 import { getMembership } from "../groups/group-access";
 import { isValidShiftTime, minutesToShiftTime, shiftTimeToMinutes } from "../../shift-time";
+import { recordAudit } from "../../audit-log";
 
 export const dynamic = "force-dynamic";
 
@@ -343,6 +344,7 @@ export async function POST(request: Request) {
         createdBy: user.email,
       }),
   ]);
+  await recordAudit({ groupId, userEmail: user.email, action: "shift.create", entityType: "shiftPlan", entityId: id, summary: `シフトを作成: ${name}`, details: { startDate, endDate, slotCount: slots.length } });
   return Response.json(
     {
       plan: {
