@@ -48,27 +48,33 @@ INSERT INTO group_members (id, group_id, user_email, display_name, role, show_in
 INSERT INTO shift_plans (id, group_id, name, start_date, end_date, opening_time, closing_time, slot_minutes, default_required_count, status, created_by)
 VALUES
   ('seed-plan-first-half', 'seed-group-store', 'July first half', '2026-07-01', '2026-07-15', '09:00', '18:00', 60, 2, 'published', 'tanaka@local.test'),
-  ('seed-plan-second-half', 'seed-group-store', 'July second half', '2026-07-16', '2026-07-31', '09:00', '18:00', 60, 2, 'draft', 'tanaka@local.test');
+  ('seed-plan-second-half', 'seed-group-store', 'July second half', '2026-07-16', '2026-07-31', '09:00', '18:00', 60, 1, 'published', 'tanaka@local.test');
 
 WITH RECURSIVE
   dates(date) AS (SELECT '2026-07-01' UNION ALL SELECT date(date, '+1 day') FROM dates WHERE date < '2026-07-15'),
-  times(start_min) AS (SELECT 540 UNION ALL SELECT start_min + 60 FROM times WHERE start_min < 1020)
+  times(start_min) AS (SELECT 540 UNION ALL SELECT start_min + 60 FROM times WHERE start_min < 1020),
+  roles(role) AS (VALUES ('hall'), ('kitchen'))
 INSERT INTO shift_slots (id, plan_id, date, start_time, end_time, required_count, role)
 SELECT lower(hex(randomblob(16))), 'seed-plan-first-half', dates.date,
   printf('%02d:%02d', times.start_min / 60, times.start_min % 60),
-  printf('%02d:%02d', (times.start_min + 60) / 60, (times.start_min + 60) % 60), 2,
-  CASE WHEN times.start_min = 1020 AND dates.date = '2026-07-04' THEN 'checkout' ELSE 'floor' END
-FROM dates CROSS JOIN times;
+  printf('%02d:%02d', (times.start_min + 60) / 60, (times.start_min + 60) % 60),
+  CASE WHEN roles.role = 'kitchen' AND strftime('%w', dates.date) IN ('0', '6') THEN 2 ELSE 1 END,
+  roles.role
+FROM dates CROSS JOIN times CROSS JOIN roles
+WHERE (strftime('%w', dates.date) NOT IN ('0', '6') OR times.start_min >= 720);
 
 WITH RECURSIVE
   dates(date) AS (SELECT '2026-07-16' UNION ALL SELECT date(date, '+1 day') FROM dates WHERE date < '2026-07-31'),
-  times(start_min) AS (SELECT 540 UNION ALL SELECT start_min + 60 FROM times WHERE start_min < 1020)
+  times(start_min) AS (SELECT 540 UNION ALL SELECT start_min + 60 FROM times WHERE start_min < 1020),
+  roles(role) AS (VALUES ('hall'), ('kitchen'))
 INSERT INTO shift_slots (id, plan_id, date, start_time, end_time, required_count, role)
 SELECT lower(hex(randomblob(16))), 'seed-plan-second-half', dates.date,
   printf('%02d:%02d', times.start_min / 60, times.start_min % 60),
-  printf('%02d:%02d', (times.start_min + 60) / 60, (times.start_min + 60) % 60), 2,
-  CASE WHEN times.start_min = 1020 AND dates.date = '2026-07-20' THEN 'checkout' ELSE 'floor' END
-FROM dates CROSS JOIN times;
+  printf('%02d:%02d', (times.start_min + 60) / 60, (times.start_min + 60) % 60),
+  CASE WHEN roles.role = 'kitchen' AND strftime('%w', dates.date) IN ('0', '6') THEN 2 ELSE 1 END,
+  roles.role
+FROM dates CROSS JOIN times CROSS JOIN roles
+WHERE (strftime('%w', dates.date) NOT IN ('0', '6') OR times.start_min >= 720);
 
 INSERT INTO shift_assignments (id, slot_id, user_email)
 SELECT lower(hex(randomblob(16))), id, printf('member%02d@local.test', ((CAST(strftime('%d', date) AS INTEGER) + CAST(substr(start_time, 1, 2) AS INTEGER)) % 10) + 1)
@@ -76,10 +82,16 @@ FROM shift_slots WHERE plan_id = 'seed-plan-first-half';
 INSERT INTO shift_assignments (id, slot_id, user_email)
 SELECT lower(hex(randomblob(16))), id, printf('member%02d@local.test', ((CAST(strftime('%d', date) AS INTEGER) + CAST(substr(start_time, 1, 2) AS INTEGER) + 1) % 10) + 1)
 FROM shift_slots WHERE plan_id = 'seed-plan-first-half';
+INSERT INTO shift_assignments (id, slot_id, user_email)
+SELECT lower(hex(randomblob(16))), id, printf('member%02d@local.test', ((CAST(strftime('%d', date) AS INTEGER) + CAST(substr(start_time, 1, 2) AS INTEGER)) % 10) + 1)
+FROM shift_slots WHERE plan_id = 'seed-plan-second-half';
+INSERT INTO shift_assignments (id, slot_id, user_email)
+SELECT lower(hex(randomblob(16))), id, printf('member%02d@local.test', ((CAST(strftime('%d', date) AS INTEGER) + CAST(substr(start_time, 1, 2) AS INTEGER) + 1) % 10) + 1)
+FROM shift_slots WHERE plan_id = 'seed-plan-second-half' AND required_count > 1;
 
 INSERT INTO events (id, owner_email, group_id, shift_plan_id, title, date, start_time, end_time, category, notes, completed)
-SELECT lower(hex(randomblob(16))), 'tanaka@local.test', 'seed-group-store', 'seed-plan-first-half', role, date, start_time, end_time, 'work', 'See shift roster', 0
-FROM shift_slots WHERE plan_id = 'seed-plan-first-half';
+SELECT lower(hex(randomblob(16))), 'tanaka@local.test', 'seed-group-store', plan_id, role, date, start_time, end_time, 'work', 'See shift roster', 0
+FROM shift_slots WHERE plan_id IN ('seed-plan-first-half', 'seed-plan-second-half');
 
 WITH users(user_email) AS (VALUES ('tanaka@local.test'), ('member01@local.test'), ('member02@local.test'), ('member03@local.test'), ('member04@local.test'), ('member05@local.test'), ('member06@local.test'), ('member07@local.test'), ('member08@local.test'), ('member09@local.test'), ('member10@local.test')),
 days(day_of_week) AS (VALUES (0), (1), (2), (3), (4), (5), (6))
