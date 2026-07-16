@@ -454,7 +454,7 @@ export default function ShiftAdjustment({
                       </td>
                       <td>{slot.role || "共通"}</td>
                       <td><span className={assignedCount < slot.requiredCount ? "assignment-count shortage" : "assignment-count"}>{assignedCount}/{slot.requiredCount}人</span></td>
-                      <td>
+                      <td className={assignedCount < slot.requiredCount ? "assignment-members-cell shortage" : "assignment-members-cell"}>
                         <div className="assignment-members">
                           {detail.members.map((member) =>
                             renderMember(slot, member),

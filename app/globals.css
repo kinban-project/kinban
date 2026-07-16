@@ -162,4 +162,5 @@ button { cursor: pointer; }
 .dashboard-plans small { color: var(--teal); font-weight: 700; }
 .roster-table td.roster-shortage { background: #fff0ee; box-shadow: inset 0 0 0 1px #e8a39b; }.roster-shortage-count { display: block; margin-top: 4px; color: #a44942; font-size: 9px; font-weight: 700; }.roster-legend-shortage { padding: 4px 7px; border-radius: 999px; color: #a44942; background: #fff0ee; }
 .assignment-row-shortage { background: #fff8f6; }.assignment-count { color: var(--muted); }.assignment-count.shortage { color: #a44942; font-weight: 800; }.assignment-calendar-slot.is-shortage { margin: -1px; padding: 5px; background: #fff0ee; box-shadow: inset 0 0 0 1px #e8a39b; }.assignment-calendar-slot.is-shortage > strong { color: #8f413b; }
+.assignment-members-cell.shortage { background: #fff0ee; box-shadow: inset 0 0 0 1px #e8a39b; }
 .dashboard-shortage-metric { display: block; margin-top: 5px; color: #a44942; font-size: 9px; font-weight: 700; }.dashboard-plan-shortage { color: #a44942 !important; }
