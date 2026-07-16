@@ -307,16 +307,21 @@ export default function ShiftBuilder({
     return map;
   }
   function toggle(slotId: string, userEmail: string) {
-    if (!detail) return;
-    const map = assignmentMap();
-    const current = map[slotId] ?? [];
-    const next = current.includes(userEmail)
-      ? current.filter((email) => email !== userEmail)
-      : [...current, userEmail];
-    const assignments = detail.assignments
-      .filter((assignment) => assignment.slotId !== slotId)
-      .concat(next.map((email) => ({ slotId, userEmail: email })));
-    setDetail({ ...detail, assignments });
+    setDetail((currentDetail) => {
+      if (!currentDetail) return currentDetail;
+      const current = currentDetail.assignments
+        .filter((assignment) => assignment.slotId === slotId)
+        .map((assignment) => assignment.userEmail);
+      const next = current.includes(userEmail)
+        ? current.filter((email) => email !== userEmail)
+        : [...current, userEmail];
+      return {
+        ...currentDetail,
+        assignments: currentDetail.assignments
+          .filter((assignment) => assignment.slotId !== slotId)
+          .concat(next.map((email) => ({ slotId, userEmail: email }))),
+      };
+    });
   }
   async function save(status: "draft" | "published") {
     if (!detail) return;

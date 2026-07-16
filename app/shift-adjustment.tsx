@@ -253,16 +253,20 @@ export default function ShiftAdjustment({
     return match ? preferenceClass(match.status) : "unavailable";
   }
   function toggle(slotId: string, userEmail: string) {
-    if (!detail) return;
-    const current = assignments[slotId] ?? [];
-    const next = current.includes(userEmail)
-      ? current.filter((email) => email !== userEmail)
-      : [...current, userEmail];
-    setDetail({
-      ...detail,
-      assignments: detail.assignments
-        .filter((row) => row.slotId !== slotId)
-        .concat(next.map((email) => ({ slotId, userEmail }))),
+    setDetail((currentDetail) => {
+      if (!currentDetail) return currentDetail;
+      const current = currentDetail.assignments
+        .filter((row) => row.slotId === slotId)
+        .map((row) => row.userEmail);
+      const next = current.includes(userEmail)
+        ? current.filter((email) => email !== userEmail)
+        : [...current, userEmail];
+      return {
+        ...currentDetail,
+        assignments: currentDetail.assignments
+          .filter((row) => row.slotId !== slotId)
+          .concat(next.map((email) => ({ slotId, userEmail: email }))),
+      };
     });
   }
   function renderMember(slot: Slot, member: Member) {
