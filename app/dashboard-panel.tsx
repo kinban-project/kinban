@@ -12,6 +12,8 @@ type Plan = {
   requestStatus?: "pending" | "open" | "closed" | null;
   requestSavedCount?: number;
   requestMemberCount?: number;
+  shortageSlotCount?: number;
+  shortageMemberCount?: number;
 };
 export default function DashboardPanel({ groupId }: Props) {
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -73,6 +75,7 @@ export default function DashboardPanel({ groupId }: Props) {
             </div>
             <div>
               <strong>{announcements}</strong>
+              <small className="dashboard-shortage-metric">公開済み不足 {plans.filter((plan) => plan.status === "published" && (plan.shortageSlotCount ?? 0) > 0).length}件／不足枠 {plans.filter((plan) => plan.status === "published").reduce((sum, plan) => sum + (plan.shortageSlotCount ?? 0), 0)}</small>
               <span>お知らせ</span>
             </div>
           </div>
@@ -89,6 +92,9 @@ export default function DashboardPanel({ groupId }: Props) {
                     希望保存 {plan.requestSavedCount ?? 0}/
                     {plan.requestMemberCount ?? members}
                   </small>
+                )}
+                {plan.status === "published" && (plan.shortageSlotCount ?? 0) > 0 && (
+                  <small className="dashboard-plan-shortage">不足 {plan.shortageSlotCount}枠（{plan.shortageMemberCount}人）</small>
                 )}
                 <em className={getShiftDisplayStatus(plan)}>
                   {getShiftDisplayLabel(getShiftDisplayStatus(plan))}

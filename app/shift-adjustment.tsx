@@ -291,11 +291,12 @@ export default function ShiftAdjustment({
     );
   }
   function renderSlot(slot: Slot) {
+    const assignedCount = new Set(assignments[slot.id] ?? []).size;
     return (
-      <div className="assignment-calendar-slot" key={slot.id}>
+      <div className={`assignment-calendar-slot ${assignedCount < slot.requiredCount ? "is-shortage" : ""}`} key={slot.id}>
         <strong>
           {slot.role || "共通"}
-          <small>{slot.requiredCount}人</small>
+          <small>{assignedCount}/{slot.requiredCount}人</small>
         </strong>
         <div className="assignment-members">
           {detail?.members.map((member) => renderMember(slot, member))}
@@ -443,15 +444,16 @@ export default function ShiftAdjustment({
                   </tr>
                 </thead>
                 <tbody>
-                  {detail.slots.map((slot) => (
-                    <tr key={slot.id}>
+                  {detail.slots.map((slot) => {
+                    const assignedCount = new Set(assignments[slot.id] ?? []).size;
+                    return <tr className={assignedCount < slot.requiredCount ? "assignment-row-shortage" : ""} key={slot.id}>
                       <td>{slot.date}</td>
                       <td>
                         {displayShiftTime(slot.startTime)}〜
                         {displayShiftTime(slot.endTime)}
                       </td>
                       <td>{slot.role || "共通"}</td>
-                      <td>{slot.requiredCount}人</td>
+                      <td><span className={assignedCount < slot.requiredCount ? "assignment-count shortage" : "assignment-count"}>{assignedCount}/{slot.requiredCount}人</span></td>
                       <td>
                         <div className="assignment-members">
                           {detail.members.map((member) =>
@@ -459,8 +461,8 @@ export default function ShiftAdjustment({
                           )}
                         </div>
                       </td>
-                    </tr>
-                  ))}
+                    </tr>;
+                  })}
                 </tbody>
               </table>
             </div>

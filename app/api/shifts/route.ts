@@ -3,6 +3,7 @@ import { getChatGPTUser } from "../../chatgpt-auth";
 import { getDb } from "../../../db";
 import {
   groupMembers,
+  shiftAssignments,
   shiftPlans,
   shiftRequestPeriods,
   shiftRequestSubmissions,
@@ -136,6 +137,35 @@ export async function GET(request: Request) {
     .select({ userEmail: groupMembers.userEmail })
     .from(groupMembers)
     .where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.status, "active")));
+  const assignmentRows = await db
+    .select({
+      planId: shiftPlans.id,
+      slotId: shiftSlots.id,
+      requiredCount: shiftSlots.requiredCount,
+      userEmail: shiftAssignments.userEmail,
+    })
+    .from(shiftSlots)
+    .innerJoin(shiftPlans, eq(shiftSlots.planId, shiftPlans.id))
+    .leftJoin(shiftAssignments, eq(shiftAssignments.slotId, shiftSlots.id))
+    .where(eq(shiftPlans.groupId, groupId));
+  const assignmentStats = new Map<string, { shortageSlotCount: number; shortageMemberCount: number; assignedSlotCount: number }>();
+  const slotAssignments = new Map<string, { planId: string; requiredCount: number; users: Set<string> }>();
+  for (const row of assignmentRows) {
+    const slot = slotAssignments.get(row.slotId) ?? { planId: row.planId, requiredCount: row.requiredCount, users: new Set<string>() };
+    if (row.userEmail) slot.users.add(row.userEmail);
+    slotAssignments.set(row.slotId, slot);
+  }
+  for (const slot of slotAssignments.values()) {
+    const stats = assignmentStats.get(slot.planId) ?? { shortageSlotCount: 0, shortageMemberCount: 0, assignedSlotCount: 0 };
+    const shortage = Math.max(0, slot.requiredCount - slot.users.size);
+    if (shortage > 0) {
+      stats.shortageSlotCount += 1;
+      stats.shortageMemberCount += shortage;
+    } else {
+      stats.assignedSlotCount += 1;
+    }
+    assignmentStats.set(slot.planId, stats);
+  }
   const submissions = await db
     .select({
       periodId: shiftRequestSubmissions.periodId,
@@ -166,6 +196,7 @@ export async function GET(request: Request) {
         requestStatus: requestStatusByPlan.get(plan.id) ?? null,
         requestSavedCount: savedUsers.size,
         requestMemberCount: members.length,
+        ...(assignmentStats.get(plan.id) ?? { shortageSlotCount: 0, shortageMemberCount: 0, assignedSlotCount: 0 }),
       };
     }),
   });
