@@ -141,6 +141,13 @@ export default function GroupPreferencesPanel({
     setSaving(false);
   }
 
+  async function leaveGroup() {
+    if (!window.confirm("このグループから退会しますか？基本設定や勤務希望は削除され、割り当て済みシフトからも外れます。")) return;
+    const response = await localApiFetch(`/api/groups/${groupId}/members`, { method: "DELETE" });
+    setNotice(response.ok ? "グループから退会しました" : (((await response.json().catch(() => ({}))) as { error?: string }).error ?? "退会できませんでした"));
+    if (response.ok) window.location.reload();
+  }
+
   return (
     <div className="group-preferences">
       <div className="group-nickname-setting">
@@ -328,6 +335,13 @@ export default function GroupPreferencesPanel({
           {notice}
         </p>
       )}
+      <div className="preference-danger-zone">
+        <div>
+          <strong>グループから退会</strong>
+          <p>このグループの基本設定と勤務希望を削除します。</p>
+        </div>
+        <button className="small-action danger" type="button" onClick={() => void leaveGroup()}>退会する</button>
+      </div>
     </div>
   );
 }

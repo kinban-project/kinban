@@ -26,10 +26,10 @@ export default function DashboardPanel({ groupId }: Props) {
         localApiFetch(`/api/groups/${groupId}/announcements`),
       ]);
       if (p.ok) setPlans(((await p.json()) as { plans: Plan[] }).plans);
-      if (g.ok)
-        setMembers(
-          ((await g.json()) as { members?: unknown[] }).members?.length ?? 0,
-        );
+      if (g.ok) {
+        const rows = ((await g.json()) as { members?: Array<{ status?: string }> }).members ?? [];
+        setMembers(rows.filter((member) => member.status !== "inactive").length);
+      }
       if (a.ok)
         setAnnouncements(
           ((await a.json()) as { announcements?: unknown[] }).announcements

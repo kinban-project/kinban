@@ -22,7 +22,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     ? announcementIds.length ? await db.select().from(announcementReads).where(inArray(announcementReads.announcementId, announcementIds)) : []
     : [];
   const replies = announcementIds.length ? await db.select().from(announcementReplies).where(inArray(announcementReplies.announcementId, announcementIds)) : [];
-  const members = await db.select().from(groupMembers).where(eq(groupMembers.groupId, id));
+  const members = await db.select().from(groupMembers).where(and(eq(groupMembers.groupId, id), eq(groupMembers.status, "active")));
   return Response.json({ announcements, reads, readDetails, replies, members, role: membership.role, currentEmail: user.email });
 }
 

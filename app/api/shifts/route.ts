@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { getDb } from "../../../db";
 import {
@@ -135,7 +135,7 @@ export async function GET(request: Request) {
   const members = await db
     .select({ userEmail: groupMembers.userEmail })
     .from(groupMembers)
-    .where(eq(groupMembers.groupId, groupId));
+    .where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.status, "active")));
   const submissions = await db
     .select({
       periodId: shiftRequestSubmissions.periodId,

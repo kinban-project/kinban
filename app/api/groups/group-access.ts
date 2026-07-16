@@ -9,6 +9,11 @@ export async function getGroup(groupId: string) {
 
 export async function getMembership(groupId: string, userEmail: string) {
   const [membership] = await getDb().select().from(groupMembers).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userEmail, userEmail))).limit(1);
+  return membership?.status === "active" ? membership : null;
+}
+
+export async function getAnyMembership(groupId: string, userEmail: string) {
+  const [membership] = await getDb().select().from(groupMembers).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userEmail, userEmail))).limit(1);
   return membership ?? null;
 }
 

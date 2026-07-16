@@ -1,4 +1,4 @@
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { getDb } from "../../../db";
 import { accountProfiles, attachments, events, groupJoinRequests, groupMembers, groups as groupTable, shiftAssignments, shiftSlots } from "../../../db/schema";
@@ -20,7 +20,7 @@ export async function GET() {
   const user = await getChatGPTUser();
   if (!user) return unauthorized();
   const db = getDb();
-  const memberships = await db.select().from(groupMembers).where(eq(groupMembers.userEmail, user.email));
+  const memberships = await db.select().from(groupMembers).where(and(eq(groupMembers.userEmail, user.email), eq(groupMembers.status, "active")));
   const [profile] = await db.select().from(accountProfiles).where(eq(accountProfiles.userEmail, user.email)).limit(1);
   const groupTableRows = memberships.length ? await db.select().from(groupTable).where(inArray(groupTable.id, memberships.map((item) => item.groupId))) : [];
   const pendingMemberRequests = memberships.length ? await db.select().from(groupJoinRequests).where(inArray(groupJoinRequests.groupId, memberships.map((item) => item.groupId))) : [];

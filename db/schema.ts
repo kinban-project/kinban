@@ -38,6 +38,7 @@ export const groupMembers = sqliteTable("group_members", {
   displayName: text("display_name"),
   adminNote: text("admin_note").notNull().default(""),
   role: text("role", { enum: ["owner", "editor", "member"] }).notNull().default("member"),
+  status: text("status", { enum: ["active", "inactive"] }).notNull().default("active"),
   showInPersonal: integer("show_in_personal", { mode: "boolean" }).notNull().default(true),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });

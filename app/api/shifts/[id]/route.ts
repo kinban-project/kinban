@@ -1,4 +1,4 @@
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { getChatGPTUser } from "../../../chatgpt-auth";
 import { getDb } from "../../../../db";
 import { accountProfiles, events, groupMembers, groupPreferences, groups, shiftAssignments, shiftAvailability, shiftPlans, shiftRequests, shiftRequestPeriods, shiftRequestSubmissions, shiftSlots } from "../../../../db/schema";
@@ -28,7 +28,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const [requestPeriod] = await db.select().from(shiftRequestPeriods).where(eq(shiftRequestPeriods.planId, id)).limit(1);
   const assignmentChunks = await Promise.all(chunk(slots.map((slot) => slot.id), 50).map((slotIds) => db.select().from(shiftAssignments).where(inArray(shiftAssignments.slotId, slotIds))));
   const assignments = assignmentChunks.flat();
-  const members = await db.select().from(groupMembers).where(eq(groupMembers.groupId, plan.groupId));
+  const members = await db.select().from(groupMembers).where(and(eq(groupMembers.groupId, plan.groupId), eq(groupMembers.status, "active")));
   const activeDates = new Set(slots.map((slot) => slot.date));
   const closedDates = dateKeys(plan.startDate, plan.endDate).filter((date) => !activeDates.has(date));
   const canManage = membership.role === "owner" || membership.role === "editor";
@@ -94,7 +94,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: "shift.request.open", entityType: "shiftRequestPeriod", entityId: requestPeriod.id, summary: `勤務希望受付を開始: ${plan.name}`, details: { closesOn } });
     return Response.json({ ok: true, status: "open", opensOn, closesOn });
   }
-  const members = await db.select().from(groupMembers).where(eq(groupMembers.groupId, plan.groupId));
+  const members = await db.select().from(groupMembers).where(and(eq(groupMembers.groupId, plan.groupId), eq(groupMembers.status, "active")));
   const validUsers = new Set(members.map((member) => member.userEmail));
   const requested = body.assignments ?? {};
   const allRows = slots.flatMap((slot) => [...new Set((requested[slot.id] ?? []).filter((email) => validUsers.has(email)))].map((userEmail) => ({ id: crypto.randomUUID(), slotId: slot.id, userEmail })));
