@@ -13,7 +13,7 @@ function dateLabel(date: string) {
   return new Intl.DateTimeFormat("ja-JP", { month: "numeric", day: "numeric", weekday: "short" }).format(new Date(`${date}T00:00:00`));
 }
 
-export default function ShiftRoster() {
+export default function ShiftRoster({ initialGroupId }: { initialGroupId?: string }) {
   const [groups, setGroups] = useState<Group[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selectedId, setSelectedId] = useState("");
@@ -35,8 +35,11 @@ export default function ShiftRoster() {
       return response.ok ? (await response.json() as { plans: Plan[] }).plans : [];
     }));
     const allPlans = planLists.flat().filter((plan) => plan.status === "published");
-    setPlans(allPlans);
-    const nextId = allPlans.some((plan) => plan.id === selectedId) ? selectedId : allPlans[0]?.id ?? "";
+    const visiblePlans = initialGroupId
+      ? allPlans.filter((plan) => plan.groupId === initialGroupId)
+      : allPlans;
+    setPlans(visiblePlans);
+    const nextId = visiblePlans.some((plan) => plan.id === selectedId) ? selectedId : visiblePlans[0]?.id ?? "";
     setSelectedId(nextId);
     if (nextId) await openPlan(nextId);
     else setDetail(null);

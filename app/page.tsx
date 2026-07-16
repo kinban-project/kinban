@@ -434,7 +434,10 @@ export default function Home() {
         }}
         onBasic={(groupId) => openGroupTarget(groupId, "basic")}
         onRequests={(groupId) => openGroupTarget(groupId, "requests")}
-        onRoster={() => setShiftRosterOpen(true)}
+        onRoster={(groupId) => {
+          setMenuGroupId(groupId);
+          setShiftRosterOpen(true);
+        }}
         onShiftBuilder={(groupId) => openGroupTarget(groupId, "shift")}
         onShiftAdjustment={(groupId) => openGroupTarget(groupId, "adjustment")}
         onMembers={(groupId) => openGroupTarget(groupId, "members")}
@@ -922,7 +925,7 @@ export default function Home() {
           }}
         >
           <div className="modal shift-modal">
-            <ShiftRoster />
+            <ShiftRoster initialGroupId={menuGroupId} />
           </div>
         </div>
       )}
