@@ -12,6 +12,9 @@ DELETE FROM group_members;
 DELETE FROM groups;
 DELETE FROM account_profiles;
 DELETE FROM api_tokens;
+DELETE FROM announcement_replies;
+DELETE FROM announcement_reads;
+DELETE FROM group_announcements;
 
 INSERT INTO account_profiles (user_email, nickname) VALUES
   ('tanaka@local.test', 'Manager'),
@@ -99,6 +102,22 @@ FROM users;
 
 INSERT INTO shift_request_periods (id, group_id, plan_id, name, opens_on, closes_on, status, created_by)
 VALUES ('seed-request-second-half', 'seed-group-store', 'seed-plan-second-half', 'July second half requests', '2026-07-16', '2026-07-20', 'open', 'tanaka@local.test');
+
+INSERT INTO group_announcements (id, group_id, created_by, title, body)
+VALUES
+  ('seed-announcement-01', 'seed-group-store', 'tanaka@local.test', '7月シフトについて', '7月分の勤務希望を確認してください。変更がある場合はこのお知らせへ返信してください。'),
+  ('seed-announcement-02', 'seed-group-store', 'tanaka@local.test', '夏季の営業時間', '土日は12時からの営業です。厨房は混雑時間帯に2名体制を予定しています。');
+
+INSERT INTO announcement_reads (id, announcement_id, user_email)
+VALUES
+  ('seed-read-01', 'seed-announcement-01', 'member01@local.test'),
+  ('seed-read-02', 'seed-announcement-01', 'member02@local.test'),
+  ('seed-read-03', 'seed-announcement-02', 'member03@local.test');
+
+INSERT INTO announcement_replies (id, announcement_id, user_email, body)
+VALUES
+  ('seed-reply-01', 'seed-announcement-01', 'member01@local.test', '確認しました。7月後半もよろしくお願いします。'),
+  ('seed-reply-02', 'seed-announcement-02', 'member03@local.test', '土曜日の午後は勤務可能です。');
 
 INSERT INTO shift_requests (id, period_id, user_email, date, start_time, end_time, preference, note)
 SELECT lower(hex(randomblob(16))), 'seed-request-second-half', 'member01@local.test', date, start_time, end_time, 'want', 'Prefer to work'

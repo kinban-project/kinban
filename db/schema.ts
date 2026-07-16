@@ -94,6 +94,16 @@ export const shiftAssignments = sqliteTable("shift_assignments", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const groupAnnouncements = sqliteTable("group_announcements", {
+  id: text("id").primaryKey(), groupId: text("group_id").notNull(), createdBy: text("created_by").notNull(), title: text("title").notNull(), body: text("body").notNull(), createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+export const announcementReads = sqliteTable("announcement_reads", {
+  id: text("id").primaryKey(), announcementId: text("announcement_id").notNull(), userEmail: text("user_email").notNull(), readAt: text("read_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+export const announcementReplies = sqliteTable("announcement_replies", {
+  id: text("id").primaryKey(), announcementId: text("announcement_id").notNull(), userEmail: text("user_email").notNull(), body: text("body").notNull(), createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const shiftAvailability = sqliteTable("shift_availability", {
   id: text("id").primaryKey(),
   groupId: text("group_id").notNull(),

@@ -57,6 +57,13 @@
       "when": 1784110836260,
       "tag": "0007_add_shift_plan_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1784110836261,
+      "tag": "0008_add_announcements",
+      "breakpoints": true
     }
   ]
 }
