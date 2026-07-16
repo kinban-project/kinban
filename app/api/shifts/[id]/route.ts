@@ -1,7 +1,7 @@
 import { eq, inArray } from "drizzle-orm";
 import { getChatGPTUser } from "../../../chatgpt-auth";
 import { getDb } from "../../../../db";
-import { accountProfiles, events, groupMembers, groupPreferences, groups, shiftAssignments, shiftAvailability, shiftPlans, shiftRequests, shiftRequestPeriods, shiftSlots } from "../../../../db/schema";
+import { accountProfiles, events, groupMembers, groupPreferences, groups, shiftAssignments, shiftAvailability, shiftPlans, shiftRequests, shiftRequestPeriods, shiftRequestSubmissions, shiftSlots } from "../../../../db/schema";
 import { getMembership } from "../../groups/group-access";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +33,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const memberPreferences = canManage ? await db.select().from(groupPreferences).where(eq(groupPreferences.groupId, plan.groupId)) : [];
   const memberAvailability = canManage ? await db.select().from(shiftAvailability).where(eq(shiftAvailability.groupId, plan.groupId)) : [];
   const requests = canManage && requestPeriod ? await db.select().from(shiftRequests).where(eq(shiftRequests.periodId, requestPeriod.id)) : [];
-  return Response.json({ currentEmail: user.email, plan, slots, assignments, members, closedDates, requestPeriod: requestPeriod ?? null, memberPreferences, memberAvailability, requests });
+  const requestSubmissions = canManage && requestPeriod ? await db.select().from(shiftRequestSubmissions).where(eq(shiftRequestSubmissions.periodId, requestPeriod.id)) : [];
+  return Response.json({ currentEmail: user.email, plan, slots, assignments, members, closedDates, requestPeriod: requestPeriod ?? null, memberPreferences, memberAvailability, requests, requestSubmissions });
 }
 
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
@@ -52,6 +53,7 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
     db.delete(shiftSlots).where(inArray(shiftSlots.id, slotIds)),
   ]);
   statements.push(db.delete(events).where(eq(events.shiftPlanId, id)));
+  if (requestPeriod) statements.push(db.delete(shiftRequestSubmissions).where(eq(shiftRequestSubmissions.periodId, requestPeriod.id)));
   statements.push(db.delete(shiftRequestPeriods).where(eq(shiftRequestPeriods.planId, id)));
   statements.push(db.delete(shiftPlans).where(eq(shiftPlans.id, id)));
   await db.batch(statements);

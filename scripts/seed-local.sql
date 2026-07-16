@@ -1,4 +1,5 @@
 DELETE FROM shift_requests;
+DELETE FROM shift_request_submissions;
 DELETE FROM shift_request_periods;
 DELETE FROM shift_availability;
 DELETE FROM group_preferences;

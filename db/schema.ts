@@ -141,6 +141,13 @@ export const shiftRequests = sqliteTable("shift_requests", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const shiftRequestSubmissions = sqliteTable("shift_request_submissions", {
+  id: text("id").primaryKey(),
+  periodId: text("period_id").notNull(),
+  userEmail: text("user_email").notNull(),
+  savedAt: text("saved_at").notNull(),
+});
+
 export const attachments = sqliteTable("attachments", {
   id: text("id").primaryKey(),
   ownerEmail: text("owner_email").notNull(),

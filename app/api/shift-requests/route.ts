@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { getDb } from "../../../db";
-import { groupMembers, groupPreferences, groups, shiftAvailability, shiftPlans, shiftRequestPeriods, shiftRequests, shiftSlots } from "../../../db/schema";
+import { groupMembers, groupPreferences, groups, shiftAvailability, shiftPlans, shiftRequestPeriods, shiftRequestSubmissions, shiftRequests, shiftSlots } from "../../../db/schema";
 import { getMembership } from "../groups/group-access";
 
 export const dynamic = "force-dynamic";
@@ -68,8 +68,13 @@ export async function POST(request: Request) {
     const slots = await db.select().from(shiftSlots).where(eq(shiftSlots.planId, period.planId));
     const valid = new Set(slots.map((slot) => `${slot.date}|${slot.startTime}|${slot.endTime}`));
     const rows = (body.requests ?? []).filter((item) => valid.has(`${item.date}|${item.startTime}|${item.endTime}`) && preferences.has(item.preference)).map((item) => ({ id: crypto.randomUUID(), periodId: period.id, userEmail: user.email, date: item.date, startTime: item.startTime, endTime: item.endTime, preference: item.preference, note: item.note?.trim() ?? "" }));
-    await db.batch([db.delete(shiftRequests).where(and(eq(shiftRequests.periodId, period.id), eq(shiftRequests.userEmail, user.email))), ...rows.map((row) => db.insert(shiftRequests).values(row))]);
-    return Response.json({ ok: true, count: rows.length });
+    const savedAt = new Date().toISOString();
+    const [submission] = await db.select().from(shiftRequestSubmissions).where(and(eq(shiftRequestSubmissions.periodId, period.id), eq(shiftRequestSubmissions.userEmail, user.email))).limit(1);
+    const submissionStatement = submission
+      ? db.update(shiftRequestSubmissions).set({ savedAt }).where(eq(shiftRequestSubmissions.id, submission.id))
+      : db.insert(shiftRequestSubmissions).values({ id: crypto.randomUUID(), periodId: period.id, userEmail: user.email, savedAt });
+    await db.batch([db.delete(shiftRequests).where(and(eq(shiftRequests.periodId, period.id), eq(shiftRequests.userEmail, user.email))), ...rows.map((row) => db.insert(shiftRequests).values(row)), submissionStatement]);
+    return Response.json({ ok: true, count: rows.length, savedAt });
   }
   return Response.json({ error: "不明な操作です" }, { status: 400 });
 }
