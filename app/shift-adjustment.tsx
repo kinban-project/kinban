@@ -306,11 +306,14 @@ export default function ShiftAdjustment({
   }
   async function save(status: "draft" | "published") {
     if (!detail) return;
+    const nextStatus = detail.plan.status === "published" ? "published" : status;
+    const publishedUpdate = detail.plan.status === "published";
+    const reason = publishedUpdate ? window.prompt("公開済みシフトの変更理由（任意）") ?? "" : "";
     const warningText = assignmentWarnings.length
       ? `\n\n未解消の警告が${assignmentWarnings.length}件あります。`
       : "";
     if (
-      status === "published" &&
+      nextStatus === "published" &&
       !window.confirm(
         `「${detail.plan.name}」を公開します。担当割り当てを確定し、メンバーのカレンダーに反映します。${warningText}\n\n公開してよいですか？`,
       )
@@ -320,12 +323,12 @@ export default function ShiftAdjustment({
     const response = await localApiFetch(`/api/shifts/${detail.plan.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ assignments, status }),
+      body: JSON.stringify({ assignments, status: nextStatus, reason }),
     });
     const data = (await response.json()) as { error?: string };
     setNotice(
       response.ok
-        ? status === "published"
+        ? nextStatus === "published"
           ? "シフトを公開しました"
           : "割り当てを保存しました"
         : (data.error ?? "保存できませんでした"),

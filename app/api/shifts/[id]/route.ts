@@ -73,17 +73,22 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (!plan) return Response.json({ error: "シフト計画が見つかりません" }, { status: 404 });
   const membership = await getMembership(plan.groupId, user.email);
   if (!membership || (membership.role !== "owner" && membership.role !== "editor")) return Response.json({ error: "シフト編集にはグループの編集権限が必要です" }, { status: 403 });
-  const body = await request.json() as { action?: "start-requests"; requestCloseDate?: string; layout?: { notes?: string; slots?: Array<{ id?: string; date: string; startTime: string; endTime: string; requiredCount: number; role?: string }>; closedDates?: string[] }; assignments?: Record<string, string[]>; status?: "draft" | "published" };
+  const body = await request.json() as { action?: "start-requests"; requestCloseDate?: string; reason?: string; layout?: { notes?: string; slots?: Array<{ id?: string; date: string; startTime: string; endTime: string; requiredCount: number; role?: string }>; closedDates?: string[] }; assignments?: Record<string, string[]>; status?: "draft" | "published" };
   const slots = await db.select().from(shiftSlots).where(eq(shiftSlots.planId, id));
+  const beforeAssignmentChunks = await Promise.all(chunk(slots.map((slot) => slot.id), 50).map((slotIds) => slotIds.length ? db.select().from(shiftAssignments).where(inArray(shiftAssignments.slotId, slotIds)) : Promise.resolve([])));
+  const beforeAssignments = beforeAssignmentChunks.flat();
   const [requestPeriod] = await db.select().from(shiftRequestPeriods).where(eq(shiftRequestPeriods.planId, id)).limit(1);
   if (body.layout) {
     const closedDates = new Set(body.layout.closedDates ?? []);
     const nextSlots = (body.layout.slots ?? []).filter((slot) => !closedDates.has(slot.date) && slot.date >= plan.startDate && slot.date <= plan.endDate && isValidShiftTime(slot.startTime) && isValidShiftTime(slot.endTime) && shiftTimeToMinutes(slot.startTime) < shiftTimeToMinutes(slot.endTime)).map((slot) => ({ id: slot.id ?? crypto.randomUUID(), planId: id, date: slot.date, startTime: slot.startTime, endTime: slot.endTime, requiredCount: Math.max(1, Math.min(50, Number(slot.requiredCount) || 1)), role: slot.role?.trim() ?? "" }));
-    const statements = [db.delete(shiftAssignments).where(inArray(shiftAssignments.slotId, slots.map((slot) => slot.id))), db.delete(shiftSlots).where(eq(shiftSlots.planId, id)), ...chunk(nextSlots, 8).map((rows) => db.insert(shiftSlots).values(rows)), db.update(shiftPlans).set({ notes: body.layout.notes?.trim().slice(0, 2000) ?? plan.notes }).where(eq(shiftPlans.id, id))];
+     const beforeLayout = new Map(slots.map((slot) => [slot.id, `${slot.date}|${slot.startTime}|${slot.endTime}|${slot.role}|${slot.requiredCount}`]));
+     const layoutChanges = nextSlots.flatMap((slot) => beforeLayout.get(slot.id) === `${slot.date}|${slot.startTime}|${slot.endTime}|${slot.role}|${slot.requiredCount}` ? [] : [{ id: slot.id, date: slot.date, startTime: slot.startTime, endTime: slot.endTime, role: slot.role, requiredCount: slot.requiredCount }]);
+     const statements = [db.delete(shiftAssignments).where(inArray(shiftAssignments.slotId, slots.map((slot) => slot.id))), db.delete(shiftSlots).where(eq(shiftSlots.planId, id)), ...chunk(nextSlots, 8).map((rows) => db.insert(shiftSlots).values(rows)), db.update(shiftPlans).set({ notes: body.layout.notes?.trim().slice(0, 2000) ?? plan.notes }).where(eq(shiftPlans.id, id))];
     if (body.requestCloseDate && requestPeriod?.status === "pending") statements.push(db.update(shiftRequestPeriods).set({ closesOn: body.requestCloseDate }).where(eq(shiftRequestPeriods.id, requestPeriod.id)));
     await db.batch(statements);
     await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: "shift.update", entityType: "shiftPlan", entityId: id, summary: `シフト枠を保存: ${plan.name}`, details: { slotCount: nextSlots.length, closedDates: body.layout.closedDates ?? [] } });
-    if (body.action !== "start-requests") return Response.json({ ok: true, slotCount: nextSlots.length });
+     if (plan.status === "published") await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: "shift.update", entityType: "shiftPlan", entityId: id, summary: `公開済みシフトの枠を更新: ${plan.name}`, details: { changeType: "layout", reason: body.reason?.trim().slice(0, 300) ?? "", changedSlotCount: layoutChanges.length, changedSlots: layoutChanges.slice(0, 40), closedDates: body.layout.closedDates ?? [] } });
+     if (body.action !== "start-requests") return Response.json({ ok: true, slotCount: nextSlots.length });
   }
   if (body.action === "start-requests") {
     if (!requestPeriod || requestPeriod.status !== "pending") return Response.json({ error: "この勤務枠はすでに受付開始済みです" }, { status: 409 });
@@ -99,6 +104,25 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const requested = body.assignments ?? {};
   const allRows = slots.flatMap((slot) => [...new Set((requested[slot.id] ?? []).filter((email) => validUsers.has(email)))].map((userEmail) => ({ id: crypto.randomUUID(), slotId: slot.id, userEmail })));
   const warnings = slots.flatMap((slot) => { const count = new Set(requested[slot.id] ?? []).size; return count < slot.requiredCount ? [`${slot.date} ${slot.startTime}：必要人数${slot.requiredCount}人に対して${count}人です`] : count > slot.requiredCount ? [`${slot.date} ${slot.startTime}：必要人数を${count - slot.requiredCount}人超えています`] : []; });
+  const beforeBySlot = new Map<string, Set<string>>();
+  for (const row of beforeAssignments) {
+    const users = beforeBySlot.get(row.slotId) ?? new Set<string>();
+    users.add(row.userEmail);
+    beforeBySlot.set(row.slotId, users);
+  }
+  const afterBySlot = new Map<string, Set<string>>();
+  for (const row of allRows) {
+    const users = afterBySlot.get(row.slotId) ?? new Set<string>();
+    users.add(row.userEmail);
+    afterBySlot.set(row.slotId, users);
+  }
+  const assignmentChanges = slots.flatMap((slot) => {
+    const before = beforeBySlot.get(slot.id) ?? new Set<string>();
+    const after = afterBySlot.get(slot.id) ?? new Set<string>();
+    const added = [...after].filter((email) => !before.has(email));
+    const removed = [...before].filter((email) => !after.has(email));
+    return added.length || removed.length ? [{ date: slot.date, startTime: slot.startTime, endTime: slot.endTime, role: slot.role, added, removed }] : [];
+  });
   const assignedSlots = slots.flatMap((slot) => [...new Set(requested[slot.id] ?? [])].map((userEmail) => ({ slot, userEmail })));
   for (let index = 0; index < assignedSlots.length; index += 1) {
     for (let nextIndex = index + 1; nextIndex < assignedSlots.length; nextIndex += 1) {
@@ -121,5 +145,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   }
   await db.batch(statements);
   await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: status === "published" ? "shift.publish" : "shift.assign", entityType: "shiftPlan", entityId: id, summary: status === "published" ? `シフトを公開: ${plan.name}` : `担当割り当てを保存: ${plan.name}`, details: { assignedCount: allRows.length, warnings: warnings.length } });
+  if (plan.status === "published") {
+    await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: "shift.update", entityType: "shiftPlan", entityId: id, summary: `公開済みシフトを更新: ${plan.name}`, details: { changeType: "assignments", reason: body.reason?.trim().slice(0, 300) ?? "", assignmentChangeCount: assignmentChanges.length, assignmentChanges: assignmentChanges.slice(0, 40), assignedCount: allRows.length, warnings: warnings.length } });
+  }
   return Response.json({ ok: true, status, warnings });
 }
