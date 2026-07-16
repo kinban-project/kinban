@@ -61,6 +61,7 @@ export default function GroupPreferencesPanel({
     maxHours: 40,
     freeComment: "",
   });
+  const [groupNickname, setGroupNickname] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -70,6 +71,7 @@ export default function GroupPreferencesPanel({
         async (response) => {
           if (!response.ok) return;
           const data = (await response.json()) as {
+            groupMember?: { displayName?: string | null };
             preferences: Preference;
             availability: Array<Day & { status: string }>;
           };
@@ -86,6 +88,7 @@ export default function GroupPreferencesPanel({
             maxHours: data.preferences.maxHours,
             freeComment: data.preferences.freeComment ?? "",
           });
+          setGroupNickname(data.groupMember?.displayName ?? "");
           setDays(next);
         },
       );
@@ -127,7 +130,7 @@ export default function GroupPreferencesPanel({
     const response = await localApiFetch(`/api/groups/${groupId}/preferences`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...preference, availability }),
+      body: JSON.stringify({ ...preference, availability, displayName: groupNickname }),
     });
     setNotice(
       response.ok
@@ -140,6 +143,19 @@ export default function GroupPreferencesPanel({
 
   return (
     <div className="group-preferences">
+      <div className="group-nickname-setting">
+        <div>
+          <strong>このグループでのニックネーム</strong>
+          <p>グループ内だけで使う表示名です。空欄にするとアカウント共通のニックネームを使います。</p>
+        </div>
+        <input
+          value={groupNickname}
+          maxLength={40}
+          onChange={(event) => setGroupNickname(event.target.value)}
+          placeholder="例：店長、学生1"
+          aria-label="このグループでのニックネーム"
+        />
+      </div>
       <div className="section-title">
         <div>
           <h4>勤務の基本希望</h4>

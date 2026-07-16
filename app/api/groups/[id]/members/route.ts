@@ -22,6 +22,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const target = await getMembership(id, body.userEmail);
   if (!target) return Response.json({ error: "メンバーが見つかりません" }, { status: 404 });
   const displayName = typeof body.displayName === "string" ? body.displayName.trim().slice(0, 40) : undefined;
+  if (displayName !== undefined && body.userEmail !== user.email) return Response.json({ error: "グループ内ニックネームは本人が基本設定から変更してください" }, { status: 403 });
   const adminNote = typeof body.adminNote === "string" ? body.adminNote.trim().slice(0, 500) : undefined;
   await getDb().update(groupMembers).set({ ...(body.role ? { role: body.role } : {}), ...(typeof body.showInPersonal === "boolean" ? { showInPersonal: body.showInPersonal } : {}), ...(displayName !== undefined ? { displayName } : {}), ...(isAdmin && adminNote !== undefined ? { adminNote } : {}) }).where(and(eq(groupMembers.groupId, id), eq(groupMembers.userEmail, body.userEmail)));
   return Response.json({ ok: true });
