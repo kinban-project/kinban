@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { localApiFetch } from "./local-api";
 import { getShiftDisplayLabel, getShiftDisplayStatus } from "./shift-status";
+import { displayShiftTime, shiftTimeToMinutes } from "./shift-time";
 
 type Group = { id: string; name: string; membership: { role: string } };
 type Plan = {
@@ -59,9 +60,10 @@ type Preference = {
 };
 
 function hours(start: string, end: string) {
-  const [sh, sm] = start.split(":").map(Number);
-  const [eh, em] = end.split(":").map(Number);
-  return Math.max(0, (eh * 60 + em - sh * 60 - sm) / 60);
+  return Math.max(
+    0,
+    (shiftTimeToMinutes(end) - shiftTimeToMinutes(start)) / 60,
+  );
 }
 function preferenceClass(value: string) {
   return ["want", "possible", "off", "unavailable"].includes(value)
@@ -71,8 +73,8 @@ function preferenceClass(value: string) {
 function overlaps(left: Slot, right: Slot) {
   return (
     left.date === right.date &&
-    left.startTime < right.endTime &&
-    right.startTime < left.endTime
+    shiftTimeToMinutes(left.startTime) < shiftTimeToMinutes(right.endTime) &&
+    shiftTimeToMinutes(right.startTime) < shiftTimeToMinutes(left.endTime)
   );
 }
 function formatSubmissionTime(value: string | null) {
@@ -248,7 +250,9 @@ export default function ShiftAdjustment({
     const match = rows.find(
       (row) =>
         (!row.startTime && !row.endTime) ||
-        (row.startTime <= slot.startTime && row.endTime >= slot.endTime),
+        (shiftTimeToMinutes(row.startTime) <=
+          shiftTimeToMinutes(slot.startTime) &&
+          shiftTimeToMinutes(row.endTime) >= shiftTimeToMinutes(slot.endTime)),
     );
     return match ? preferenceClass(match.status) : "unavailable";
   }
@@ -443,7 +447,8 @@ export default function ShiftAdjustment({
                     <tr key={slot.id}>
                       <td>{slot.date}</td>
                       <td>
-                        {slot.startTime}〜{slot.endTime}
+                        {displayShiftTime(slot.startTime)}〜
+                        {displayShiftTime(slot.endTime)}
                       </td>
                       <td>{slot.role || "共通"}</td>
                       <td>{slot.requiredCount}人</td>
@@ -467,8 +472,8 @@ export default function ShiftAdjustment({
                     <th>日付</th>
                     {timeColumns.map((time) => (
                       <th key={`${time.startTime}|${time.endTime}`}>
-                        {time.startTime}
-                        <small>{time.endTime}</small>
+                        {displayShiftTime(time.startTime)}
+                        <small>{displayShiftTime(time.endTime)}</small>
                       </th>
                     ))}
                   </tr>

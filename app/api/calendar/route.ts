@@ -68,7 +68,7 @@ export async function POST(request: Request) {
     if (membership.role !== "owner" && membership.role !== "editor") return Response.json({ error: "グループ予定を編集する権限がありません" }, { status: 403 });
   }
   const event = {
-    id: crypto.randomUUID(), ownerEmail: user.email, groupId, title, date,
+    id: crypto.randomUUID(), ownerEmail: user.email, groupId, title, date, endDate: payload.endDate ?? date,
     startTime: payload.startTime ?? "", endTime: payload.endTime ?? "",
     category: payload.category ?? "予定", notes: payload.notes ?? "", completed: false,
   };

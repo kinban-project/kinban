@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { localApiFetch } from "./local-api";
+import { displayShiftTime } from "./shift-time";
 
 type Group = { id: string; name: string };
 type Plan = { id: string; groupId: string; name: string; startDate: string; endDate: string; openingTime: string; closingTime: string; status: "draft" | "published" };
@@ -76,7 +77,7 @@ export default function ShiftRoster() {
     {plans.length > 0 && <div className="roster-toolbar"><select className="roster-plan-select" aria-label="表示するシフト" value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>{plans.map((plan) => <option value={plan.id} key={plan.id}>{groupName.get(plan.groupId) ?? "グループ"} ／ {plan.name} ／ {plan.startDate}〜{plan.endDate}</option>)}</select><div className="roster-legend"><span className="roster-legend-self">自分</span><span className="roster-legend-other">他の人</span></div></div>}
     {busy && <p className="shift-help">読み込み中…</p>}
     {!busy && !detail && <div className="empty-state"><p>公開済みのシフトはまだありません。</p></div>}
-    {detail && <><div className="roster-top-scroll" ref={topScrollRef} onScroll={syncTopScroll} aria-label="シフト表を左右にスクロール"><div style={{ width: `${rosterWidth}px` }} /></div><div className="roster-table-wrap" ref={tableScrollRef} onScroll={syncTableScroll}><table className="roster-table"><thead><tr><th>日付</th>{times.map((time) => <th key={time}>{time}</th>)}</tr></thead><tbody>{rows.map((date) => <tr key={date}><th>{dateLabel(date)}</th>{times.map((time) => { const slot = slotMap.get(`${date}|${time}`); const names = slot ? assignmentMap.get(slot.id) ?? [] : []; return <td key={time}>{names.length ? names.map((person) => <span className={`roster-person ${person.isSelf ? "is-self" : "is-other"}`} key={person.name}>{person.name}</span>) : <span className="roster-empty">—</span>}</td>; })}</tr>)}</tbody></table></div><p className="shift-help">カレンダーにはグループ予定として全員分が表示されます。担当者の確認はこの一覧を利用してください。</p></>}
+    {detail && <><div className="roster-top-scroll" ref={topScrollRef} onScroll={syncTopScroll} aria-label="シフト表を左右にスクロール"><div style={{ width: `${rosterWidth}px` }} /></div><div className="roster-table-wrap" ref={tableScrollRef} onScroll={syncTableScroll}><table className="roster-table"><thead><tr><th>日付</th>{times.map((time) => <th key={time}>{displayShiftTime(time)}</th>)}</tr></thead><tbody>{rows.map((date) => <tr key={date}><th>{dateLabel(date)}</th>{times.map((time) => { const slot = slotMap.get(`${date}|${time}`); const names = slot ? assignmentMap.get(slot.id) ?? [] : []; return <td key={time}>{names.length ? names.map((person) => <span className={`roster-person ${person.isSelf ? "is-self" : "is-other"}`} key={person.name}>{person.name}</span>) : <span className="roster-empty">—</span>}</td>; })}</tr>)}</tbody></table></div><p className="shift-help">カレンダーにはグループ予定として全員分が表示されます。担当者の確認はこの一覧を利用してください。</p></>}
     {notice && <p className="group-notice" role="status">{notice}</p>}
   </section>;
 }

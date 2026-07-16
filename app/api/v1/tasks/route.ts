@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   const date = payload.date?.trim() ?? "";
   if (!title || !date) return Response.json({ error: "title and date are required" }, { status: 400 });
   if (payload.category && !CATEGORIES.includes(payload.category as typeof CATEGORIES[number])) return Response.json({ error: "category must be one of: 仕事, 生活, 予定" }, { status: 400 });
-  const event = { id: crypto.randomUUID(), ownerEmail: identity.email, title, date, startTime: payload.startTime ?? "", endTime: payload.endTime ?? "", category: payload.category ?? "仕事", notes: payload.notes ?? "", completed: Boolean(payload.completed) };
+  const event = { id: crypto.randomUUID(), ownerEmail: identity.email, title, date, endDate: payload.endDate ?? date, startTime: payload.startTime ?? "", endTime: payload.endTime ?? "", category: payload.category ?? "仕事", notes: payload.notes ?? "", completed: Boolean(payload.completed) };
   await getDb().insert(events).values(event);
   return Response.json({ data: { ...event, attachments: [] } }, { status: 201 });
 }

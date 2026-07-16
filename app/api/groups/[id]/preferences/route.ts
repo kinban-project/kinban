@@ -3,6 +3,7 @@ import { getChatGPTUser } from "../../../../chatgpt-auth";
 import { getDb } from "../../../../../db";
 import { groupPreferences, shiftAvailability } from "../../../../../db/schema";
 import { getMembership } from "../../group-access";
+import { isValidShiftTime, shiftTimeToMinutes } from "../../../../shift-time";
 
 export const dynamic = "force-dynamic";
 
@@ -31,12 +32,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   for (const entry of entries) {
     const startTime = entry.startTime ?? "";
     const endTime = entry.endTime ?? "";
-    const validTime = (value: string) => {
-      if (!/^\d{2}:\d{2}$/.test(value)) return false;
-      const [hour, minute] = value.split(":").map(Number);
-      return hour >= 0 && hour <= 23 && minute >= 0 && minute < 60 && minute % 30 === 0;
-    };
-    if ((startTime === "") !== (endTime === "") || (startTime && (!validTime(startTime) || !validTime(endTime) || startTime >= endTime))) return Response.json({ error: "時間帯は両方入力し、30分単位で指定してください" }, { status: 400 });
+    if ((startTime === "") !== (endTime === "") || (startTime && (!isValidShiftTime(startTime) || !isValidShiftTime(endTime) || shiftTimeToMinutes(startTime) >= shiftTimeToMinutes(endTime)))) return Response.json({ error: "時間帯は両方入力し、30分単位で指定してください（終了は30:00まで）" }, { status: 400 });
   }
   const db = getDb();
   const [existing] = await db.select().from(groupPreferences).where(and(eq(groupPreferences.groupId, id), eq(groupPreferences.userEmail, user.email))).limit(1);

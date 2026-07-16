@@ -8,6 +8,7 @@ export const events = sqliteTable("events", {
   shiftPlanId: text("shift_plan_id"),
   title: text("title").notNull(),
   date: text("date").notNull(),
+  endDate: text("end_date").notNull().default(""),
   startTime: text("start_time").notNull().default(""),
   endTime: text("end_time").notNull().default(""),
   category: text("category").notNull().default("仕事"),

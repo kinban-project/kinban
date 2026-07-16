@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { localApiFetch } from "./local-api";
 import { getShiftDisplayLabel, getShiftDisplayStatus } from "./shift-status";
+import { displayShiftTime } from "./shift-time";
 
 type Group = { id: string; name: string; membership: { role: string } };
 type Plan = {
@@ -84,6 +85,11 @@ const customSlotExample = `{
     { "date": "2026-07-16", "startTime": "14:00", "endTime": "18:00", "role": "ホール", "requiredCount": 1 }
   ]
 }`;
+const shiftTimeOptions = Array.from(
+  { length: 61 },
+  (_, index) =>
+    `${String(Math.floor(index / 2)).padStart(2, "0")}:${index % 2 ? "30" : "00"}`,
+);
 
 function dateKeys(start: string, end: string) {
   const dates: string[] = [];
@@ -458,23 +464,33 @@ export default function ShiftBuilder({
               <div className="form-row">
                 <label>
                   開店／開始
-                  <input
-                    type="time"
+                  <select
                     value={form.openingTime}
                     onChange={(event) =>
                       setForm({ ...form, openingTime: event.target.value })
                     }
-                  />
+                  >
+                    {shiftTimeOptions.slice(0, -1).map((time) => (
+                      <option key={time} value={time}>
+                        {displayShiftTime(time)}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <label>
                   閉店／終了
-                  <input
-                    type="time"
+                  <select
                     value={form.closingTime}
                     onChange={(event) =>
                       setForm({ ...form, closingTime: event.target.value })
                     }
-                  />
+                  >
+                    {shiftTimeOptions.slice(1).map((time) => (
+                      <option key={time} value={time}>
+                        {displayShiftTime(time)}
+                      </option>
+                    ))}
+                  </select>
                 </label>
               </div>
             )}
@@ -561,7 +577,7 @@ export default function ShiftBuilder({
                   spellCheck={false}
                 />
                 <small className="field-help">
-                  slots配列に日付・開始時刻・終了時刻・担当・必要人数を指定します。時刻は30分単位です。
+                  slots配列に日付・開始時刻・終了時刻・担当・必要人数を指定します。時刻は30分単位で、24:00〜30:00は翌日の時刻として扱います。
                 </small>
               </label>
             )}
@@ -600,8 +616,9 @@ export default function ShiftBuilder({
                   <span>
                     <strong>{plan.name}</strong>
                     <small>
-                      {plan.startDate}〜{plan.endDate} ・ {plan.openingTime}〜
-                      {plan.closingTime}
+                      {plan.startDate}〜{plan.endDate} ・{" "}
+                      {displayShiftTime(plan.openingTime)}〜
+                      {displayShiftTime(plan.closingTime)}
                     </small>
                   </span>
                   <span className="plan-open">
@@ -637,7 +654,8 @@ export default function ShiftBuilder({
               <strong>{detail.plan.name}</strong>
               <span>
                 {detail.plan.startDate}〜{detail.plan.endDate} ／{" "}
-                {detail.plan.openingTime}〜{detail.plan.closingTime}
+                {displayShiftTime(detail.plan.openingTime)}〜
+                {displayShiftTime(detail.plan.closingTime)}
               </span>
             </div>
             <span className={displayStatus(detail.plan, detail.requestPeriod)}>

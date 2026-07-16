@@ -9,15 +9,13 @@ import {
   shiftSlots,
 } from "../../../db/schema";
 import { getMembership } from "../groups/group-access";
+import { isValidShiftTime, minutesToShiftTime, shiftTimeToMinutes } from "../../shift-time";
 
 export const dynamic = "force-dynamic";
 
-function minutes(value: string) {
-  const [hour, minute] = value.split(":").map(Number);
-  return hour * 60 + minute;
-}
+function minutes(value: string) { return shiftTimeToMinutes(value); }
 function time(value: number) {
-  return `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
+  return minutesToShiftTime(value);
 }
 function dateKeys(start: string, end: string) {
   const result: string[] = [];
@@ -81,14 +79,12 @@ function parseCustomSlots(
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < startDate || date > endDate)
       throw new Error(`${index + 1}件目の日付が勤務枠の期間外です`);
     if (
-      !/^\d{2}:\d{2}$/.test(startTime) ||
-      !/^\d{2}:\d{2}$/.test(endTime) ||
-      minutes(startTime) >= minutes(endTime) ||
-      minutes(startTime) % 30 !== 0 ||
-      minutes(endTime) % 30 !== 0
+      !isValidShiftTime(startTime) ||
+      !isValidShiftTime(endTime) ||
+      minutes(startTime) >= minutes(endTime)
     )
       throw new Error(
-        `${index + 1}件目の時刻は30分単位で、開始より終了を後にしてください`,
+        `${index + 1}件目の時刻は30分単位で、開始より終了を後にしてください（終了は30:00まで）`,
       );
     if (
       !Number.isInteger(requiredCount) ||
@@ -105,8 +101,8 @@ function parseCustomSlots(
       id: crypto.randomUUID(),
       planId,
       date,
-      startTime,
-      endTime,
+      startTime: minutesToShiftTime(minutes(startTime)),
+      endTime: minutesToShiftTime(minutes(endTime)),
       requiredCount,
       role,
     };
@@ -230,6 +226,8 @@ export async function POST(request: Request) {
   if (
     body.customSlots === undefined &&
     (![30, 60, 120].includes(slotMinutes) ||
+      !isValidShiftTime(openingTime) ||
+      !isValidShiftTime(closingTime) ||
       minutes(closingTime) <= minutes(openingTime))
   )
     return Response.json(

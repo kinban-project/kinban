@@ -23,7 +23,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const found = await findEvent(id, user.email);
   if (!found.event) return Response.json({ error: "Event not found" }, { status: 404 });
   if (!found.allowed) return Response.json({ error: "この予定を編集する権限がありません" }, { status: 403 });
-  const payload = await request.json() as { completed?: boolean; title?: string; date?: string; startTime?: string; endTime?: string; category?: string; notes?: string };
+  const payload = await request.json() as { completed?: boolean; title?: string; date?: string; endDate?: string; startTime?: string; endTime?: string; category?: string; notes?: string };
   const [event] = await getDb().update(events).set(payload).where(eq(events.id, id)).returning();
   return Response.json({ event });
 }

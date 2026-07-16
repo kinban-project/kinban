@@ -3,6 +3,7 @@ import { getChatGPTUser } from "../../../chatgpt-auth";
 import { getDb } from "../../../../db";
 import { accountProfiles, events, groupMembers, groupPreferences, groups, shiftAssignments, shiftAvailability, shiftPlans, shiftRequests, shiftRequestPeriods, shiftRequestSubmissions, shiftSlots } from "../../../../db/schema";
 import { getMembership } from "../../groups/group-access";
+import { isValidShiftTime, shiftDateTime, shiftTimeToMinutes } from "../../../shift-time";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +49,7 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
   if (!membership || (membership.role !== "owner" && membership.role !== "editor")) return Response.json({ error: "シフト計画の削除にはグループの編集権限が必要です" }, { status: 403 });
   if (plan.status !== "draft") return Response.json({ error: "公開済みのシフトは削除できません。先に公開を取り消してください" }, { status: 409 });
   const slots = await db.select({ id: shiftSlots.id }).from(shiftSlots).where(eq(shiftSlots.planId, id));
+  const [requestPeriod] = await db.select().from(shiftRequestPeriods).where(eq(shiftRequestPeriods.planId, id)).limit(1);
   const statements = chunk(slots.map((slot) => slot.id), 50).flatMap((slotIds) => [
     db.delete(shiftAssignments).where(inArray(shiftAssignments.slotId, slotIds)),
     db.delete(shiftSlots).where(inArray(shiftSlots.id, slotIds)),
@@ -74,7 +76,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const [requestPeriod] = await db.select().from(shiftRequestPeriods).where(eq(shiftRequestPeriods.planId, id)).limit(1);
   if (body.layout) {
     const closedDates = new Set(body.layout.closedDates ?? []);
-    const nextSlots = (body.layout.slots ?? []).filter((slot) => !closedDates.has(slot.date) && slot.date >= plan.startDate && slot.date <= plan.endDate && slot.startTime < slot.endTime).map((slot) => ({ id: slot.id ?? crypto.randomUUID(), planId: id, date: slot.date, startTime: slot.startTime, endTime: slot.endTime, requiredCount: Math.max(1, Math.min(50, Number(slot.requiredCount) || 1)), role: slot.role?.trim() ?? "" }));
+    const nextSlots = (body.layout.slots ?? []).filter((slot) => !closedDates.has(slot.date) && slot.date >= plan.startDate && slot.date <= plan.endDate && isValidShiftTime(slot.startTime) && isValidShiftTime(slot.endTime) && shiftTimeToMinutes(slot.startTime) < shiftTimeToMinutes(slot.endTime)).map((slot) => ({ id: slot.id ?? crypto.randomUUID(), planId: id, date: slot.date, startTime: slot.startTime, endTime: slot.endTime, requiredCount: Math.max(1, Math.min(50, Number(slot.requiredCount) || 1)), role: slot.role?.trim() ?? "" }));
     const statements = [db.delete(shiftAssignments).where(inArray(shiftAssignments.slotId, slots.map((slot) => slot.id))), db.delete(shiftSlots).where(eq(shiftSlots.planId, id)), ...chunk(nextSlots, 8).map((rows) => db.insert(shiftSlots).values(rows)), db.update(shiftPlans).set({ notes: body.layout.notes?.trim().slice(0, 2000) ?? plan.notes }).where(eq(shiftPlans.id, id))];
     if (body.requestCloseDate && requestPeriod?.status === "pending") statements.push(db.update(shiftRequestPeriods).set({ closesOn: body.requestCloseDate }).where(eq(shiftRequestPeriods.id, requestPeriod.id)));
     await db.batch(statements);
@@ -98,7 +100,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     for (let nextIndex = index + 1; nextIndex < assignedSlots.length; nextIndex += 1) {
       const left = assignedSlots[index];
       const right = assignedSlots[nextIndex];
-      if (left.userEmail === right.userEmail && left.slot.date === right.slot.date && left.slot.startTime < right.slot.endTime && right.slot.startTime < left.slot.endTime) warnings.push(`${left.slot.date} ${left.userEmail}：${left.slot.role || "共通"}と${right.slot.role || "共通"}の時間帯が重複しています`);
+      if (left.userEmail === right.userEmail && left.slot.date === right.slot.date && shiftTimeToMinutes(left.slot.startTime) < shiftTimeToMinutes(right.slot.endTime) && shiftTimeToMinutes(right.slot.startTime) < shiftTimeToMinutes(left.slot.endTime)) warnings.push(`${left.slot.date} ${left.userEmail}：${left.slot.role || "共通"}と${right.slot.role || "共通"}の時間帯が重複しています`);
     }
   }
   const status = body.status ?? plan.status;
@@ -110,7 +112,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const profiles = members.length ? await db.select().from(accountProfiles).where(inArray(accountProfiles.userEmail, members.map((member) => member.userEmail))) : [];
     const memberNames = new Map(members.map((member) => [member.userEmail, member.displayName?.trim() || profiles.find((profile) => profile.userEmail === member.userEmail)?.nickname?.trim() || member.userEmail.split("@")[0]]));
     const [group] = await db.select().from(groups).where(eq(groups.id, plan.groupId)).limit(1);
-    const publishedEvents = slots.map((slot) => ({ slot, assigned: allRows.filter((row) => row.slotId === slot.id).map((row) => memberNames.get(row.userEmail) ?? row.userEmail) })).filter((item) => item.assigned.length > 0).map((item) => ({ id: crypto.randomUUID(), ownerEmail: plan.createdBy, groupId: plan.groupId, shiftPlanId: id, title: item.slot.role?.trim() || group?.name || "予定", date: item.slot.date, startTime: item.slot.startTime, endTime: item.slot.endTime, category: "仕事", notes: `担当：${item.assigned.join("、")}`, completed: false }));
+    const publishedEvents = slots.map((slot) => ({ slot, assigned: allRows.filter((row) => row.slotId === slot.id).map((row) => memberNames.get(row.userEmail) ?? row.userEmail) })).filter((item) => item.assigned.length > 0).map((item) => { const start = shiftDateTime(item.slot.date, item.slot.startTime); const end = shiftDateTime(item.slot.date, item.slot.endTime); return { id: crypto.randomUUID(), ownerEmail: plan.createdBy, groupId: plan.groupId, shiftPlanId: id, title: item.slot.role?.trim() || group?.name || "予定", date: start.date, endDate: end.date, startTime: start.time, endTime: end.time, category: "仕事", notes: `担当：${item.assigned.join("、")}`, completed: false }; });
     for (const rows of chunk(publishedEvents, 8)) statements.push(db.insert(events).values(rows));
   }
   await db.batch(statements);
