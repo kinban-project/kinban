@@ -6,6 +6,7 @@ import { localApiFetch } from "./local-api";
 type PreferenceStatus = "want" | "possible" | "off" | "unavailable";
 type Day = { dayOfWeek: number; status: PreferenceStatus; startTime: string; endTime: string; note: string };
 type Preference = { minDays: number; maxDays: number; minHours: number; maxHours: number; freeComment: string };
+
 const labels = ["日", "月", "火", "水", "木", "金", "土"];
 const statusLabels: Record<PreferenceStatus, string> = { want: "出勤希望", possible: "可能", off: "休み希望", unavailable: "勤務不可" };
 
@@ -43,5 +44,24 @@ export default function GroupPreferencesPanel({ groupId }: { groupId: string }) 
     setSaving(false);
   }
 
-  return <div className="group-preferences"><div className="section-title"><div><h4>勤務の基本希望</h4><p>曜日ごとに時間帯と希望を登録します。時間を空欄にすると終日扱いです。</p></div><button className="small-action" onClick={() => void save()} disabled={saving}>{saving ? "保存中…" : "保存"}</button></div><div className="preference-days">{labels.map((label, day) => <div className="preference-day" key={day}><strong>{label}</strong>{rowsFor(day).map((row, index) => <div className="preference-range" key={`${day}-${index}`}><div className="time-pair"><input type="time" value={row.startTime} onChange={(event) => updateDay(day, index, { startTime: event.target.value })} aria-label={`${label}開始時刻`} /><span>〜</span><input type="time" value={row.endTime} onChange={(event) => updateDay(day, index, { endTime: event.target.value })} aria-label={`${label}終了時刻`} /></div><select value={row.status} onChange={(event) => updateDay(day, index, { status: event.target.value as PreferenceStatus })}>{Object.entries(statusLabels).map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select>{rowsFor(day).length > 1 && <button type="button" className="range-remove" onClick={() => removeDay(day, index)} aria-label={`${label}の時間帯を削除`}>×</button>}</div>)}<button type="button" className="small-action range-add" onClick={() => addDay(day)}>＋時間帯を追加</button></div>)}</div><p className="preference-help">時間帯を登録した曜日は、登録範囲外を「勤務不可」として扱います。</p><div className="preference-fields"><label>週の希望勤務日数（下限）<input type="number" min="0" max="7" value={preference.minDays} onChange={(event) => setPreference({ ...preference, minDays: Number(event.target.value) })} /></label><label>週の希望勤務日数（上限）<input type="number" min="0" max="7" value={preference.maxDays} onChange={(event) => setPreference({ ...preference, maxDays: Number(event.target.value) })} /></label><label>週の希望勤務時間（下限）<input type="number" min="0" max="168" value={preference.minHours} onChange={(event) => setPreference({ ...preference, minHours: Number(event.target.value) })} /></label><label>週の希望勤務時間（上限）<input type="number" min="0" max="168" value={preference.maxHours} onChange={(event) => setPreference({ ...preference, maxHours: Number(event.target.value) })} /></label></div><label className="preference-comment">固定休・授業・本業などのフリーコメント<textarea rows={3} maxLength={500} value={preference.freeComment} onChange={(event) => setPreference({ ...preference, freeComment: event.target.value })} placeholder="例：水曜は授業のため18時以降のみ可能" /></label>{notice && <p className="group-notice" role="status">{notice}</p>}</div>;
+  return <div className="group-preferences">
+    <div className="section-title"><div><h4>勤務の基本希望</h4><p>曜日ごとに時間帯と希望を登録します。時間を空欄にすると終日扱いです。</p></div><button className="small-action" onClick={() => void save()} disabled={saving}>{saving ? "保存中…" : "保存"}</button></div>
+    <div className="preference-days">
+      {labels.map((label, day) => <div className="preference-day" key={day}>
+        <strong>{label}曜日</strong>
+        <div className="preference-ranges">
+          {rowsFor(day).map((row, index) => <div className="preference-range" key={`${day}-${index}`}>
+            <div className="time-pair"><input type="time" value={row.startTime} onChange={(event) => updateDay(day, index, { startTime: event.target.value })} aria-label={`${label}開始時刻`} /><span>〜</span><input type="time" value={row.endTime} onChange={(event) => updateDay(day, index, { endTime: event.target.value })} aria-label={`${label}終了時刻`} /></div>
+            <select value={row.status} onChange={(event) => updateDay(day, index, { status: event.target.value as PreferenceStatus })}>{Object.entries(statusLabels).map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select>
+            {rowsFor(day).length > 1 && <button type="button" className="range-remove" onClick={() => removeDay(day, index)} aria-label={`${label}の時間帯を削除`}>×</button>}
+          </div>)}
+          <button type="button" className="small-action range-add" onClick={() => addDay(day)}>＋時間帯を追加</button>
+        </div>
+      </div>)}
+    </div>
+    <p className="preference-help">時間帯を登録した曜日は、登録範囲外を「勤務不可」として扱います。</p>
+    <div className="preference-fields"><label>週の希望勤務日数（下限）<input type="number" min="0" max="7" value={preference.minDays} onChange={(event) => setPreference({ ...preference, minDays: Number(event.target.value) })} /></label><label>週の希望勤務日数（上限）<input type="number" min="0" max="7" value={preference.maxDays} onChange={(event) => setPreference({ ...preference, maxDays: Number(event.target.value) })} /></label><label>週の希望勤務時間（下限）<input type="number" min="0" max="168" value={preference.minHours} onChange={(event) => setPreference({ ...preference, minHours: Number(event.target.value) })} /></label><label>週の希望勤務時間（上限）<input type="number" min="0" max="168" value={preference.maxHours} onChange={(event) => setPreference({ ...preference, maxHours: Number(event.target.value) })} /></label></div>
+    <label className="preference-comment">固定休・授業・本業などのフリーコメント<textarea rows={3} maxLength={500} value={preference.freeComment} onChange={(event) => setPreference({ ...preference, freeComment: event.target.value })} placeholder="例：水曜は授業のため18時以降のみ可能" /></label>
+    {notice && <p className="group-notice" role="status">{notice}</p>}
+  </div>;
 }
