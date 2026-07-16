@@ -2,5 +2,86 @@
 import { useEffect, useState } from "react";
 import { localApiFetch } from "./local-api";
 type Props = { groupId: string };
-type Plan = { id: string; name: string; status: string; startDate: string; endDate: string };
-export default function DashboardPanel({ groupId }: Props) { const [plans, setPlans] = useState<Plan[]>([]); const [members, setMembers] = useState(0); const [announcements, setAnnouncements] = useState(0); const [loading, setLoading] = useState(true); useEffect(() => { void (async () => { const [p, g, a] = await Promise.all([localApiFetch(`/api/shifts?groupId=${groupId}`), localApiFetch(`/api/groups/${groupId}`), localApiFetch(`/api/groups/${groupId}/announcements`)]); if (p.ok) setPlans((await p.json() as { plans: Plan[] }).plans); if (g.ok) setMembers(((await g.json()) as { members?: unknown[] }).members?.length ?? 0); if (a.ok) setAnnouncements(((await a.json()) as { announcements?: unknown[] }).announcements?.length ?? 0); setLoading(false); })(); }, [groupId]); return <section className="dashboard-panel"><div className="modal-head"><div><p className="eyebrow">DASHBOARD</p><h2>グループ状況</h2></div></div>{loading ? <p>読み込み中…</p> : <><div className="dashboard-metrics"><div><strong>{members}</strong><span>メンバー</span></div><div><strong>{plans.filter((plan) => plan.status === "published").length}</strong><span>公開済みシフト</span></div><div><strong>{plans.filter((plan) => plan.status === "draft").length}</strong><span>下書き</span></div><div><strong>{announcements}</strong><span>お知らせ</span></div></div><h3>最近の勤務枠</h3><div className="dashboard-plans">{plans.slice(0, 5).map((plan) => <div key={plan.id}><strong>{plan.name}</strong><span>{plan.startDate}〜{plan.endDate}</span><em>{plan.status === "published" ? "公開済み" : "下書き"}</em></div>)}</div></>}</section>; }
+type Plan = {
+  id: string;
+  name: string;
+  status: string;
+  startDate: string;
+  endDate: string;
+};
+export default function DashboardPanel({ groupId }: Props) {
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [members, setMembers] = useState(0);
+  const [announcements, setAnnouncements] = useState(0);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    void (async () => {
+      const [p, g, a] = await Promise.all([
+        localApiFetch(`/api/shifts?groupId=${groupId}`),
+        localApiFetch(`/api/groups/${groupId}`),
+        localApiFetch(`/api/groups/${groupId}/announcements`),
+      ]);
+      if (p.ok) setPlans(((await p.json()) as { plans: Plan[] }).plans);
+      if (g.ok)
+        setMembers(
+          ((await g.json()) as { members?: unknown[] }).members?.length ?? 0,
+        );
+      if (a.ok)
+        setAnnouncements(
+          ((await a.json()) as { announcements?: unknown[] }).announcements
+            ?.length ?? 0,
+        );
+      setLoading(false);
+    })();
+  }, [groupId]);
+  return (
+    <section className="dashboard-panel">
+      <div className="modal-head">
+        <div>
+          <p className="eyebrow">DASHBOARD</p>
+          <h2>グループ状況</h2>
+        </div>
+      </div>
+      {loading ? (
+        <p>読み込み中…</p>
+      ) : (
+        <>
+          <div className="dashboard-metrics">
+            <div>
+              <strong>{members}</strong>
+              <span>メンバー</span>
+            </div>
+            <div>
+              <strong>
+                {plans.filter((plan) => plan.status === "published").length}
+              </strong>
+              <span>公開済みシフト</span>
+            </div>
+            <div>
+              <strong>
+                {plans.filter((plan) => plan.status === "draft").length}
+              </strong>
+              <span>下書き</span>
+            </div>
+            <div>
+              <strong>{announcements}</strong>
+              <span>お知らせ</span>
+            </div>
+          </div>
+          <h3>最近の勤務枠</h3>
+          <div className="dashboard-plans">
+            {plans.slice(0, 5).map((plan) => (
+              <div key={plan.id}>
+                <strong>{plan.name}</strong>
+                <span>
+                  {plan.startDate}〜{plan.endDate}
+                </span>
+                <em>{plan.status === "published" ? "公開済み" : "下書き"}</em>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}

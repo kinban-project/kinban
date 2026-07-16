@@ -330,7 +330,7 @@ export default function ShiftAdjustment({
       <div className="shift-builder-head">
         <div>
           <p className="eyebrow">SHIFT ADJUSTMENT</p>
-          <h2>シフト調整</h2>
+          <h2>シフト割当</h2>
           <p>勤務希望を確認しながら担当者を割り当てます。</p>
         </div>
       </div>
