@@ -16,7 +16,7 @@ import { localApiFetch } from "./local-api";
 type Attachment = { id: string; filename: string; size: number; contentType: string };
 type EventItem = { id: string; title: string; date: string; startTime: string; endTime: string; category: string; notes: string; completed: boolean; groupId?: string | null; groupName?: string | null; readOnly?: boolean; attachments?: Attachment[] };
 type FormState = { title: string; date: string; startTime: string; endTime: string; category: string; notes: string };
-type GroupMembership = { groupId: string; name?: string; role: string; showInPersonal: boolean };
+type GroupMembership = { groupId: string; name?: string; role: string; showInPersonal: boolean; unreadAnnouncements?: number };
 
 const today = new Date();
 const todayKey = keyForDate(today);
@@ -88,7 +88,16 @@ export default function Home() {
     const response = await localApiFetch("/api/calendar");
     if (!response.ok) return;
     const data = await response.json() as { email: string; usedBytes: number; events: EventItem[]; groups?: GroupMembership[] };
-    setUserEmail(data.email); setUsedBytes(data.usedBytes ?? 0); setEvents(data.events); setGroups(data.groups ?? []);
+    setUserEmail(data.email); setUsedBytes(data.usedBytes ?? 0); setEvents(data.events);
+    const memberships = data.groups ?? [];
+    const withUnread = await Promise.all(memberships.map(async (group) => {
+      const announcementResponse = await localApiFetch(`/api/groups/${group.groupId}/announcements`);
+      if (!announcementResponse.ok) return group;
+      const announcementData = await announcementResponse.json() as { announcements?: Array<{ id: string }>; reads?: Array<{ announcementId: string }> };
+      const readIds = new Set((announcementData.reads ?? []).map((read) => read.announcementId));
+      return { ...group, unreadAnnouncements: (announcementData.announcements ?? []).filter((item) => !readIds.has(item.id)).length };
+    }));
+    setGroups(withUnread);
   }
 
   function openNew(date = selectedDate) { setEditingId(null); setGroupId(""); setForm(emptyForm(date)); setAttachment(null); setEditorOpen(true); }
