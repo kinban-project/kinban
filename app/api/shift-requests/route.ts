@@ -18,7 +18,8 @@ export async function GET(request: Request) {
   if (!membership) return Response.json({ error: "グループのメンバーではありません" }, { status: 403 });
   const db = getDb();
   const [group] = await db.select().from(groups).where(eq(groups.id, groupId)).limit(1);
-  const periods = await db.select().from(shiftRequestPeriods).where(eq(shiftRequestPeriods.groupId, groupId));
+  const allPeriods = await db.select().from(shiftRequestPeriods).where(eq(shiftRequestPeriods.groupId, groupId));
+  const periods = editable(membership.role) ? allPeriods : allPeriods.filter((item) => item.status === "open");
   const plans = await db.select().from(shiftPlans).where(eq(shiftPlans.groupId, groupId));
   const members = await db.select().from(groupMembers).where(eq(groupMembers.groupId, groupId));
   const availability = await db.select().from(shiftAvailability).where(and(eq(shiftAvailability.groupId, groupId), editable(membership.role) ? undefined : eq(shiftAvailability.userEmail, user.email)));

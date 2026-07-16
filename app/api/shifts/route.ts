@@ -1,7 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { getDb } from "../../../db";
-import { shiftPlans, shiftSlots } from "../../../db/schema";
+import { shiftPlans, shiftRequestPeriods, shiftSlots } from "../../../db/schema";
 import { getMembership } from "../groups/group-access";
 
 export const dynamic = "force-dynamic";
@@ -9,6 +9,8 @@ export const dynamic = "force-dynamic";
 function minutes(value: string) { const [hour, minute] = value.split(":").map(Number); return hour * 60 + minute; }
 function time(value: number) { return `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`; }
 function dateKeys(start: string, end: string) { const result: string[] = []; const cursor = new Date(`${start}T00:00:00Z`); const last = new Date(`${end}T00:00:00Z`); while (cursor <= last) { result.push(cursor.toISOString().slice(0, 10)); cursor.setUTCDate(cursor.getUTCDate() + 1); } return result; }
+function dateMinusDays(value: string, days: number) { const date = new Date(`${value}T00:00:00Z`); date.setUTCDate(date.getUTCDate() - days); return date.toISOString().slice(0, 10); }
+function defaultRequestCloseDate(startDate: string) { const minimum = new Date(); minimum.setDate(minimum.getDate() + 2); const minimumDate = `${minimum.getFullYear()}-${String(minimum.getMonth() + 1).padStart(2, "0")}-${String(minimum.getDate()).padStart(2, "0")}`; return dateMinusDays(startDate, 15) > minimumDate ? dateMinusDays(startDate, 15) : minimumDate; }
 
 export async function GET(request: Request) {
   const user = await getChatGPTUser();
@@ -23,13 +25,14 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const user = await getChatGPTUser();
   if (!user) return Response.json({ error: "ログインが必要です" }, { status: 401 });
-  const body = await request.json() as { groupId?: string; name?: string; notes?: string; startDate?: string; endDate?: string; openingTime?: string; closingTime?: string; slotMinutes?: number; requiredCount?: number; role?: string; slotRules?: Array<{ role?: string; requiredCount?: number }> };
+  const body = await request.json() as { groupId?: string; name?: string; notes?: string; startDate?: string; endDate?: string; requestCloseDate?: string; openingTime?: string; closingTime?: string; slotMinutes?: number; requiredCount?: number; role?: string; slotRules?: Array<{ role?: string; requiredCount?: number }> };
   const groupId = body.groupId ?? "";
   const membership = await getMembership(groupId, user.email);
   if (!membership || (membership.role !== "owner" && membership.role !== "editor")) return Response.json({ error: "シフト作成にはグループの編集権限が必要です" }, { status: 403 });
   const name = body.name?.trim() ?? "";
   const startDate = body.startDate ?? "";
   const endDate = body.endDate ?? "";
+  const requestCloseDate = body.requestCloseDate ?? (startDate ? defaultRequestCloseDate(startDate) : "");
   const openingTime = body.openingTime ?? "09:00";
   const closingTime = body.closingTime ?? "18:00";
   const slotMinutes = body.slotMinutes ?? 60;
@@ -43,6 +46,7 @@ export async function POST(request: Request) {
   const slotStatements = [];
   for (let index = 0; index < slots.length; index += 8) slotStatements.push(db.insert(shiftSlots).values(slots.slice(index, index + 8)));
   const notes = body.notes?.trim().slice(0, 2000) ?? "";
-  await db.batch([db.insert(shiftPlans).values({ id, groupId, name, notes, startDate, endDate, openingTime, closingTime, slotMinutes, defaultRequiredCount: rules[0].requiredCount, status: "draft", createdBy: user.email }), ...slotStatements]);
-  return Response.json({ plan: { id, groupId, name, notes, startDate, endDate, openingTime, closingTime, slotMinutes, defaultRequiredCount: rules[0].requiredCount, status: "draft" }, slotCount: slots.length }, { status: 201 });
+  const periodId = crypto.randomUUID();
+  await db.batch([db.insert(shiftPlans).values({ id, groupId, name, notes, startDate, endDate, openingTime, closingTime, slotMinutes, defaultRequiredCount: rules[0].requiredCount, status: "draft", createdBy: user.email }), ...slotStatements, db.insert(shiftRequestPeriods).values({ id: periodId, groupId, planId: id, name: `${name}の勤務希望`, opensOn: "", closesOn: requestCloseDate, status: "pending", createdBy: user.email })]);
+  return Response.json({ plan: { id, groupId, name, notes, startDate, endDate, requestCloseDate, openingTime, closingTime, slotMinutes, defaultRequiredCount: rules[0].requiredCount, status: "draft" }, requestPeriod: { id: periodId, groupId, planId: id, name: `${name}の勤務希望`, opensOn: "", closesOn: requestCloseDate, status: "pending", createdBy: user.email }, slotCount: slots.length }, { status: 201 });
 }

@@ -1,7 +1,7 @@
 import { eq, inArray } from "drizzle-orm";
 import { getChatGPTUser } from "../../../chatgpt-auth";
 import { getDb } from "../../../../db";
-import { accountProfiles, events, groupMembers, groups, shiftAssignments, shiftPlans, shiftSlots } from "../../../../db/schema";
+import { accountProfiles, events, groupMembers, groups, shiftAssignments, shiftPlans, shiftRequestPeriods, shiftSlots } from "../../../../db/schema";
 import { getMembership } from "../../groups/group-access";
 
 export const dynamic = "force-dynamic";
@@ -22,12 +22,13 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   if (!plan) return Response.json({ error: "シフト計画が見つかりません" }, { status: 404 });
   if (!await getMembership(plan.groupId, user.email)) return Response.json({ error: "グループのメンバーではありません" }, { status: 403 });
   const slots = await db.select().from(shiftSlots).where(eq(shiftSlots.planId, id));
+  const [requestPeriod] = await db.select().from(shiftRequestPeriods).where(eq(shiftRequestPeriods.planId, id)).limit(1);
   const assignmentChunks = await Promise.all(chunk(slots.map((slot) => slot.id), 50).map((slotIds) => db.select().from(shiftAssignments).where(inArray(shiftAssignments.slotId, slotIds))));
   const assignments = assignmentChunks.flat();
   const members = await db.select().from(groupMembers).where(eq(groupMembers.groupId, plan.groupId));
   const activeDates = new Set(slots.map((slot) => slot.date));
   const closedDates = dateKeys(plan.startDate, plan.endDate).filter((date) => !activeDates.has(date));
-  return Response.json({ currentEmail: user.email, plan, slots, assignments, members, closedDates });
+  return Response.json({ currentEmail: user.email, plan, slots, assignments, members, closedDates, requestPeriod: requestPeriod ?? null });
 }
 
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
@@ -46,6 +47,7 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
     db.delete(shiftSlots).where(inArray(shiftSlots.id, slotIds)),
   ]);
   statements.push(db.delete(events).where(eq(events.shiftPlanId, id)));
+  statements.push(db.delete(shiftRequestPeriods).where(eq(shiftRequestPeriods.planId, id)));
   statements.push(db.delete(shiftPlans).where(eq(shiftPlans.id, id)));
   await db.batch(statements);
   return Response.json({ ok: true });
@@ -60,14 +62,24 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (!plan) return Response.json({ error: "シフト計画が見つかりません" }, { status: 404 });
   const membership = await getMembership(plan.groupId, user.email);
   if (!membership || (membership.role !== "owner" && membership.role !== "editor")) return Response.json({ error: "シフト編集にはグループの編集権限が必要です" }, { status: 403 });
-  const body = await request.json() as { layout?: { notes?: string; slots?: Array<{ id?: string; date: string; startTime: string; endTime: string; requiredCount: number; role?: string }>; closedDates?: string[] }; assignments?: Record<string, string[]>; status?: "draft" | "published" };
+  const body = await request.json() as { action?: "start-requests"; requestCloseDate?: string; layout?: { notes?: string; slots?: Array<{ id?: string; date: string; startTime: string; endTime: string; requiredCount: number; role?: string }>; closedDates?: string[] }; assignments?: Record<string, string[]>; status?: "draft" | "published" };
   const slots = await db.select().from(shiftSlots).where(eq(shiftSlots.planId, id));
+  const [requestPeriod] = await db.select().from(shiftRequestPeriods).where(eq(shiftRequestPeriods.planId, id)).limit(1);
   if (body.layout) {
     const closedDates = new Set(body.layout.closedDates ?? []);
     const nextSlots = (body.layout.slots ?? []).filter((slot) => !closedDates.has(slot.date) && slot.date >= plan.startDate && slot.date <= plan.endDate && slot.startTime < slot.endTime).map((slot) => ({ id: slot.id ?? crypto.randomUUID(), planId: id, date: slot.date, startTime: slot.startTime, endTime: slot.endTime, requiredCount: Math.max(1, Math.min(50, Number(slot.requiredCount) || 1)), role: slot.role?.trim() ?? "" }));
     const statements = [db.delete(shiftAssignments).where(inArray(shiftAssignments.slotId, slots.map((slot) => slot.id))), db.delete(shiftSlots).where(eq(shiftSlots.planId, id)), ...chunk(nextSlots, 8).map((rows) => db.insert(shiftSlots).values(rows)), db.update(shiftPlans).set({ notes: body.layout.notes?.trim().slice(0, 2000) ?? plan.notes }).where(eq(shiftPlans.id, id))];
+    if (body.requestCloseDate && requestPeriod?.status === "pending") statements.push(db.update(shiftRequestPeriods).set({ closesOn: body.requestCloseDate }).where(eq(shiftRequestPeriods.id, requestPeriod.id)));
     await db.batch(statements);
-    return Response.json({ ok: true, slotCount: nextSlots.length });
+    if (body.action !== "start-requests") return Response.json({ ok: true, slotCount: nextSlots.length });
+  }
+  if (body.action === "start-requests") {
+    if (!requestPeriod || requestPeriod.status !== "pending") return Response.json({ error: "この勤務枠はすでに受付開始済みです" }, { status: 409 });
+    const closesOn = body.requestCloseDate ?? requestPeriod.closesOn;
+    if (!closesOn) return Response.json({ error: "シフト希望受付期限を設定してください" }, { status: 400 });
+    const opensOn = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(new Date());
+    await db.update(shiftRequestPeriods).set({ opensOn, closesOn, status: "open" }).where(eq(shiftRequestPeriods.id, requestPeriod.id));
+    return Response.json({ ok: true, status: "open", opensOn, closesOn });
   }
   const members = await db.select().from(groupMembers).where(eq(groupMembers.groupId, plan.groupId));
   const validUsers = new Set(members.map((member) => member.userEmail));
