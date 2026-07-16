@@ -65,7 +65,7 @@ export default function AuditLogPanel({ groupId }: { groupId: string }) {
       <button className="primary-button" disabled={busy}>{busy ? "検索中…" : "絞り込む"}</button>
     </form>
     {notice && <p className="group-notice">{notice}</p>}
-    <div className="audit-table-wrap"><table className="audit-table"><thead><tr><th>日時</th><th>実行者</th><th>操作</th><th>内容</th></tr></thead><tbody>{logs.length ? logs.map((log) => <tr key={log.id}><td>{new Date(log.createdAt).toLocaleString("ja-JP")}</td><td>{nameMap.get(log.userEmail) ?? log.userEmail.split("@")[0]}</td><td>{actionLabels[log.action] ?? log.action}</td><td><div>{log.summary}</div>{log.details && <details className="audit-detail"><summary>変更内容</summary><pre>{formatDetails(log.details)}</pre></details>}</td></tr>) : <tr><td colSpan={4}>該当する操作ログはありません。</td></tr>}</tbody></table></div>
+    <div className="audit-table-wrap"><table className="audit-table"><thead><tr><th>日時</th><th>実行者</th><th>操作</th><th>内容</th></tr></thead><tbody>{logs.length ? logs.map((log) => <tr key={log.id}><td>{new Date(log.createdAt).toLocaleString("ja-JP")}</td><td>{nameMap.get(log.userEmail) ?? log.userEmail.split("@")[0]}</td><td>{actionLabels[log.action] ?? log.action}</td><td className="audit-content"><span>{log.summary}</span>{log.details && <details className="audit-detail"><summary>変更内容</summary><pre>{formatDetails(log.details)}</pre></details>}</td></tr>) : <tr><td colSpan={4}>該当する操作ログはありません。</td></tr>}</tbody></table></div>
     <p className="shift-help">表示上限は最新300件です。</p>
   </section>;
 }
