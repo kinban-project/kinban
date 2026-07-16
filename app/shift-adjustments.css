@@ -1,0 +1,6 @@
+.shift-grid-slot .slot-count-input {
+  width: 64px;
+  flex: 0 0 64px;
+  padding-left: 8px;
+  padding-right: 4px;
+}

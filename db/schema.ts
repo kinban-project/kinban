@@ -40,6 +40,19 @@ export const groupMembers = sqliteTable("group_members", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const groupPreferences = sqliteTable("group_preferences", {
+  id: text("id").primaryKey(),
+  groupId: text("group_id").notNull(),
+  userEmail: text("user_email").notNull(),
+  minDays: integer("min_days").notNull().default(0),
+  maxDays: integer("max_days").notNull().default(7),
+  minHours: integer("min_hours").notNull().default(0),
+  maxHours: integer("max_hours").notNull().default(40),
+  weekendPolicy: text("weekend_policy").notNull().default("any"),
+  freeComment: text("free_comment").notNull().default(""),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const groupJoinRequests = sqliteTable("group_join_requests", {
   id: text("id").primaryKey(),
   groupId: text("group_id").notNull(),
@@ -58,6 +71,7 @@ export const shiftPlans = sqliteTable("shift_plans", {
   closingTime: text("closing_time").notNull(),
   slotMinutes: integer("slot_minutes").notNull().default(60),
   defaultRequiredCount: integer("default_required_count").notNull().default(1),
+  notes: text("notes").notNull().default(""),
   status: text("status", { enum: ["draft", "published"] }).notNull().default("draft"),
   createdBy: text("created_by").notNull(),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
@@ -77,6 +91,42 @@ export const shiftAssignments = sqliteTable("shift_assignments", {
   id: text("id").primaryKey(),
   slotId: text("slot_id").notNull(),
   userEmail: text("user_email").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const shiftAvailability = sqliteTable("shift_availability", {
+  id: text("id").primaryKey(),
+  groupId: text("group_id").notNull(),
+  userEmail: text("user_email").notNull(),
+  dayOfWeek: integer("day_of_week").notNull(),
+  status: text("status").notNull().default("available"),
+  startTime: text("start_time").notNull().default(""),
+  endTime: text("end_time").notNull().default(""),
+  note: text("note").notNull().default(""),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const shiftRequestPeriods = sqliteTable("shift_request_periods", {
+  id: text("id").primaryKey(),
+  groupId: text("group_id").notNull(),
+  planId: text("plan_id").notNull(),
+  name: text("name").notNull(),
+  opensOn: text("opens_on").notNull(),
+  closesOn: text("closes_on").notNull(),
+  status: text("status").notNull().default("open"),
+  createdBy: text("created_by").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const shiftRequests = sqliteTable("shift_requests", {
+  id: text("id").primaryKey(),
+  periodId: text("period_id").notNull(),
+  userEmail: text("user_email").notNull(),
+  date: text("date").notNull(),
+  startTime: text("start_time").notNull(),
+  endTime: text("end_time").notNull(),
+  preference: text("preference").notNull().default("possible"),
+  note: text("note").notNull().default(""),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 

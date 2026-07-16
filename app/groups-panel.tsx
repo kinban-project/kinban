@@ -6,7 +6,7 @@ import { getLocalUserId, localApiFetch, setLocalUserId } from "./local-api";
 type Group = { id: string; name: string; description: string; ownerEmail: string; membership: { role: string; showInPersonal: boolean }; pendingJoin?: boolean };
 type GroupDetail = { currentEmail: string; group: Group; membership: { role: string; showInPersonal: boolean }; members: Array<{ userEmail: string; displayName?: string | null; role: string; showInPersonal: boolean }>; requests: Array<{ id: string; userEmail: string; status: string }> };
 
-export default function GroupsPanel({ onChanged }: { onChanged: () => void }) {
+export default function GroupsPanel({ onChanged, initialGroupId }: { onChanged: () => void; initialGroupId?: string }) {
   const [groups, setGroups] = useState<Group[]>([]);
   const [selected, setSelected] = useState<GroupDetail | null>(null);
   const [name, setName] = useState("");
@@ -20,6 +20,7 @@ export default function GroupsPanel({ onChanged }: { onChanged: () => void }) {
   }
 
   useEffect(() => { const timer = window.setTimeout(() => void loadGroups(), 0); return () => window.clearTimeout(timer); }, []);
+  useEffect(() => { const group = groups.find((item) => item.id === initialGroupId); if (group) void openGroup(group); }, [groups, initialGroupId]);
 
   async function createGroup(event: React.FormEvent) {
     event.preventDefault();

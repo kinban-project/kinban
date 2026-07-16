@@ -36,6 +36,27 @@
       "when": 1784110836257,
       "tag": "0004_add_nicknames",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1784110836258,
+      "tag": "0005_add_shift_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1784110836259,
+      "tag": "0006_add_group_preferences",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1784110836260,
+      "tag": "0007_add_shift_plan_notes",
+      "breakpoints": true
     }
   ]
 }
