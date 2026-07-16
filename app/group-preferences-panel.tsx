@@ -46,6 +46,8 @@ export default function GroupPreferencesPanel({ groupId }: { groupId: string }) 
 
   return <div className="group-preferences">
     <div className="section-title"><div><h4>勤務の基本希望</h4><p>曜日ごとに時間帯と希望を登録します。時間を空欄にすると終日扱いです。</p></div><button className="small-action" onClick={() => void save()} disabled={saving}>{saving ? "保存中…" : "保存"}</button></div>
+    <div className="preference-fields"><label>週の希望勤務日数（下限）<input type="number" min="0" max="7" value={preference.minDays} onChange={(event) => setPreference({ ...preference, minDays: Number(event.target.value) })} /></label><label>週の希望勤務日数（上限）<input type="number" min="0" max="7" value={preference.maxDays} onChange={(event) => setPreference({ ...preference, maxDays: Number(event.target.value) })} /></label><label>週の希望勤務時間（下限）<input type="number" min="0" max="168" value={preference.minHours} onChange={(event) => setPreference({ ...preference, minHours: Number(event.target.value) })} /></label><label>週の希望勤務時間（上限）<input type="number" min="0" max="168" value={preference.maxHours} onChange={(event) => setPreference({ ...preference, maxHours: Number(event.target.value) })} /></label></div>
+    <label className="preference-comment">固定休・授業・本業などのフリーコメント<textarea rows={3} maxLength={500} value={preference.freeComment} onChange={(event) => setPreference({ ...preference, freeComment: event.target.value })} placeholder="例：水曜は授業のため18時以降のみ可能" /></label>
     <div className="preference-days">
       {labels.map((label, day) => <div className="preference-day" key={day}>
         <strong>{label}曜日</strong>
@@ -60,8 +62,6 @@ export default function GroupPreferencesPanel({ groupId }: { groupId: string }) 
       </div>)}
     </div>
     <p className="preference-help">時間帯を登録した曜日は、登録範囲外を「勤務不可」として扱います。</p>
-    <div className="preference-fields"><label>週の希望勤務日数（下限）<input type="number" min="0" max="7" value={preference.minDays} onChange={(event) => setPreference({ ...preference, minDays: Number(event.target.value) })} /></label><label>週の希望勤務日数（上限）<input type="number" min="0" max="7" value={preference.maxDays} onChange={(event) => setPreference({ ...preference, maxDays: Number(event.target.value) })} /></label><label>週の希望勤務時間（下限）<input type="number" min="0" max="168" value={preference.minHours} onChange={(event) => setPreference({ ...preference, minHours: Number(event.target.value) })} /></label><label>週の希望勤務時間（上限）<input type="number" min="0" max="168" value={preference.maxHours} onChange={(event) => setPreference({ ...preference, maxHours: Number(event.target.value) })} /></label></div>
-    <label className="preference-comment">固定休・授業・本業などのフリーコメント<textarea rows={3} maxLength={500} value={preference.freeComment} onChange={(event) => setPreference({ ...preference, freeComment: event.target.value })} placeholder="例：水曜は授業のため18時以降のみ可能" /></label>
     {notice && <p className="group-notice" role="status">{notice}</p>}
   </div>;
 }
