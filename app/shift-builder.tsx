@@ -20,6 +20,12 @@ function dateKeys(start: string, end: string) {
   return dates;
 }
 
+function formatDateWithWeekday(date: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  const weekday = ["日", "月", "火", "水", "木", "金", "土"][new Date(year, month - 1, day).getDay()];
+  return `${date}（${weekday}）`;
+}
+
 export default function ShiftBuilder({ initialGroupId }: { initialGroupId?: string }) {
   const [groups, setGroups] = useState<Group[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -112,7 +118,7 @@ export default function ShiftBuilder({ initialGroupId }: { initialGroupId?: stri
     </> : <>
       <div className="shift-summary"><div><strong>{detail.plan.name}</strong><span>{detail.plan.startDate}〜{detail.plan.endDate} ／ {detail.plan.openingTime}〜{detail.plan.closingTime}</span></div><span className={detail.plan.status}>{detail.plan.status === "published" ? "公開済み" : "下書き"}</span></div>
       <label className="plan-notes plan-notes-edit">勤務枠の方針・メモ<textarea rows={3} maxLength={2000} value={detail.plan.notes ?? ""} onChange={(event) => setDetail({ ...detail, plan: { ...detail.plan, notes: event.target.value } })} /></label>
-      <div className="shift-grid-wrap"><table className="shift-grid"><thead><tr><th>日付</th>{[...new Set(detail.slots.map((slot) => slot.startTime))].sort().map((time) => <th key={time}>{time}</th>)}</tr></thead><tbody>{dateKeys(detail.plan.startDate, detail.plan.endDate).map((date) => closedDates.includes(date) ? <tr key={date} className="shift-grid-closed"><th><strong>{date}</strong><button className="small-action" type="button" onClick={() => reopenDate(date)}>営業日に戻す</button></th><td colSpan={[...new Set(detail.slots.map((slot) => slot.startTime))].length}><strong>休業中</strong></td></tr> : <tr key={date}><th><strong>{date}</strong><button className="small-action danger" type="button" onClick={() => closeDate(date)}>この日を休業</button></th>{[...new Set(detail.slots.map((slot) => slot.startTime))].sort().map((time) => { const cells = detail.slots.filter((slot) => slot.date === date && slot.startTime === time); return <td key={`${date}|${time}`}>{cells.length ? cells.map((slot) => <div className="shift-grid-slot" key={slot.id}><strong className="shift-grid-role">{slot.role || "共通"}</strong><input className="slot-count-input" type="number" min="1" max="50" value={slot.requiredCount} onChange={(event) => updateSlot(slot.id, { requiredCount: Number(event.target.value) })} /></div>) : <span className="shift-grid-empty">—</span>}</td>; })}</tr>)}</tbody></table></div>
+      <div className="shift-grid-wrap"><table className="shift-grid"><thead><tr><th>日付</th>{[...new Set(detail.slots.map((slot) => slot.startTime))].sort().map((time) => <th key={time}>{time}</th>)}</tr></thead><tbody>{dateKeys(detail.plan.startDate, detail.plan.endDate).map((date) => closedDates.includes(date) ? <tr key={date} className="shift-grid-closed"><th><strong>{formatDateWithWeekday(date)}</strong><button className="small-action" type="button" onClick={() => reopenDate(date)}>営業日に戻す</button></th><td colSpan={[...new Set(detail.slots.map((slot) => slot.startTime))].length}><strong>休業中</strong></td></tr> : <tr key={date}><th><strong>{formatDateWithWeekday(date)}</strong><button className="small-action danger" type="button" onClick={() => closeDate(date)}>この日を休業</button></th>{[...new Set(detail.slots.map((slot) => slot.startTime))].sort().map((time) => { const cells = detail.slots.filter((slot) => slot.date === date && slot.startTime === time); return <td key={`${date}|${time}`}>{cells.length ? cells.map((slot) => <div className="shift-grid-slot" key={slot.id}><strong className="shift-grid-role">{slot.role || "共通"}</strong><input className="slot-count-input" type="number" min="1" max="50" value={slot.requiredCount} onChange={(event) => updateSlot(slot.id, { requiredCount: Number(event.target.value) })} /></div>) : <span className="shift-grid-empty">—</span>}</td>; })}</tr>)}</tbody></table></div>
       <div className="shift-actions"><button className="primary-button" onClick={() => void saveLayout()} disabled={busy}>勤務枠を保存</button></div><p className="shift-help">人数・時間・担当を調整できます。休業にした日は、勤務枠を削除して保存します。</p>
     </>}
     {notice && <p className="group-notice" role="status">{notice}</p>}
