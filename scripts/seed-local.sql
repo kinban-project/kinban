@@ -30,7 +30,7 @@ INSERT INTO account_profiles (user_email, nickname) VALUES
   ('member09@local.test', 'フリーター3');
 
 INSERT INTO groups (id, name, description, owner_email) VALUES
-  ('seed-group-store', '日高屋サンプル店', '日高屋を参考にしたシフト作成デモ', 'tanaka@local.test');
+  ('seed-group-store', 'サンプル店', 'シフト作成デモ', 'tanaka@local.test');
 
 INSERT INTO group_members (id, group_id, user_email, display_name, role, show_in_personal) VALUES
   ('seed-member-owner', 'seed-group-store', 'tanaka@local.test', '店長', 'owner', 1),
