@@ -177,9 +177,9 @@ export async function POST(request: Request, context: Context) {
     if (!record) return error("Work record not found.", 404);
     if (record.endedAt) return error("This work record has already ended.", 409);
     const endedAt = new Date().toISOString();
-    await db.update(workRecords).set({ endedAt, claimedEndAt: endedAt, endNetworkStatus: network.status, endSourceIp: shouldStoreSourceIp() ? network.ip : "", endLatitude: location.latitude, endLongitude: location.longitude, endAccuracy: location.accuracy, status: "submitted", updatedAt: endedAt, employeeNote: String(body.note ?? record.employeeNote).trim().slice(0, 500) }).where(eq(workRecords.id, record.id));
+    await db.update(workRecords).set({ endedAt, claimedEndAt: endedAt, endNetworkStatus: network.status, endSourceIp: shouldStoreSourceIp() ? network.ip : "", endLatitude: location.latitude, endLongitude: location.longitude, endAccuracy: location.accuracy, status: "working", updatedAt: endedAt, employeeNote: String(body.note ?? record.employeeNote).trim().slice(0, 500) }).where(eq(workRecords.id, record.id));
     await recordAudit({ groupId, userEmail: user.email, action: "work.end", entityType: "workRecord", entityId: record.id, summary: `勤務終了: ${record.scheduledDate}`, details: { networkStatus: network.status } });
-    return Response.json({ ok: true, recordId: record.id, status: "submitted", endedAt });
+    return Response.json({ ok: true, recordId: record.id, status: "working", endedAt });
   }
   return error("action must be start or end.", 400);
 }
@@ -190,7 +190,7 @@ export async function PATCH(request: Request, context: Context) {
   const { id: groupId } = await context.params;
   const current = await contextData(groupId, user.email);
   if ("error" in current) return current.error;
-  const body = await request.json().catch(() => ({})) as { action?: string; recordId?: string; status?: string; managerNote?: string };
+  const body = await request.json().catch(() => ({})) as { action?: string; recordId?: string; status?: string; managerNote?: string; confirm?: boolean };
   if (body.action === "save-claim") {
     const claimBody = body as typeof body & { claimedStartAt?: string; claimedEndAt?: string };
     if (!body.recordId || !claimBody.claimedStartAt) return error("recordId and claimedStartAt are required.", 400);
@@ -212,6 +212,27 @@ export async function PATCH(request: Request, context: Context) {
     const now = new Date().toISOString();
     await current.db.update(workRecords).set({ claimedStartAt: jstIso(record.scheduledDate, record.scheduledStartTime), claimedEndAt: jstIso(record.scheduledDate, record.scheduledEndTime), updatedAt: now }).where(eq(workRecords.id, record.id));
     return Response.json({ ok: true, recordId: record.id });
+  }
+  if (body.action === "submit-claim") {
+    if (!body.recordId) return error("recordId is required.", 400);
+    const [record] = await current.db.select().from(workRecords).where(and(eq(workRecords.id, body.recordId), eq(workRecords.groupId, groupId), eq(workRecords.userEmail, user.email))).limit(1);
+    if (!record) return error("Work record not found.", 404);
+    if (record.status === "approved") return error("Approved work records cannot be changed.", 409);
+    if (!record.claimedStartAt || !record.claimedEndAt) return error("申告の開始・終了時刻を入力してください。", 400);
+    const start = new Date(record.claimedStartAt).getTime();
+    const end = new Date(record.claimedEndAt).getTime();
+    if (!(start < end)) return error("申告の終了時刻は開始時刻より後にしてください。", 400);
+    const warnings: string[] = [];
+    if (record.scheduledStartTime && record.scheduledEndTime) {
+      const scheduledStart = new Date(jstIso(record.scheduledDate, record.scheduledStartTime)).getTime();
+      const scheduledEnd = new Date(jstIso(record.scheduledDate, record.scheduledEndTime)).getTime();
+      if (Math.abs(start - scheduledStart) > 120 * 60 * 1000 || Math.abs(end - scheduledEnd) > 120 * 60 * 1000) warnings.push("シフト予定と申告時間の差が大きくなっています。");
+    }
+    if (warnings.length && body.confirm !== true) return Response.json({ error: warnings.join(" "), warning: true }, { status: 409 });
+    const now = new Date().toISOString();
+    await current.db.update(workRecords).set({ status: "submitted", updatedAt: now }).where(eq(workRecords.id, record.id));
+    await recordAudit({ groupId, userEmail: user.email, action: "work.submit", entityType: "workRecord", entityId: record.id, summary: `勤務時間を申請: ${record.scheduledDate}`, details: { warnings } });
+    return Response.json({ ok: true, recordId: record.id, status: "submitted", warnings });
   }
   if (!managerRoles.has(current.membership.role)) return error("Owner or editor permission is required.", 403);
   if (!body.recordId || !["approved", "rejected"].includes(body.status ?? "")) return error("recordId and approved or rejected status are required.", 400);

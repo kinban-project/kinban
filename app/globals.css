@@ -179,6 +179,19 @@ button { cursor: pointer; }
 .claim-time-fields { display: flex; align-items: center; gap: 4px; min-width: 330px; }.claim-time-fields input { width: 148px; border: 1px solid var(--line); border-radius: 6px; padding: 5px; color: var(--ink); background: #fff; font-size: 10px; }
 .work-schedule-claim { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }.work-clock-note { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; }
 .work-records-table small { display: block; color: var(--muted); margin-top: 3px; }
+.work-month-toolbar { display: flex; align-items: center; gap: 8px; margin: 12px 0 6px; }
+.work-month-toolbar select { min-width: 150px; border: 1px solid var(--line); border-radius: 7px; padding: 7px 10px; background: #fff; color: var(--ink); }
+.work-month-toolbar .primary-button { margin-left: auto; }
+.work-month-help { margin: 0 0 10px; color: var(--muted); font-size: 11px; }
+.monthly-work-wrap { max-height: 64vh; }
+.monthly-work-table { min-width: 1080px; }
+.monthly-work-table tbody th { background: #fbfcfa; white-space: nowrap; color: var(--ink); }
+.monthly-shift-ref, .monthly-record-value { display: block; white-space: nowrap; margin: 2px 0; }
+.monthly-claim { min-width: 300px; }
+.monthly-claim input { width: 130px; }
+.monthly-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+.work-status-unsubmitted { background: #fff0c8; color: #7a5a00; }
+.work-status-none { background: #f0f2ef; color: #68736b; }
 .work-schedule-list { display: grid; gap: 8px; }
 .work-schedule-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: #fbfcfa; }
 .work-schedule-item > div { display: grid; gap: 4px; }
