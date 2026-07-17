@@ -113,9 +113,28 @@ export async function POST(request: Request, context: Context) {
   const current = await contextData(groupId, user.email);
   if ("error" in current) return current.error;
   const { db, membership } = current;
-  const body = await request.json().catch(() => ({})) as { action?: string; recordId?: string; slotId?: string; location?: LocationInput; note?: string };
+  const body = await request.json().catch(() => ({})) as { action?: string; recordId?: string; slotId?: string; location?: LocationInput; note?: string; claimedStartAt?: string; claimedEndAt?: string };
   const network = networkStatus(request);
   const location = locationValues(body.location);
+
+  if (body.action === "create-claim") {
+    if (!body.slotId || !body.claimedStartAt || !body.claimedEndAt) return error("slotId and claim times are required.", 400);
+    const [slot] = await db.select().from(shiftSlots).where(eq(shiftSlots.id, body.slotId)).limit(1);
+    if (!slot) return error("Assigned shift slot not found.", 404);
+    const [plan] = await db.select().from(shiftPlans).where(and(eq(shiftPlans.id, slot.planId), eq(shiftPlans.groupId, groupId), eq(shiftPlans.status, "published"))).limit(1);
+    const [assignment] = await db.select().from(shiftAssignments).where(and(eq(shiftAssignments.slotId, slot.id), eq(shiftAssignments.userEmail, user.email))).limit(1);
+    if (!plan || !assignment) return error("You are not assigned to this shift.", 403);
+    const claimedStartAt = inputToIso(body.claimedStartAt);
+    const claimedEndAt = inputToIso(body.claimedEndAt);
+    if (!claimedStartAt || !claimedEndAt || new Date(claimedEndAt).getTime() <= new Date(claimedStartAt).getTime()) return error("Invalid claim time.", 400);
+    const existing = await db.select().from(workRecords).where(and(eq(workRecords.slotId, slot.id), eq(workRecords.userEmail, user.email))).limit(1);
+    if (existing[0] && existing[0].status !== "rejected") return Response.json({ ok: true, record: existing[0] });
+    const now = new Date().toISOString();
+    const row = { id: crypto.randomUUID(), groupId, planId: plan.id, slotId: slot.id, userEmail: user.email, scheduledDate: slot.date, scheduledStartTime: slot.startTime, scheduledEndTime: slot.endTime, claimedStartAt, claimedEndAt, status: "working", employeeNote: "", createdAt: now, updatedAt: now };
+    await db.insert(workRecords).values(row);
+    await recordAudit({ groupId, userEmail: user.email, action: "work.claim.create", entityType: "workRecord", entityId: row.id, summary: `勤務申告を作成: ${slot.date}` });
+    return Response.json({ ok: true, record: row }, { status: 201 });
+  }
 
   if (body.action === "start") {
     let scheduledDate = todayJst();

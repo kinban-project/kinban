@@ -184,11 +184,11 @@ button { cursor: pointer; }
 .work-month-toolbar .primary-button { margin-left: auto; }
 .work-month-help { margin: 0 0 10px; color: var(--muted); font-size: 11px; }
 .monthly-work-wrap { max-height: 64vh; }
-.monthly-work-table { min-width: 1080px; }
+.monthly-work-table { min-width: 1220px; }
 .monthly-work-table tbody th { background: #fbfcfa; white-space: nowrap; color: var(--ink); }
 .monthly-shift-ref, .monthly-record-value { display: block; white-space: nowrap; margin: 2px 0; }
-.monthly-claim { min-width: 300px; }
-.monthly-claim input { width: 130px; }
+.monthly-claim { min-width: 190px; }
+.monthly-claim input { width: 82px; }
 .monthly-actions { display: flex; flex-wrap: wrap; gap: 4px; }
 .work-status-unsubmitted { background: #fff0c8; color: #7a5a00; }
 .work-status-none { background: #f0f2ef; color: #68736b; }
