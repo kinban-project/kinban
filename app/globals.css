@@ -224,8 +224,8 @@ button { cursor: pointer; }
 .work-status-approved { background: #dcefeb; color: #17655d; }
 .work-status-rejected { background: #f6dddd; color: #8a3b3b; }
 .work-review-actions { display: flex; gap: 5px; }
-.approval-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0 10px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: #fbfcfa; }
-.approval-toolbar select { min-width: 132px; border: 1px solid var(--line); border-radius: 7px; padding: 7px 9px; background: #fff; color: var(--ink); font-size: 12px; }
+.approval-toolbar { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); align-items: center; gap: 6px; margin: 10px 0 8px; padding: 7px 8px; border: 1px solid var(--line); border-radius: 10px; background: #fbfcfa; }
+.approval-toolbar select { width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 7px; padding: 6px 7px; background: #fff; color: var(--ink); font-size: 11px; }
 .approval-issue-filter { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; color: var(--muted); font-size: 12px; white-space: nowrap; }
 .approval-summary { justify-content: flex-start; flex-wrap: wrap; }
 .approval-summary .primary-button { margin-left: auto; }
@@ -256,4 +256,5 @@ button { cursor: pointer; }
 .approval-detail-note { padding: 14px; border-radius: 10px; background: #f5f8f4; }
 .approval-detail-note p { margin: 8px 0 0; white-space: pre-wrap; }
 .approval-detail-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
-@media (max-width: 760px) { .approval-issue-filter { margin-left: 0; }.approval-detail-grid { grid-template-columns: 1fr; }.approval-detail-panel { padding: 18px; } }
+@media (max-width: 980px) { .approval-toolbar { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .approval-toolbar { grid-template-columns: repeat(2, minmax(0, 1fr)); }.approval-issue-filter { margin-left: 0; }.approval-detail-grid { grid-template-columns: 1fr; }.approval-detail-panel { padding: 18px; } }
