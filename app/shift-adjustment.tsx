@@ -106,6 +106,7 @@ export default function ShiftAdjustment({
   const [notice, setNotice] = useState("");
   const [showAllWarnings, setShowAllWarnings] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
+  const selectedGroupName = groups.find((group) => group.id === groupId)?.name;
   async function loadGroups() {
     const response = await localApiFetch("/api/groups");
     if (!response.ok) return;
@@ -344,12 +345,12 @@ export default function ShiftAdjustment({
       <div className="shift-builder-head">
         <div>
           <p className="eyebrow">SHIFT ADJUSTMENT</p>
-          <h2>シフト割当</h2>
+          <h2>シフト割当{selectedGroupName ? `（${selectedGroupName}）` : ""}</h2>
           <p>勤務希望を確認しながら担当者を割り当てます。</p>
         </div>
       </div>
       <div className="shift-adjustment-toolbar">
-        <select
+        {!initialGroupId && <select
           value={groupId}
           onChange={(event) => setGroupId(event.target.value)}
         >
@@ -358,7 +359,7 @@ export default function ShiftAdjustment({
               {group.name}
             </option>
           ))}
-        </select>
+        </select>}
         <select
           value={planId}
           onChange={(event) => setPlanId(event.target.value)}

@@ -995,7 +995,7 @@ export default function Home() {
             <div className="modal-head">
               <div>
                 <p className="eyebrow">GROUP SETTINGS</p>
-                <h2>基本設定</h2>
+                <h2>基本設定（{groups.find((group) => group.groupId === menuGroupId)?.name ?? ""}）</h2>
               </div>
               <button
                 className="close-button"

@@ -142,6 +142,7 @@ export default function ShiftBuilder({
       ),
     [groups],
   );
+  const selectedGroupName = groups.find((group) => group.id === form.groupId)?.name;
 
   async function loadGroups() {
     const response = await localApiFetch("/api/groups");
@@ -358,7 +359,7 @@ export default function ShiftBuilder({
       <div className="shift-builder-head">
         <div>
           <p className="eyebrow">SHIFT PLANNER</p>
-          <h2>シフト作成</h2>
+          <h2>シフト作成{selectedGroupName ? `（${selectedGroupName}）` : ""}</h2>
           <p>シフトの期間と勤務枠を作成し、表で調整します。</p>
         </div>
         {detail && (
@@ -370,7 +371,7 @@ export default function ShiftBuilder({
       {!detail ? (
         <>
           <form className="shift-condition-form" onSubmit={createPlan}>
-            <label>
+            {!initialGroupId && <label>
               グループ
               <select
                 required
@@ -386,7 +387,7 @@ export default function ShiftBuilder({
                   </option>
                 ))}
               </select>
-            </label>
+            </label>}
             <label>
               シフト名
               <input

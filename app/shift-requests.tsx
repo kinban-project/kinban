@@ -98,6 +98,7 @@ export default function ShiftRequests({
     data?.periods.find((period) => period.id === periodId) ??
     data?.period ??
     null;
+  const selectedGroupName = groups.find((group) => group.id === groupId)?.name;
   const slotsByDate = useMemo(() => {
     const map = new Map<string, Slot[]>();
     for (const slot of data?.slots ?? [])
@@ -235,7 +236,7 @@ export default function ShiftRequests({
       <div className="shift-builder-head">
         <div>
           <p className="eyebrow">SHIFT REQUESTS</p>
-          <h2>勤務希望の受付</h2>
+          <h2>勤務希望の受付{selectedGroupName ? `（${selectedGroupName}）` : ""}</h2>
         </div>
         <div className="request-header-right">
           {data?.preferences && (
@@ -249,7 +250,7 @@ export default function ShiftRequests({
               </span>
             </div>
           )}
-          <select
+          {!initialGroupId && <select
             value={groupId}
             onChange={(event) => setGroupId(event.target.value)}
           >
@@ -258,7 +259,7 @@ export default function ShiftRequests({
                 {group.name}
               </option>
             ))}
-          </select>
+          </select>}
         </div>
       </div>
       <div className="request-toolbar">
