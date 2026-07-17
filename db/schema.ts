@@ -14,7 +14,9 @@ export const events = sqliteTable("events", {
   category: text("category").notNull().default("仕事"),
   notes: text("notes").notNull().default(""),
   completed: integer("completed", { mode: "boolean" }).notNull().default(false),
-  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
 });
 
 export const groups = sqliteTable("groups", {
@@ -22,13 +24,17 @@ export const groups = sqliteTable("groups", {
   name: text("name").notNull(),
   description: text("description").notNull().default(""),
   ownerEmail: text("owner_email").notNull(),
-  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
 });
 
 export const accountProfiles = sqliteTable("account_profiles", {
   userEmail: text("user_email").primaryKey(),
   nickname: text("nickname").notNull().default(""),
-  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
 });
 
 export const groupMembers = sqliteTable("group_members", {
@@ -37,10 +43,18 @@ export const groupMembers = sqliteTable("group_members", {
   userEmail: text("user_email").notNull(),
   displayName: text("display_name"),
   adminNote: text("admin_note").notNull().default(""),
-  role: text("role", { enum: ["owner", "editor", "member"] }).notNull().default("member"),
-  status: text("status", { enum: ["active", "inactive"] }).notNull().default("active"),
-  showInPersonal: integer("show_in_personal", { mode: "boolean" }).notNull().default(true),
-  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  role: text("role", { enum: ["owner", "editor", "member"] })
+    .notNull()
+    .default("member"),
+  status: text("status", { enum: ["active", "inactive"] })
+    .notNull()
+    .default("active"),
+  showInPersonal: integer("show_in_personal", { mode: "boolean" })
+    .notNull()
+    .default(true),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
 });
 
 export const groupPreferences = sqliteTable("group_preferences", {
@@ -53,15 +67,21 @@ export const groupPreferences = sqliteTable("group_preferences", {
   maxHours: integer("max_hours").notNull().default(40),
   weekendPolicy: text("weekend_policy").notNull().default("any"),
   freeComment: text("free_comment").notNull().default(""),
-  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
 });
 
 export const groupJoinRequests = sqliteTable("group_join_requests", {
   id: text("id").primaryKey(),
   groupId: text("group_id").notNull(),
   userEmail: text("user_email").notNull(),
-  status: text("status", { enum: ["pending", "approved", "rejected"] }).notNull().default("pending"),
-  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  status: text("status", { enum: ["pending", "approved", "rejected"] })
+    .notNull()
+    .default("pending"),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
 });
 
 export const shiftPlans = sqliteTable("shift_plans", {
@@ -75,9 +95,13 @@ export const shiftPlans = sqliteTable("shift_plans", {
   slotMinutes: integer("slot_minutes").notNull().default(60),
   defaultRequiredCount: integer("default_required_count").notNull().default(1),
   notes: text("notes").notNull().default(""),
-  status: text("status", { enum: ["draft", "published"] }).notNull().default("draft"),
+  status: text("status", { enum: ["draft", "published"] })
+    .notNull()
+    .default("draft"),
   createdBy: text("created_by").notNull(),
-  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
 });
 
 export const shiftSlots = sqliteTable("shift_slots", {
@@ -94,17 +118,37 @@ export const shiftAssignments = sqliteTable("shift_assignments", {
   id: text("id").primaryKey(),
   slotId: text("slot_id").notNull(),
   userEmail: text("user_email").notNull(),
-  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
 });
 
 export const groupAnnouncements = sqliteTable("group_announcements", {
-  id: text("id").primaryKey(), groupId: text("group_id").notNull(), createdBy: text("created_by").notNull(), title: text("title").notNull(), body: text("body").notNull(), createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  id: text("id").primaryKey(),
+  groupId: text("group_id").notNull(),
+  createdBy: text("created_by").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
 });
 export const announcementReads = sqliteTable("announcement_reads", {
-  id: text("id").primaryKey(), announcementId: text("announcement_id").notNull(), userEmail: text("user_email").notNull(), readAt: text("read_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  id: text("id").primaryKey(),
+  announcementId: text("announcement_id").notNull(),
+  userEmail: text("user_email").notNull(),
+  readAt: text("read_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
 });
 export const announcementReplies = sqliteTable("announcement_replies", {
-  id: text("id").primaryKey(), announcementId: text("announcement_id").notNull(), userEmail: text("user_email").notNull(), body: text("body").notNull(), createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  id: text("id").primaryKey(),
+  announcementId: text("announcement_id").notNull(),
+  userEmail: text("user_email").notNull(),
+  body: text("body").notNull(),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
 });
 
 export const auditLogs = sqliteTable("audit_logs", {
@@ -116,7 +160,9 @@ export const auditLogs = sqliteTable("audit_logs", {
   entityId: text("entity_id").notNull().default(""),
   summary: text("summary").notNull(),
   details: text("details").notNull().default(""),
-  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
 });
 
 export const shiftAvailability = sqliteTable("shift_availability", {
@@ -128,7 +174,9 @@ export const shiftAvailability = sqliteTable("shift_availability", {
   startTime: text("start_time").notNull().default(""),
   endTime: text("end_time").notNull().default(""),
   note: text("note").notNull().default(""),
-  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
 });
 
 export const shiftRequestPeriods = sqliteTable("shift_request_periods", {
@@ -140,7 +188,9 @@ export const shiftRequestPeriods = sqliteTable("shift_request_periods", {
   closesOn: text("closes_on").notNull(),
   status: text("status").notNull().default("open"),
   createdBy: text("created_by").notNull(),
-  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
 });
 
 export const shiftRequests = sqliteTable("shift_requests", {
@@ -152,15 +202,20 @@ export const shiftRequests = sqliteTable("shift_requests", {
   endTime: text("end_time").notNull(),
   preference: text("preference").notNull().default("possible"),
   note: text("note").notNull().default(""),
-  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
 });
 
-export const shiftRequestSubmissions = sqliteTable("shift_request_submissions", {
-  id: text("id").primaryKey(),
-  periodId: text("period_id").notNull(),
-  userEmail: text("user_email").notNull(),
-  savedAt: text("saved_at").notNull(),
-});
+export const shiftRequestSubmissions = sqliteTable(
+  "shift_request_submissions",
+  {
+    id: text("id").primaryKey(),
+    periodId: text("period_id").notNull(),
+    userEmail: text("user_email").notNull(),
+    savedAt: text("saved_at").notNull(),
+  },
+);
 
 export const workRecords = sqliteTable("work_records", {
   id: text("id").primaryKey(),
@@ -181,8 +236,14 @@ export const workRecords = sqliteTable("work_records", {
   managerNote: text("manager_note").notNull().default(""),
   approvedBy: text("approved_by"),
   approvedAt: text("approved_at"),
-  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  monthlyClosedAt: text("monthly_closed_at"),
+  monthlyClosedBy: text("monthly_closed_by"),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
 });
 
 export const workBreaks = sqliteTable("work_breaks", {
@@ -190,7 +251,9 @@ export const workBreaks = sqliteTable("work_breaks", {
   workRecordId: text("work_record_id").notNull(),
   startedAt: text("started_at").notNull(),
   endedAt: text("ended_at"),
-  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
 });
 
 export const attachments = sqliteTable("attachments", {
@@ -201,7 +264,9 @@ export const attachments = sqliteTable("attachments", {
   filename: text("filename").notNull(),
   contentType: text("content_type").notNull(),
   size: integer("size").notNull(),
-  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
 });
 
 export const apiTokens = sqliteTable("api_tokens", {
@@ -211,5 +276,7 @@ export const apiTokens = sqliteTable("api_tokens", {
   tokenHash: text("token_hash").notNull().unique(),
   tokenPrefix: text("token_prefix").notNull(),
   lastUsedAt: text("last_used_at"),
-  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
 });

@@ -230,6 +230,9 @@ button { cursor: pointer; }
 .approval-summary { justify-content: flex-start; flex-wrap: wrap; }
 .approval-summary .primary-button { margin-left: auto; }
 .approval-summary-issue { color: #a44942 !important; font-weight: 700; }
+.approval-month-controls { display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin: 8px 0 12px; }
+.approval-month-locked { color: #17655d; font-weight: 700; }
+.approval-month-controls .primary-button:disabled { opacity: .45; cursor: not-allowed; }
 .approval-table { min-width: 1120px; table-layout: auto; }
 .approval-table th, .approval-table td { white-space: nowrap; }
 .approval-table th:nth-child(1), .approval-table td:nth-child(1) { width: 42px; text-align: center; }
