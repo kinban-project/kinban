@@ -18,6 +18,7 @@ export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ id: string }> };
 type LocationInput = { latitude?: unknown; longitude?: unknown; accuracy?: unknown };
 const managerRoles = new Set(["owner", "editor"]);
+const chunk = <T,>(items: T[], size: number) => Array.from({ length: Math.ceil(items.length / size) }, (_, index) => items.slice(index * size, (index + 1) * size));
 
 function error(message: string, status: number) {
   return Response.json({ error: message }, { status });
@@ -79,7 +80,7 @@ export async function GET(request: Request, context: Context) {
   const planIds = plans.map((plan) => plan.id);
   const slots = planIds.length ? await db.select().from(shiftSlots).where(inArray(shiftSlots.planId, planIds)) : [];
   const slotIds = slots.map((slot) => slot.id);
-  const assignments = slotIds.length ? await db.select().from(shiftAssignments).where(inArray(shiftAssignments.slotId, slotIds)) : [];
+  const assignments = slotIds.length ? (await Promise.all(chunk(slotIds, 50).map((ids) => db.select().from(shiftAssignments).where(inArray(shiftAssignments.slotId, ids))))).flat() : [];
   const records = await db.select().from(workRecords).where(and(eq(workRecords.groupId, groupId), manager ? undefined : eq(workRecords.userEmail, user.email)));
   const recordIds = records.map((record) => record.id);
   const breaks = recordIds.length ? await db.select().from(workBreaks).where(inArray(workBreaks.workRecordId, recordIds)) : [];
