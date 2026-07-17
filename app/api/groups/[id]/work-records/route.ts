@@ -613,7 +613,9 @@ export async function PATCH(request: Request, context: Context) {
             ),
           );
     const resetDailyApproval =
-      record.status === "submitted" || record.status === "approved";
+      record.status === "submitted" ||
+      record.status === "approved" ||
+      record.status === "rejected";
     await current.db
       .update(workRecords)
       .set({
@@ -655,7 +657,9 @@ export async function PATCH(request: Request, context: Context) {
         409,
       );
     const resetDailyApproval =
-      record.status === "submitted" || record.status === "approved";
+      record.status === "submitted" ||
+      record.status === "approved" ||
+      record.status === "rejected";
     const now = new Date().toISOString();
     await current.db
       .update(workRecords)

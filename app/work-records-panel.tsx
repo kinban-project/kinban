@@ -836,7 +836,7 @@ export default function WorkRecordsPanel({
                       </td>
                       <td>
                         {record &&
-                        ["working", "unsubmitted"].includes(record.status) &&
+                        ["working", "unsubmitted", "rejected"].includes(record.status) &&
                         (record.endedAt || draft?.end) ? (
                           <button
                             className="small-action"
