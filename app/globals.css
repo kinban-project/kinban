@@ -177,6 +177,7 @@ button { cursor: pointer; }
 .work-records-table th { background: #f4f7f3; color: var(--muted); font-weight: 600; }
 .work-records-table tr:last-child td { border-bottom: 0; }
 .claim-time-fields { display: flex; align-items: center; gap: 4px; min-width: 330px; }.claim-time-fields input { width: 148px; border: 1px solid var(--line); border-radius: 6px; padding: 5px; color: var(--ink); background: #fff; font-size: 10px; }
+.work-schedule-claim { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }.work-clock-note { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; }
 .work-records-table small { display: block; color: var(--muted); margin-top: 3px; }
 .work-schedule-list { display: grid; gap: 8px; }
 .work-schedule-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: #fbfcfa; }
