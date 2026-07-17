@@ -109,8 +109,9 @@ export async function POST(request: Request, context: Context) {
     const [plan] = await db.select().from(shiftPlans).where(and(eq(shiftPlans.id, slot.planId), eq(shiftPlans.groupId, groupId), eq(shiftPlans.status, "published"))).limit(1);
     const [assignment] = await db.select().from(shiftAssignments).where(and(eq(shiftAssignments.slotId, slot.id), eq(shiftAssignments.userEmail, user.email))).limit(1);
     if (!plan || !assignment) return error("You are not assigned to this shift.", 403);
-    const claimedStartAt = inputToIso(body.claimedStartAt);
-    const claimedEndAt = inputToIso(body.claimedEndAt);
+    // 勤務枠の26:00〜30:00は翌日の時刻なので、入力値ではなく枠から正規化して作成する。
+    const claimedStartAt = jstIso(slot.date, slot.startTime);
+    const claimedEndAt = jstIso(slot.date, slot.endTime);
     if (!claimedStartAt || !claimedEndAt || new Date(claimedEndAt).getTime() <= new Date(claimedStartAt).getTime()) return error("Invalid claim time.", 400);
     const existing = await db.select().from(workRecords).where(and(eq(workRecords.slotId, slot.id), eq(workRecords.userEmail, user.email))).limit(1);
     if (existing[0] && existing[0].status !== "rejected") return Response.json({ ok: true, record: existing[0] });
