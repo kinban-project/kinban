@@ -123,7 +123,7 @@ export async function GET(request: Request, context: Context) {
     const plan = slot ? plans.find((row) => row.id === slot.planId) : null;
     return slot && plan ? { ...slot, planId: plan.id, planName: plan.name, userEmail: assignment.userEmail, record: recordsWithState.find((record) => record.slotId === slot.id && record.userEmail === assignment.userEmail) ?? null } : null;
   }).filter(Boolean);
-  return Response.json({ group, currentNetworkStatus: networkStatus(request).status, records: recordsWithState, breaks, schedule, members, canManage: manager }, { headers: { "Cache-Control": "no-store" } });
+  return Response.json({ group, currentUserEmail: user.email, currentNetworkStatus: networkStatus(request).status, records: recordsWithState, breaks, schedule, members, canManage: manager }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(request: Request, context: Context) {

@@ -54,6 +54,9 @@ button { cursor: pointer; }
 .group-actions input { min-width: 0; flex: 1; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: #fbfcfa; }
 .group-actions .primary-button, .group-actions .ghost-button { white-space: nowrap; padding: 10px 13px; }
 .clock-button { color: var(--teal); background: #eef5d9; border-color: #cbdca8; font-weight: 800; }
+.clock-button.clock-start { background: #dcefd9; border-color: #b8d9b1; color: #28613b; }
+.clock-button.clock-break { background: #fff0c8; border-color: #ead28a; color: #80671d; }
+.clock-button.clock-end { background: #f8dfdc; border-color: #e6b8b1; color: #91493f; }
 .group-notice { color: var(--teal); font-size: 12px; margin: 14px 0 0; }
 .group-list { margin-top: 14px; }
 .group-item, .member-row { display: flex; justify-content: space-between; align-items: center; gap: 14px; border-top: 1px solid var(--line); padding: 13px 0; }

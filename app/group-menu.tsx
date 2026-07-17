@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { localApiFetch } from "./local-api";
 
 type Group = {
   groupId: string;
@@ -11,7 +12,6 @@ type Group = {
 };
 type Props = {
   groups: Group[];
-  onClock: (id: string) => void;
   onApplications: () => void;
   onCreateGroup: () => void;
   onBasic: (id: string) => void;
@@ -31,9 +31,42 @@ function requestLabel(date?: string | null) {
   return `シフト希望（${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}まで）`;
 }
 
+type ClockRecord = { id: string; userEmail: string; status: string; endedAt?: string | null; attendanceExpired?: boolean };
+type ClockBreak = { workRecordId: string; endedAt?: string | null };
+
+function ClockControls({ groupId }: { groupId: string }) {
+  const [state, setState] = useState<"loading" | "idle" | "working" | "break">("loading");
+  const [recordId, setRecordId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function load() {
+    const response = await localApiFetch(`/api/groups/${groupId}/work-records`);
+    if (!response.ok) { setState("idle"); setRecordId(null); return; }
+    const data = await response.json() as { currentUserEmail?: string; records?: ClockRecord[]; breaks?: ClockBreak[] };
+    const active = (data.records ?? []).find((item) => item.userEmail === data.currentUserEmail && item.status === "working" && !item.endedAt && !item.attendanceExpired);
+    if (!active) { setState("idle"); setRecordId(null); return; }
+    setRecordId(active.id);
+    setState((data.breaks ?? []).some((item) => item.workRecordId === active.id && !item.endedAt) ? "break" : "working");
+  }
+
+  useEffect(() => { void load(); }, [groupId]);
+
+  async function record(action: "start" | "break-start" | "break-end" | "end") {
+    setBusy(true);
+    const response = await localApiFetch(`/api/groups/${groupId}/work-records`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, ...(recordId ? { recordId } : {}) }) });
+    if (!response.ok) { const data = await response.json().catch(() => ({})) as { error?: string }; window.alert(data.error ?? "打刻を記録できませんでした。"); }
+    await load();
+    setBusy(false);
+  }
+
+  if (state === "loading") return <button className="group-menu-button clock-button" type="button" disabled>確認中…</button>;
+  if (state === "break") return <button className="group-menu-button clock-button clock-break" type="button" disabled={busy} onClick={() => void record("break-end")}>休憩終了</button>;
+  if (state === "working") return <><button className="group-menu-button clock-button clock-break" type="button" disabled={busy} onClick={() => void record("break-start")}>休憩開始</button><button className="group-menu-button clock-button clock-end" type="button" disabled={busy} onClick={() => void record("end")}>勤務終了</button></>;
+  return <button className="group-menu-button clock-button clock-start" type="button" disabled={busy} onClick={() => void record("start")}>勤務開始</button>;
+}
+
 export default function GroupMenu({
   groups,
-  onClock,
   onApplications,
   onCreateGroup,
   onBasic,
@@ -76,7 +109,7 @@ export default function GroupMenu({
               {group.name ?? group.groupId}
             </strong>
             <div className="group-menu-actions">
-              <button className="group-menu-button clock-button" type="button" onClick={() => onClock(group.groupId)}>打刻</button>
+              <ClockControls groupId={group.groupId} />
               <button
                 className="group-menu-button"
                 type="button"

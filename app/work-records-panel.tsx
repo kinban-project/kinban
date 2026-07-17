@@ -70,7 +70,6 @@ export default function WorkRecordsPanel({ groupId, manager = false }: { groupId
         <button className="small-action" onClick={() => moveMonth(-1)}>前月</button>
         <select aria-label="表示月" value={month} onChange={(event) => setMonth(event.target.value)}>{Array.from({ length: 13 }, (_, index) => { const date = new Date(); date.setMonth(date.getMonth() - 6 + index, 1); const key = monthKey(date); return <option value={key} key={key}>{monthLabel(key)}</option>; })}</select>
         <button className="small-action" onClick={() => moveMonth(1)}>次月</button>
-        <button className="primary-button" disabled={busy} onClick={() => void start()}>勤務開始</button>
       </div>
       <p className="work-month-help">日付に関係なく当月の勤務記録を表示します。入力内容は変更時に自動保存されます。</p>
       <div className="monthly-work-wrap work-records-table-wrap"><table className="work-records-table monthly-work-table"><thead><tr><th>日付</th><th>シフト予定</th><th>打刻</th><th>申告時間</th><th>休憩</th><th>備考</th><th>状態</th><th>操作</th></tr></thead><tbody>
@@ -89,7 +88,7 @@ export default function WorkRecordsPanel({ groupId, manager = false }: { groupId
             <td>{record ? `${breakMinutes(breaksFor(record.id))}分` : "—"}{record && onBreak && <small>休憩中</small>}</td>
             <td>{record ? <input className="monthly-note" value={draft?.note ?? ""} placeholder="理由・備考" maxLength={500} aria-label={`${date} 備考`} onChange={(event) => updateDraft(record, { note: event.target.value })} /> : "—"}</td>
             <td>{record ? <span className={"work-status work-status-" + record.status}>{record.attendanceExpired ? "—" : statusLabel(record.status, Boolean(record.endedAt))}</span> : planned ? <span className="work-status work-status-unsubmitted">未申告</span> : <span className="work-status work-status-none">—</span>}</td>
-            <td>{record ? <span className="monthly-actions">{["working", "unsubmitted"].includes(record.status) && (record.endedAt || draft?.end) && <button className="small-action" disabled={busy} onClick={() => void submit(record)}>申請</button>}{record.status === "working" && !record.attendanceExpired && !record.endedAt && record.startedAt && <><button className="small-action" disabled={busy} onClick={() => void toggleBreak(record, onBreak ? "break-end" : "break-start")}>{onBreak ? "休憩終了" : "休憩開始"}</button>{!onBreak && <button className="small-action" disabled={busy} onClick={() => void end(record)}>勤務終了</button>}</>}</span> : planned && date > today ? <button className="small-action" disabled={busy} onClick={() => void start(planned.id)}>勤務開始</button> : "—"}</td>
+            <td>{record && ["working", "unsubmitted"].includes(record.status) && (record.endedAt || draft?.end) ? <button className="small-action" disabled={busy} onClick={() => void submit(record)}>申請</button> : "—"}</td>
           </tr>;
         })}
       </tbody></table></div>
