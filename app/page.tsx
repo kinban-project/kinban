@@ -995,7 +995,7 @@ export default function Home() {
       )}
       {workRecordsOpen && menuGroupId && (
         <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setWorkRecordsOpen(false); }}>
-          <div className="modal groups-modal"><WorkRecordsPanel groupId={menuGroupId} manager={editableGroups.some((group) => group.groupId === menuGroupId)} /></div>
+          <div className="modal groups-modal work-records-modal"><WorkRecordsPanel groupId={menuGroupId} manager={editableGroups.some((group) => group.groupId === menuGroupId)} /></div>
         </div>
       )}
       {groupPreferencesOpen && menuGroupId && (

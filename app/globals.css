@@ -62,6 +62,7 @@ button { cursor: pointer; }
 .group-item em { color: #9d7d22; font-size: 11px; font-style: normal; }
 .group-empty { color: var(--muted); font-size: 12px; padding: 18px 0 4px; }
 .groups-modal { width: min(1120px, 100%); }
+.work-records-modal { width: min(1280px, 100%); }
 .group-detail { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--line); }
 .group-detail h3 { margin: 0; font-size: 22px; }
 .group-detail h4 { font-size: 12px; color: var(--muted); margin: 19px 0 5px; }
@@ -190,14 +191,16 @@ button { cursor: pointer; }
 .monthly-work-table th:nth-child(3), .monthly-work-table td:nth-child(3) { width: 105px; }
 .monthly-work-table th:nth-child(4), .monthly-work-table td:nth-child(4) { width: 230px; }
 .monthly-work-table th:nth-child(5), .monthly-work-table td:nth-child(5) { width: 55px; }
-.monthly-work-table th:nth-child(6), .monthly-work-table td:nth-child(6) { width: 82px; }
-.monthly-work-table th:nth-child(7), .monthly-work-table td:nth-child(7) { width: 180px; }
+.monthly-work-table th:nth-child(6), .monthly-work-table td:nth-child(6) { width: 180px; }
+.monthly-work-table th:nth-child(7), .monthly-work-table td:nth-child(7) { width: 82px; }
+.monthly-work-table th:nth-child(8), .monthly-work-table td:nth-child(8) { width: 180px; }
 .monthly-work-table tbody th { background: #fbfcfa; white-space: nowrap; color: var(--ink); }
 .monthly-shift-ref, .monthly-record-value { display: block; white-space: nowrap; margin: 2px 0; }
 .monthly-claim { min-width: 0; }
 .monthly-claim input { width: 76px; }
 .claim-time-select { width: 88px; min-width: 0; border: 1px solid var(--line); border-radius: 6px; padding: 5px 3px; color: var(--ink); background: #fff; font-size: 11px; }
 .monthly-claim { gap: 3px; }
+.monthly-note { width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 6px; padding: 6px 7px; color: var(--ink); background: #fff; font-size: 11px; }
 .monthly-work-table td { overflow: hidden; }
 .monthly-actions { display: flex; flex-wrap: wrap; gap: 4px; }
 .work-status-unsubmitted { background: #fff0c8; color: #7a5a00; }
