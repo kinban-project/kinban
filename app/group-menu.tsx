@@ -50,8 +50,8 @@ export default function GroupMenu({
   const [openManagement, setOpenManagement] = useState<string | null>(null);
   return (
     <nav className="group-menu" aria-label="グループメニュー">
+      <button className="group-menu-clock" type="button" onClick={onClock} disabled={!groups.length}>打刻</button>
       <div className="group-menu-global">
-        <button className="group-menu-application clock-button" type="button" onClick={onClock} disabled={!groups.length}>打刻</button>
         <button
           className="group-menu-application"
           type="button"
