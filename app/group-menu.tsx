@@ -11,7 +11,7 @@ type Group = {
 };
 type Props = {
   groups: Group[];
-  onClock: () => void;
+  onClock: (id: string) => void;
   onApplications: () => void;
   onCreateGroup: () => void;
   onBasic: (id: string) => void;
@@ -50,7 +50,6 @@ export default function GroupMenu({
   const [openManagement, setOpenManagement] = useState<string | null>(null);
   return (
     <nav className="group-menu" aria-label="グループメニュー">
-      <button className="group-menu-clock" type="button" onClick={onClock} disabled={!groups.length}>打刻</button>
       <div className="group-menu-global">
         <button
           className="group-menu-application"
@@ -77,6 +76,7 @@ export default function GroupMenu({
               {group.name ?? group.groupId}
             </strong>
             <div className="group-menu-actions">
+              <button className="group-menu-button clock-button" type="button" onClick={() => onClock(group.groupId)}>打刻</button>
               <button
                 className="group-menu-button"
                 type="button"
