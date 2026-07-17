@@ -19,6 +19,7 @@ export default function DashboardPanel({ groupId }: Props) {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [members, setMembers] = useState(0);
   const [announcements, setAnnouncements] = useState(0);
+  const [groupName, setGroupName] = useState("");
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     void (async () => {
@@ -29,7 +30,9 @@ export default function DashboardPanel({ groupId }: Props) {
       ]);
       if (p.ok) setPlans(((await p.json()) as { plans: Plan[] }).plans);
       if (g.ok) {
-        const rows = ((await g.json()) as { members?: Array<{ status?: string }> }).members ?? [];
+        const groupData = (await g.json()) as { group?: { name?: string }; members?: Array<{ status?: string }> };
+        setGroupName(groupData.group?.name ?? "");
+        const rows = groupData.members ?? [];
         setMembers(rows.filter((member) => member.status !== "inactive").length);
       }
       if (a.ok)
@@ -45,7 +48,7 @@ export default function DashboardPanel({ groupId }: Props) {
       <div className="modal-head">
         <div>
           <p className="eyebrow">DASHBOARD</p>
-          <h2>グループ状況</h2>
+          <h2>グループ状況{groupName ? `（${groupName}）` : ""}</h2>
         </div>
       </div>
       {loading ? (

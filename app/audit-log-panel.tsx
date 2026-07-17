@@ -34,6 +34,7 @@ export default function AuditLogPanel({ groupId }: { groupId: string }) {
   const [to, setTo] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
+  const [groupName, setGroupName] = useState("");
   const nameMap = useMemo(() => new Map(members.map((member) => [member.userEmail, member.displayName?.trim() || member.userEmail.split("@")[0]])), [members]);
 
   async function load() {
@@ -44,7 +45,14 @@ export default function AuditLogPanel({ groupId }: { groupId: string }) {
     if (search) params.set("search", search);
     if (from) params.set("from", from);
     if (to) params.set("to", to);
-    const response = await localApiFetch(`/api/groups/${groupId}/audit-logs?${params}`);
+    const [response, groupResponse] = await Promise.all([
+      localApiFetch(`/api/groups/${groupId}/audit-logs?${params}`),
+      localApiFetch(`/api/groups/${groupId}`),
+    ]);
+    if (groupResponse.ok) {
+      const groupData = await groupResponse.json() as { group?: { name?: string } };
+      setGroupName(groupData.group?.name ?? "");
+    }
     if (response.ok) {
       const data = await response.json() as { logs: Log[]; members: Member[] };
       setLogs(data.logs); setMembers(data.members); setNotice("");
@@ -55,7 +63,7 @@ export default function AuditLogPanel({ groupId }: { groupId: string }) {
   const actionOptions = [...new Set(logs.map((log) => log.action))].sort();
 
   return <section className="audit-panel">
-    <div className="modal-head"><div><p className="eyebrow">AUDIT LOG</p><h2>操作ログ・変更履歴</h2></div></div>
+    <div className="modal-head"><div><p className="eyebrow">AUDIT LOG</p><h2>操作ログ・変更履歴{groupName ? `（${groupName}）` : ""}</h2></div></div>
     <form className="audit-filters" onSubmit={(event) => { event.preventDefault(); void load(); }}>
       <label>期間（開始）<input type="date" value={from} onChange={(event) => setFrom(event.target.value)} /></label>
       <label>期間（終了）<input type="date" value={to} onChange={(event) => setTo(event.target.value)} /></label>

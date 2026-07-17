@@ -16,6 +16,7 @@ export default function AnnouncementsPanel({ groupId, manager = false }: Props) 
   const [memberNames, setMemberNames] = useState<Record<string, string>>({});
   const [reads, setReads] = useState<string[]>([]);
   const [readDetails, setReadDetails] = useState<ReadDetail[]>([]);
+  const [selectedGroupName, setSelectedGroupName] = useState("");
   const [expandedReads, setExpandedReads] = useState<Record<string, boolean>>({});
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -23,7 +24,14 @@ export default function AnnouncementsPanel({ groupId, manager = false }: Props) 
   const [notice, setNotice] = useState("");
 
   async function load() {
-    const response = await localApiFetch(`/api/groups/${groupId}/announcements`);
+    const [response, groupResponse] = await Promise.all([
+      localApiFetch(`/api/groups/${groupId}/announcements`),
+      localApiFetch(`/api/groups/${groupId}`),
+    ]);
+    if (groupResponse.ok) {
+      const groupData = await groupResponse.json() as { group?: { name?: string } };
+      setSelectedGroupName(groupData.group?.name ?? "");
+    }
     if (!response.ok) return;
     const data = await response.json() as { announcements: Announcement[]; replies: Reply[]; reads: Array<{ announcementId: string }>; readDetails?: ReadDetail[]; members?: Member[] };
     const nextMembers = data.members ?? [];
@@ -44,7 +52,7 @@ export default function AnnouncementsPanel({ groupId, manager = false }: Props) 
   }
 
   return <div className="announcements-panel">
-    <div className="modal-head"><div><p className="eyebrow">ANNOUNCEMENTS</p><h2>お知らせ・連絡</h2></div></div>
+    <div className="modal-head"><div><p className="eyebrow">ANNOUNCEMENTS</p><h2>お知らせ・連絡{selectedGroupName ? `（${selectedGroupName}）` : ""}</h2></div></div>
     {manager && <form className="announcement-create" onSubmit={(event) => { event.preventDefault(); void post("create"); }}><input required value={title} onChange={(event) => setTitle(event.target.value)} placeholder="タイトル" /><textarea required rows={3} value={body} onChange={(event) => setBody(event.target.value)} placeholder="メンバーへのお知らせ" /><button className="primary-button">お知らせを作成</button></form>}
     <div className="announcement-list">
       {items.length ? items.map((item) => {
