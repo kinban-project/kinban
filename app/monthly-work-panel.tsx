@@ -48,6 +48,7 @@ export default function MonthlyWorkPanel({ groupId, manager }: { groupId: string
   const [month, setMonth] = useState("2026-07");
   const [data, setData] = useState<Data | null>(null);
   const [selectedEmail, setSelectedEmail] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const options = useMemo(monthOptions, []);
@@ -63,6 +64,10 @@ export default function MonthlyWorkPanel({ groupId, manager }: { groupId: string
   const selfSummary = data?.summaries.find((item) => item.userEmail === data.viewedUserEmail) ?? data?.summaries[0];
   const selfClaim = data?.claims.find((item) => item.userEmail === data.viewedUserEmail);
   const hasUnresolved = (selfSummary?.unresolvedCount ?? 0) > 0 || (selfSummary?.missingCount ?? 0) > 0;
+  const filteredSummaries = (data?.summaries ?? []).filter((item) => {
+    if (statusFilter === "unsubmitted-scheduled") return item.status === "unsubmitted" && item.plannedMinutes > 0;
+    return statusFilter === "all" || item.status === statusFilter;
+  });
 
   async function submit() {
     setBusy(true);
@@ -90,10 +95,11 @@ export default function MonthlyWorkPanel({ groupId, manager }: { groupId: string
         {options.map((value) => <option value={value} key={value}>{value.slice(0, 4)}年{Number(value.slice(5))}月</option>)}
       </select></label>
       {manager && <label>確認するメンバー<select aria-label="月次確認メンバー" value={selectedEmail} onChange={(event) => setSelectedEmail(event.target.value)}><option value="">全体サマリ</option>{data?.summaries.map((item) => <option value={item.userEmail} key={item.userEmail}>{item.displayName}</option>)}</select></label>}
+      {manager && <label>状態<select aria-label="月次承認状態" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">すべて</option><option value="unsubmitted-scheduled">未申告（予定あり）</option><option value="unsubmitted">未申告</option><option value="submitted">月次承認待ち</option><option value="approved">月次承認済み</option><option value="rejected">差戻し</option></select></label>}
     </div>
     {notice && <p className="panel-notice">{notice}</p>}
     {manager && !selectedEmail ? <>
-      <div className="monthly-summary-grid">{(data?.summaries ?? []).map((item) => <article className="monthly-summary-card" key={item.userEmail}>
+      <div className="monthly-summary-grid">{filteredSummaries.map((item) => <article className="monthly-summary-card" key={item.userEmail}>
         <div className="monthly-summary-head"><strong>{item.displayName}</strong><span className={`monthly-status monthly-status-${item.status}`}>{statusLabels[item.status] ?? item.status}</span></div>
         <div className="monthly-summary-values"><span>予定 <b>{formatMinutes(item.plannedMinutes)}</b></span><span>申告 <b>{formatMinutes(item.declaredMinutes)}</b></span><span>差分 <b>{formatMinutes(item.declaredMinutes - item.plannedMinutes)}</b></span></div>
         <div className="monthly-summary-flags">未入力 {item.missingCount}日 ／ 未処理 {item.unresolvedCount}件 ／ シフト外 {item.offScheduleCount}日</div>
