@@ -60,6 +60,25 @@ function todayJst() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(new Date());
 }
 
+function jstDateHour(value: string) {
+  const parts = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false }).formatToParts(new Date(value));
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  return { date: `${get("year")}-${get("month")}-${get("day")}`, hour: Number(get("hour")) };
+}
+
+function nextJstDate(date: string) {
+  const value = new Date(`${date}T00:00:00+09:00`);
+  value.setUTCDate(value.getUTCDate() + 1);
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(value);
+}
+
+function attendanceExpired(startedAt?: string | null, now = new Date()) {
+  if (!startedAt) return false;
+  const local = jstDateHour(startedAt);
+  const resetDate = local.hour < 6 ? local.date : nextJstDate(local.date);
+  return now.getTime() >= new Date(`${resetDate}T06:00:00+09:00`).getTime();
+}
+
 function jstIso(date: string, time: string) {
   const value = shiftDateTime(date, time);
   return new Date(`${value.date}T${value.time}:00+09:00`).toISOString();
@@ -94,6 +113,7 @@ export async function GET(request: Request, context: Context) {
   const slotIds = slots.map((slot) => slot.id);
   const assignments = slotIds.length ? (await Promise.all(chunk(slotIds, 50).map((ids) => db.select().from(shiftAssignments).where(inArray(shiftAssignments.slotId, ids))))).flat() : [];
   const records = await db.select().from(workRecords).where(and(eq(workRecords.groupId, groupId), manager ? undefined : eq(workRecords.userEmail, user.email)));
+  const recordsWithState = records.map((record) => ({ ...record, attendanceExpired: record.status === "working" && !record.endedAt && attendanceExpired(record.startedAt) }));
   const recordIds = records.map((record) => record.id);
   const breaks = recordIds.length ? await db.select().from(workBreaks).where(inArray(workBreaks.workRecordId, recordIds)) : [];
   const members = manager ? await db.select().from(groupMembers).where(eq(groupMembers.groupId, groupId)) : [];
@@ -101,9 +121,9 @@ export async function GET(request: Request, context: Context) {
   const schedule = visibleAssignments.map((assignment) => {
     const slot = slots.find((row) => row.id === assignment.slotId);
     const plan = slot ? plans.find((row) => row.id === slot.planId) : null;
-    return slot && plan ? { ...slot, planId: plan.id, planName: plan.name, userEmail: assignment.userEmail, record: records.find((record) => record.slotId === slot.id && record.userEmail === assignment.userEmail) ?? null } : null;
+    return slot && plan ? { ...slot, planId: plan.id, planName: plan.name, userEmail: assignment.userEmail, record: recordsWithState.find((record) => record.slotId === slot.id && record.userEmail === assignment.userEmail) ?? null } : null;
   }).filter(Boolean);
-  return Response.json({ group, currentNetworkStatus: networkStatus(request).status, records, breaks, schedule, members, canManage: manager }, { headers: { "Cache-Control": "no-store" } });
+  return Response.json({ group, currentNetworkStatus: networkStatus(request).status, records: recordsWithState, breaks, schedule, members, canManage: manager }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(request: Request, context: Context) {
@@ -151,6 +171,8 @@ export async function POST(request: Request, context: Context) {
   }
 
   if (body.action === "start") {
+    const openRecords = await db.select().from(workRecords).where(and(eq(workRecords.groupId, groupId), eq(workRecords.userEmail, user.email), eq(workRecords.status, "working"), isNull(workRecords.endedAt)));
+    if (openRecords.some((record) => !attendanceExpired(record.startedAt))) return error("勤務中の記録が残っています。先に勤務終了を記録してください。", 409);
     let scheduledDate = todayJst();
     let scheduledStartTime = "";
     let scheduledEndTime = "";
