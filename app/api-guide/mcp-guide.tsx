@@ -1,3 +1,4 @@
+import ExportGuide from "./export-guide";
 const MCP_BASE = "https://my-day-calendar.chita256.chatgpt.site/mcp";
 function Code({ children }: { children: string }) {
   return (
@@ -8,6 +9,7 @@ function Code({ children }: { children: string }) {
 }
 export default function McpGuide() {
   return (
+    <>
     <section className="mcp-guide">
       <p className="eyebrow section-label">MCP</p>
       <h2>AIエージェント向けMCP</h2>
@@ -51,5 +53,7 @@ export default function McpGuide() {
         です。ChatGPT側の接続設定や公開審査は別途必要で、エンドポイントを作っただけで左メニューのアプリに自動登録されるものではありません。
       </p>
     </section>
+    <ExportGuide />
+    </>
   );
 }

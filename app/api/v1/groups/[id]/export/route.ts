@@ -1,0 +1,109 @@
+import { and, eq, inArray } from "drizzle-orm";
+import { getDb } from "../../../../../../db";
+import {
+  accountProfiles,
+  announcementReads,
+  announcementReplies,
+  attachments,
+  auditLogs,
+  events,
+  groupAnnouncements,
+  groupJoinRequests,
+  groupMembers,
+  groupPreferences,
+  groups,
+  shiftAssignments,
+  shiftAvailability,
+  shiftPlans,
+  shiftRequests,
+  shiftRequestPeriods,
+  shiftRequestSubmissions,
+  shiftSlots,
+} from "../../../../../../db/schema";
+import { requireApiIdentity } from "../../../../api-auth";
+
+export const dynamic = "force-dynamic";
+
+type Context = { params: Promise<{ id: string }> };
+
+function error(message: string, status: number) {
+  return Response.json({ error: message }, { status });
+}
+
+export async function GET(_request: Request, context: Context) {
+  const identity = await requireApiIdentity(_request);
+  if (identity instanceof Response) return identity;
+
+  const { id: groupId } = await context.params;
+  const db = getDb();
+  const [group] = await db.select().from(groups).where(eq(groups.id, groupId)).limit(1);
+  if (!group) return error("Group not found.", 404);
+
+  const [membership] = await db
+    .select()
+    .from(groupMembers)
+    .where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userEmail, identity.email)))
+    .limit(1);
+  if (!membership || membership.status !== "active") return error("Active group membership is required.", 403);
+  if (membership.role !== "owner" && membership.role !== "editor") return error("Owner or editor permission is required.", 403);
+
+  const [members, joinRequests, plans, preferences, availability, announcements, logs, groupEvents] = await Promise.all([
+    db.select().from(groupMembers).where(eq(groupMembers.groupId, groupId)),
+    db.select().from(groupJoinRequests).where(eq(groupJoinRequests.groupId, groupId)),
+    db.select().from(shiftPlans).where(eq(shiftPlans.groupId, groupId)),
+    db.select().from(groupPreferences).where(eq(groupPreferences.groupId, groupId)),
+    db.select().from(shiftAvailability).where(eq(shiftAvailability.groupId, groupId)),
+    db.select().from(groupAnnouncements).where(eq(groupAnnouncements.groupId, groupId)),
+    db.select().from(auditLogs).where(eq(auditLogs.groupId, groupId)),
+    db.select().from(events).where(eq(events.groupId, groupId)),
+  ]);
+
+  const emails = [...new Set(members.map((member) => member.userEmail))];
+  const planIds = plans.map((plan) => plan.id);
+  const announcementIds = announcements.map((announcement) => announcement.id);
+  const eventIds = groupEvents.map((event) => event.id);
+
+  const [profiles, slots, periods, assignments, requests, submissions, reads, replies, attachmentsForEvents] = await Promise.all([
+    emails.length ? db.select().from(accountProfiles).where(inArray(accountProfiles.userEmail, emails)) : [],
+    planIds.length ? db.select().from(shiftSlots).where(inArray(shiftSlots.planId, planIds)) : [],
+    planIds.length ? db.select().from(shiftRequestPeriods).where(inArray(shiftRequestPeriods.planId, planIds)) : [],
+    [],
+    [],
+    [],
+    announcementIds.length ? db.select().from(announcementReads).where(inArray(announcementReads.announcementId, announcementIds)) : [],
+    announcementIds.length ? db.select().from(announcementReplies).where(inArray(announcementReplies.announcementId, announcementIds)) : [],
+    eventIds.length ? db.select().from(attachments).where(inArray(attachments.eventId, eventIds)) : [],
+  ]);
+
+  const slotIds = slots.map((slot) => slot.id);
+  const periodIds = periods.map((period) => period.id);
+  const [assignmentRows, requestRows, submissionRows] = await Promise.all([
+    slotIds.length ? db.select().from(shiftAssignments).where(inArray(shiftAssignments.slotId, slotIds)) : [],
+    periodIds.length ? db.select().from(shiftRequests).where(inArray(shiftRequests.periodId, periodIds)) : [],
+    periodIds.length ? db.select().from(shiftRequestSubmissions).where(inArray(shiftRequestSubmissions.periodId, periodIds)) : [],
+  ]);
+
+  return Response.json({
+    schemaVersion: 1,
+    exportedAt: new Date().toISOString(),
+    exportedBy: identity.email,
+    group,
+    members,
+    profiles,
+    joinRequests,
+    preferences,
+    availability,
+    plans,
+    periods,
+    slots,
+    assignments: assignmentRows,
+    requests: requestRows,
+    submissions: submissionRows,
+    announcements,
+    announcementReads: reads,
+    announcementReplies: replies,
+    auditLogs: logs,
+    events: groupEvents,
+    attachments: attachmentsForEvents,
+  }, { headers: { "Cache-Control": "no-store" } });
+}
