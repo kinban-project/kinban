@@ -12,6 +12,7 @@ import {
   workRecords,
 } from "../../../../../db/schema";
 import { recordAudit } from "../../../../audit-log";
+import { shiftDateTime } from "../../../../shift-time";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +58,17 @@ function locationValues(value: unknown) {
 
 function todayJst() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(new Date());
+}
+
+function jstIso(date: string, time: string) {
+  const value = shiftDateTime(date, time);
+  return new Date(`${value.date}T${value.time}:00+09:00`).toISOString();
+}
+
+function inputToIso(value: string | undefined) {
+  if (!value) return null;
+  const parsed = new Date(`${value}:00+09:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
 }
 
 async function contextData(groupId: string, email: string) {
@@ -129,7 +141,7 @@ export async function POST(request: Request, context: Context) {
     const now = new Date().toISOString();
     const row = {
       id: crypto.randomUUID(), groupId, planId, slotId, userEmail: user.email,
-      scheduledDate, scheduledStartTime, scheduledEndTime, startedAt: now,
+      scheduledDate, scheduledStartTime, scheduledEndTime, startedAt: now, claimedStartAt: now,
       startNetworkStatus: network.status, startSourceIp: shouldStoreSourceIp() ? network.ip : "",
       startLatitude: location.latitude, startLongitude: location.longitude, startAccuracy: location.accuracy,
       status: "working", employeeNote: String(body.note ?? "").trim().slice(0, 500),
@@ -165,7 +177,7 @@ export async function POST(request: Request, context: Context) {
     if (!record) return error("Work record not found.", 404);
     if (record.endedAt) return error("This work record has already ended.", 409);
     const endedAt = new Date().toISOString();
-    await db.update(workRecords).set({ endedAt, endNetworkStatus: network.status, endSourceIp: shouldStoreSourceIp() ? network.ip : "", endLatitude: location.latitude, endLongitude: location.longitude, endAccuracy: location.accuracy, status: "submitted", updatedAt: endedAt, employeeNote: String(body.note ?? record.employeeNote).trim().slice(0, 500) }).where(eq(workRecords.id, record.id));
+    await db.update(workRecords).set({ endedAt, claimedEndAt: endedAt, endNetworkStatus: network.status, endSourceIp: shouldStoreSourceIp() ? network.ip : "", endLatitude: location.latitude, endLongitude: location.longitude, endAccuracy: location.accuracy, status: "submitted", updatedAt: endedAt, employeeNote: String(body.note ?? record.employeeNote).trim().slice(0, 500) }).where(eq(workRecords.id, record.id));
     await recordAudit({ groupId, userEmail: user.email, action: "work.end", entityType: "workRecord", entityId: record.id, summary: `勤務終了: ${record.scheduledDate}`, details: { networkStatus: network.status } });
     return Response.json({ ok: true, recordId: record.id, status: "submitted", endedAt });
   }
@@ -178,8 +190,30 @@ export async function PATCH(request: Request, context: Context) {
   const { id: groupId } = await context.params;
   const current = await contextData(groupId, user.email);
   if ("error" in current) return current.error;
+  const body = await request.json().catch(() => ({})) as { action?: string; recordId?: string; status?: string; managerNote?: string };
+  if (body.action === "save-claim") {
+    const claimBody = body as typeof body & { claimedStartAt?: string; claimedEndAt?: string };
+    if (!body.recordId || !claimBody.claimedStartAt) return error("recordId and claimedStartAt are required.", 400);
+    const [record] = await current.db.select().from(workRecords).where(and(eq(workRecords.id, body.recordId), eq(workRecords.groupId, groupId), eq(workRecords.userEmail, user.email))).limit(1);
+    if (!record) return error("Work record not found.", 404);
+    if (record.status === "approved") return error("Approved work records cannot be changed.", 409);
+    const claimedStartAt = inputToIso(claimBody.claimedStartAt);
+    const claimedEndAt = inputToIso(claimBody.claimedEndAt);
+    if (!claimedStartAt || (claimBody.claimedEndAt && !claimedEndAt)) return error("Invalid claim time.", 400);
+    if (claimedEndAt && new Date(claimedEndAt).getTime() < new Date(claimedStartAt).getTime()) return error("Claim end must be after claim start.", 400);
+    await current.db.update(workRecords).set({ claimedStartAt, claimedEndAt, updatedAt: new Date().toISOString() }).where(eq(workRecords.id, record.id));
+    return Response.json({ ok: true, recordId: record.id });
+  }
+  if (body.action === "apply-schedule") {
+    if (!body.recordId) return error("recordId is required.", 400);
+    const [record] = await current.db.select().from(workRecords).where(and(eq(workRecords.id, body.recordId), eq(workRecords.groupId, groupId), eq(workRecords.userEmail, user.email))).limit(1);
+    if (!record) return error("Work record not found.", 404);
+    if (!record.scheduledStartTime || !record.scheduledEndTime) return error("A scheduled shift is not linked to this record.", 409);
+    const now = new Date().toISOString();
+    await current.db.update(workRecords).set({ claimedStartAt: jstIso(record.scheduledDate, record.scheduledStartTime), claimedEndAt: jstIso(record.scheduledDate, record.scheduledEndTime), updatedAt: now }).where(eq(workRecords.id, record.id));
+    return Response.json({ ok: true, recordId: record.id });
+  }
   if (!managerRoles.has(current.membership.role)) return error("Owner or editor permission is required.", 403);
-  const body = await request.json().catch(() => ({})) as { recordId?: string; status?: string; managerNote?: string };
   if (!body.recordId || !["approved", "rejected"].includes(body.status ?? "")) return error("recordId and approved or rejected status are required.", 400);
   const [record] = await current.db.select().from(workRecords).where(and(eq(workRecords.id, body.recordId), eq(workRecords.groupId, groupId))).limit(1);
   if (!record) return error("Work record not found.", 404);

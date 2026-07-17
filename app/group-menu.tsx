@@ -11,6 +11,7 @@ type Group = {
 };
 type Props = {
   groups: Group[];
+  onClock: () => void;
   onApplications: () => void;
   onCreateGroup: () => void;
   onBasic: (id: string) => void;
@@ -32,6 +33,7 @@ function requestLabel(date?: string | null) {
 
 export default function GroupMenu({
   groups,
+  onClock,
   onApplications,
   onCreateGroup,
   onBasic,
@@ -49,6 +51,7 @@ export default function GroupMenu({
   return (
     <nav className="group-menu" aria-label="グループメニュー">
       <div className="group-menu-global">
+        <button className="group-menu-application clock-button" type="button" onClick={onClock} disabled={!groups.length}>打刻</button>
         <button
           className="group-menu-application"
           type="button"

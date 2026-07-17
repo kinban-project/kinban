@@ -53,6 +53,7 @@ button { cursor: pointer; }
 .group-actions form { display: flex; gap: 8px; }
 .group-actions input { min-width: 0; flex: 1; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: #fbfcfa; }
 .group-actions .primary-button, .group-actions .ghost-button { white-space: nowrap; padding: 10px 13px; }
+.clock-button { color: var(--teal); background: #eef5d9; border-color: #dce8bf; font-weight: 800; }
 .group-notice { color: var(--teal); font-size: 12px; margin: 14px 0 0; }
 .group-list { margin-top: 14px; }
 .group-item, .member-row { display: flex; justify-content: space-between; align-items: center; gap: 14px; border-top: 1px solid var(--line); padding: 13px 0; }
@@ -175,6 +176,7 @@ button { cursor: pointer; }
 .work-records-table th, .work-records-table td { padding: 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
 .work-records-table th { background: #f4f7f3; color: var(--muted); font-weight: 600; }
 .work-records-table tr:last-child td { border-bottom: 0; }
+.claim-time-fields { display: flex; align-items: center; gap: 4px; min-width: 330px; }.claim-time-fields input { width: 148px; border: 1px solid var(--line); border-radius: 6px; padding: 5px; color: var(--ink); background: #fff; font-size: 10px; }
 .work-records-table small { display: block; color: var(--muted); margin-top: 3px; }
 .work-schedule-list { display: grid; gap: 8px; }
 .work-schedule-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: #fbfcfa; }

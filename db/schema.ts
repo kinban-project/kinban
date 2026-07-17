@@ -173,6 +173,8 @@ export const workRecords = sqliteTable("work_records", {
   scheduledEndTime: text("scheduled_end_time").notNull().default(""),
   startedAt: text("started_at"),
   endedAt: text("ended_at"),
+  claimedStartAt: text("claimed_start_at"),
+  claimedEndAt: text("claimed_end_at"),
   startNetworkStatus: text("start_network_status").notNull().default("unknown"),
   endNetworkStatus: text("end_network_status").notNull().default("unknown"),
   startSourceIp: text("start_source_ip").notNull().default(""),

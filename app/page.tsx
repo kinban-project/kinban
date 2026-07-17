@@ -428,6 +428,12 @@ export default function Home() {
       </header>
       <GroupMenu
         groups={groups}
+        onClock={() => {
+          const firstGroup = groups[0]?.groupId;
+          if (!firstGroup) return;
+          setMenuGroupId(firstGroup);
+          setWorkRecordsOpen(true);
+        }}
         onApplications={() => {
           setMenuGroupId(undefined);
           setGroupJoinOpen(true);
