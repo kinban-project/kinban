@@ -192,6 +192,14 @@ export const workRecords = sqliteTable("work_records", {
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const workBreaks = sqliteTable("work_breaks", {
+  id: text("id").primaryKey(),
+  workRecordId: text("work_record_id").notNull(),
+  startedAt: text("started_at").notNull(),
+  endedAt: text("ended_at"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const attachments = sqliteTable("attachments", {
   id: text("id").primaryKey(),
   ownerEmail: text("owner_email").notNull(),

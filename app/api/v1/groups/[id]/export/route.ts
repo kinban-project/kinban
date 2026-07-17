@@ -20,6 +20,7 @@ import {
   shiftRequestSubmissions,
   shiftSlots,
   workRecords,
+  workBreaks,
 } from "../../../../../../db/schema";
 import { requireApiIdentity } from "../../../../api-auth";
 
@@ -84,6 +85,8 @@ export async function GET(_request: Request, context: Context) {
     periodIds.length ? db.select().from(shiftRequests).where(inArray(shiftRequests.periodId, periodIds)) : [],
     periodIds.length ? db.select().from(shiftRequestSubmissions).where(inArray(shiftRequestSubmissions.periodId, periodIds)) : [],
   ]);
+  const recordIds = records.map((record) => record.id);
+  const breaks = recordIds.length ? await db.select().from(workBreaks).where(inArray(workBreaks.workRecordId, recordIds)) : [];
 
   return Response.json({
     schemaVersion: 1,
@@ -108,5 +111,6 @@ export async function GET(_request: Request, context: Context) {
     events: groupEvents,
     attachments: attachmentsForEvents,
     workRecords: records,
+    workBreaks: breaks,
   }, { headers: { "Cache-Control": "no-store" } });
 }

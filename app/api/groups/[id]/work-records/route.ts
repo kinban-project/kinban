@@ -8,6 +8,7 @@ import {
   shiftAssignments,
   shiftPlans,
   shiftSlots,
+  workBreaks,
   workRecords,
 } from "../../../../../db/schema";
 import { recordAudit } from "../../../../audit-log";
@@ -80,6 +81,8 @@ export async function GET(request: Request, context: Context) {
   const slotIds = slots.map((slot) => slot.id);
   const assignments = slotIds.length ? await db.select().from(shiftAssignments).where(inArray(shiftAssignments.slotId, slotIds)) : [];
   const records = await db.select().from(workRecords).where(and(eq(workRecords.groupId, groupId), manager ? undefined : eq(workRecords.userEmail, user.email)));
+  const recordIds = records.map((record) => record.id);
+  const breaks = recordIds.length ? await db.select().from(workBreaks).where(inArray(workBreaks.workRecordId, recordIds)) : [];
   const members = manager ? await db.select().from(groupMembers).where(eq(groupMembers.groupId, groupId)) : [];
   const visibleAssignments = manager ? assignments : assignments.filter((row) => row.userEmail === user.email);
   const schedule = visibleAssignments.map((assignment) => {
@@ -87,7 +90,7 @@ export async function GET(request: Request, context: Context) {
     const plan = slot ? plans.find((row) => row.id === slot.planId) : null;
     return slot && plan ? { ...slot, planId: plan.id, planName: plan.name, userEmail: assignment.userEmail, record: records.find((record) => record.slotId === slot.id && record.userEmail === assignment.userEmail) ?? null } : null;
   }).filter(Boolean);
-  return Response.json({ group, currentNetworkStatus: networkStatus(request).status, records, schedule, members, canManage: manager }, { headers: { "Cache-Control": "no-store" } });
+  return Response.json({ group, currentNetworkStatus: networkStatus(request).status, records, breaks, schedule, members, canManage: manager }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(request: Request, context: Context) {
@@ -133,6 +136,26 @@ export async function POST(request: Request, context: Context) {
     await db.insert(workRecords).values(row);
     await recordAudit({ groupId, userEmail: user.email, action: "work.start", entityType: "workRecord", entityId: row.id, summary: `勤務開始: ${scheduledDate} ${scheduledStartTime}`, details: { networkStatus: network.status, slotId } });
     return Response.json({ ok: true, record: row }, { status: 201 });
+  }
+
+  if (body.action === "break-start" || body.action === "break-end") {
+    if (!body.recordId) return error("recordId is required.", 400);
+    const [record] = await db.select().from(workRecords).where(and(eq(workRecords.id, body.recordId), eq(workRecords.groupId, groupId), eq(workRecords.userEmail, user.email))).limit(1);
+    if (!record || record.endedAt || record.status !== "working") return error("An active work record is required.", 409);
+    const currentBreaks = await db.select().from(workBreaks).where(eq(workBreaks.workRecordId, record.id));
+    const openBreak = currentBreaks.find((item) => !item.endedAt);
+    if (body.action === "break-start") {
+      if (openBreak) return error("A break is already in progress.", 409);
+      const row = { id: crypto.randomUUID(), workRecordId: record.id, startedAt: new Date().toISOString() };
+      await db.insert(workBreaks).values(row);
+      await recordAudit({ groupId, userEmail: user.email, action: "work.break.start", entityType: "workBreak", entityId: row.id, summary: `休憩開始: ${record.scheduledDate}` });
+      return Response.json({ ok: true, break: row });
+    }
+    if (!openBreak) return error("No active break was found.", 409);
+    const endedAt = new Date().toISOString();
+    await db.update(workBreaks).set({ endedAt }).where(eq(workBreaks.id, openBreak.id));
+    await recordAudit({ groupId, userEmail: user.email, action: "work.break.end", entityType: "workBreak", entityId: openBreak.id, summary: `休憩終了: ${record.scheduledDate}` });
+    return Response.json({ ok: true, breakId: openBreak.id, endedAt });
   }
 
   if (body.action === "end") {

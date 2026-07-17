@@ -16,7 +16,7 @@ export default function ExportGuide() {
       <pre className="guide-code"><code>{`curl "${API_BASE}/api/v1/groups/group-id/export" \
   -H "Authorization: Bearer md_あなたのAPIキー"`}</code></pre>
       <p>
-        グループ、メンバー、基本設定、勤務枠、希望、割り当て、勤務記録、お知らせ、既読状況、操作ログ、
+        グループ、メンバー、基本設定、勤務枠、希望、割り当て、勤務記録・休憩、お知らせ、既読状況、操作ログ、
         グループ予定、添付ファイルのメタ情報を含みます。添付ファイル本体は含みません。
       </p>
       <div className="guide-warning">
