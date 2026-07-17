@@ -20,7 +20,7 @@ type Day = {
 };
 type Data = { month: string; summaries: Summary[]; claims: Array<{ userEmail: string; status: string; managerNote?: string }>; days: Day[]; viewedUserEmail: string; canManage: boolean };
 
-const statusLabels: Record<string, string> = { unsubmitted: "未申告", submitted: "月次申告済み", approved: "月次承認済み", rejected: "差戻し" };
+const statusLabels: Record<string, string> = { unsubmitted: "未申告", submitted: "月次承認待ち", approved: "月次承認済み", rejected: "差戻し" };
 const week = ["日", "月", "火", "水", "木", "金", "土"];
 
 function monthOptions() {
