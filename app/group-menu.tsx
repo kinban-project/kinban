@@ -150,7 +150,6 @@ export default function GroupMenu({
               {manager && (
                 <>
                   <div className="admin-inline">
-                    <button className="group-menu-button admin" type="button" onClick={() => onMonthlyApprove(group.groupId)}>月次承認</button>
                     <button
                       className="group-menu-button admin"
                       type="button"
@@ -187,7 +186,8 @@ export default function GroupMenu({
                     >
                       ダッシュボード
                     </button>
-                    <button className="group-menu-button admin" type="button" onClick={() => onWorkApprove(group.groupId)}>勤務承認</button>
+                    <button className="group-menu-button admin" type="button" onClick={() => onWorkApprove(group.groupId)}>日次承認</button>
+                    <button className="group-menu-button admin" type="button" onClick={() => onMonthlyApprove(group.groupId)}>月次承認</button>
                     <button className="group-menu-button admin" type="button" onClick={() => onAuditLogs(group.groupId)}>
                       操作ログ
                     </button>
@@ -208,7 +208,6 @@ export default function GroupMenu({
                     </button>
                     {openManagement === group.groupId && (
                       <div className="admin-popover">
-                        <button onClick={() => onMonthlyApprove(group.groupId)}>月次承認</button>
                         <button onClick={() => onShiftBuilder(group.groupId)}>
                           シフト作成
                         </button>
@@ -227,7 +226,8 @@ export default function GroupMenu({
                         <button onClick={() => onDashboard(group.groupId)}>
                           ダッシュボード
                         </button>
-                        <button onClick={() => onWorkApprove(group.groupId)}>勤務承認</button>
+                        <button onClick={() => onWorkApprove(group.groupId)}>日次承認</button>
+                        <button onClick={() => onMonthlyApprove(group.groupId)}>月次承認</button>
                         <button onClick={() => onAuditLogs(group.groupId)}>操作ログ</button>
                       </div>
                     )}

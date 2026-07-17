@@ -568,7 +568,7 @@ export default function WorkRecordsPanel({
         <div>
           <p className="eyebrow">WORK RECORDS</p>
           <h2>
-            {manager ? "勤務承認" : "勤務申告"}
+            {manager ? "日次承認" : "勤務申告"}
             {groupName ? `（${groupName}）` : ""}
           </h2>
         </div>
