@@ -189,14 +189,16 @@ button { cursor: pointer; }
 .work-month-help { margin: 0 0 10px; color: var(--muted); font-size: 11px; }
 .monthly-work-wrap { max-height: 64vh; }
 .monthly-work-table { width: 100%; min-width: 0; table-layout: fixed; }
-.monthly-work-table th:nth-child(1), .monthly-work-table td:nth-child(1) { width: 88px; }
-.monthly-work-table th:nth-child(2), .monthly-work-table td:nth-child(2) { width: 175px; }
+.monthly-work-table th:nth-child(1), .monthly-work-table td:nth-child(1) { width: 82px; }
+.monthly-work-table th:nth-child(2), .monthly-work-table td:nth-child(2) { width: 145px; }
 .monthly-work-table th:nth-child(3), .monthly-work-table td:nth-child(3) { width: 105px; }
-.monthly-work-table th:nth-child(4), .monthly-work-table td:nth-child(4) { width: 230px; }
-.monthly-work-table th:nth-child(5), .monthly-work-table td:nth-child(5) { width: 55px; }
-.monthly-work-table th:nth-child(6), .monthly-work-table td:nth-child(6) { width: 180px; }
-.monthly-work-table th:nth-child(7), .monthly-work-table td:nth-child(7) { width: 82px; }
-.monthly-work-table th:nth-child(8), .monthly-work-table td:nth-child(8) { width: 180px; }
+.monthly-work-table th:nth-child(4), .monthly-work-table td:nth-child(4) { width: 82px; }
+.monthly-work-table th:nth-child(5), .monthly-work-table td:nth-child(5) { width: 220px; }
+.monthly-work-table th:nth-child(6), .monthly-work-table td:nth-child(6) { width: 92px; }
+.monthly-work-table th:nth-child(7), .monthly-work-table td:nth-child(7) { width: 98px; }
+.monthly-work-table th:nth-child(8), .monthly-work-table td:nth-child(8) { width: 160px; }
+.monthly-work-table th:nth-child(9), .monthly-work-table td:nth-child(9) { width: 82px; }
+.monthly-work-table th:nth-child(10), .monthly-work-table td:nth-child(10) { width: 90px; }
 .monthly-work-table tbody th { background: #fbfcfa; white-space: nowrap; color: var(--ink); }
 .monthly-shift-ref, .monthly-record-value { display: block; white-space: nowrap; margin: 2px 0; }
 .monthly-claim { min-width: 0; }
@@ -204,6 +206,9 @@ button { cursor: pointer; }
 .claim-time-select { width: 88px; min-width: 0; border: 1px solid var(--line); border-radius: 6px; padding: 5px 3px; color: var(--ink); background: #fff; font-size: 11px; }
 .monthly-claim { gap: 3px; }
 .monthly-note { width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 6px; padding: 6px 7px; color: var(--ink); background: #fff; font-size: 11px; }
+.claim-break-field { display: flex; align-items: center; gap: 3px; white-space: nowrap; }
+.claim-break-field input { width: 52px; min-width: 0; border: 1px solid var(--line); border-radius: 6px; padding: 6px 4px; color: var(--ink); background: #fff; font-size: 11px; }
+.monthly-work-summary { margin: 10px 0; }
 .monthly-work-table td { overflow: hidden; }
 .monthly-actions { display: flex; flex-wrap: wrap; gap: 4px; }
 .work-status-unsubmitted { background: #f0f2ef; color: #68736b; }

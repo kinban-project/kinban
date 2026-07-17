@@ -209,7 +209,7 @@ export async function PATCH(request: Request, context: Context) {
   const { id: groupId } = await context.params;
   const current = await contextData(groupId, user.email);
   if ("error" in current) return current.error;
-  const body = await request.json().catch(() => ({})) as { action?: string; recordId?: string; status?: string; managerNote?: string; employeeNote?: string; confirm?: boolean };
+  const body = await request.json().catch(() => ({})) as { action?: string; recordId?: string; status?: string; managerNote?: string; employeeNote?: string; claimedBreakMinutes?: number; confirm?: boolean };
   if (body.action === "save-claim") {
     const claimBody = body as typeof body & { claimedStartAt?: string; claimedEndAt?: string };
     if (!body.recordId || !claimBody.claimedStartAt) return error("recordId and claimedStartAt are required.", 400);
@@ -220,7 +220,8 @@ export async function PATCH(request: Request, context: Context) {
     const claimedEndAt = inputToIso(claimBody.claimedEndAt);
     if (!claimedStartAt || (claimBody.claimedEndAt && !claimedEndAt)) return error("Invalid claim time.", 400);
     if (claimedEndAt && new Date(claimedEndAt).getTime() < new Date(claimedStartAt).getTime()) return error("Claim end must be after claim start.", 400);
-    await current.db.update(workRecords).set({ claimedStartAt, claimedEndAt, employeeNote: String(claimBody.employeeNote ?? record.employeeNote ?? "").trim().slice(0, 500), updatedAt: new Date().toISOString() }).where(eq(workRecords.id, record.id));
+    const claimedBreakMinutes = claimBody.claimedBreakMinutes === undefined ? record.claimedBreakMinutes : Math.max(0, Math.min(1440, Math.round(Number(claimBody.claimedBreakMinutes) || 0)));
+    await current.db.update(workRecords).set({ claimedStartAt, claimedEndAt, claimedBreakMinutes, employeeNote: String(claimBody.employeeNote ?? record.employeeNote ?? "").trim().slice(0, 500), updatedAt: new Date().toISOString() }).where(eq(workRecords.id, record.id));
     return Response.json({ ok: true, recordId: record.id });
   }
   if (body.action === "apply-schedule") {
