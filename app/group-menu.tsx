@@ -23,7 +23,8 @@ type Props = {
   onAnnouncements: (id: string) => void;
   onDashboard: (id: string) => void;
   onAuditLogs: (id: string) => void;
-  onWorkRecords: (id: string) => void;
+  onWorkDeclare: (id: string) => void;
+  onWorkApprove: (id: string) => void;
 };
 
 function requestLabel(date?: string | null) {
@@ -78,7 +79,8 @@ export default function GroupMenu({
   onAnnouncements,
   onDashboard,
   onAuditLogs,
-  onWorkRecords,
+  onWorkDeclare,
+  onWorkApprove,
 }: Props) {
   const [openManagement, setOpenManagement] = useState<string | null>(null);
   return (
@@ -139,7 +141,7 @@ export default function GroupMenu({
                 お知らせ
                 {unread > 0 && <span className="unread-badge">{unread}</span>}
               </button>
-              <button className="group-menu-button" type="button" onClick={() => onWorkRecords(group.groupId)}>勤務状況</button>
+              <button className="group-menu-button" type="button" onClick={() => onWorkDeclare(group.groupId)}>勤務申告</button>
               {manager && (
                 <>
                   <div className="admin-inline">
@@ -179,7 +181,7 @@ export default function GroupMenu({
                     >
                       ダッシュボード
                     </button>
-                    <button className="group-menu-button admin" type="button" onClick={() => onWorkRecords(group.groupId)}>勤務状況管理</button>
+                    <button className="group-menu-button admin" type="button" onClick={() => onWorkApprove(group.groupId)}>勤務承認</button>
                     <button className="group-menu-button admin" type="button" onClick={() => onAuditLogs(group.groupId)}>
                       操作ログ
                     </button>
@@ -218,7 +220,7 @@ export default function GroupMenu({
                         <button onClick={() => onDashboard(group.groupId)}>
                           ダッシュボード
                         </button>
-                        <button onClick={() => onWorkRecords(group.groupId)}>勤務状況管理</button>
+                        <button onClick={() => onWorkApprove(group.groupId)}>勤務承認</button>
                         <button onClick={() => onAuditLogs(group.groupId)}>操作ログ</button>
                       </div>
                     )}

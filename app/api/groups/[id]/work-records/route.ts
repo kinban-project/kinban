@@ -1,5 +1,4 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
-import { env } from "cloudflare:workers";
 import { getChatGPTUser } from "../../../../chatgpt-auth";
 import { getDb } from "../../../../../db";
 import {
@@ -17,43 +16,11 @@ import { shiftDateTime } from "../../../../shift-time";
 export const dynamic = "force-dynamic";
 
 type Context = { params: Promise<{ id: string }> };
-type LocationInput = { latitude?: unknown; longitude?: unknown; accuracy?: unknown };
 const managerRoles = new Set(["owner", "editor"]);
 const chunk = <T,>(items: T[], size: number) => Array.from({ length: Math.ceil(items.length / size) }, (_, index) => items.slice(index * size, (index + 1) * size));
 
 function error(message: string, status: number) {
   return Response.json({ error: message }, { status });
-}
-
-function sourceIp(request: Request) {
-  return request.headers.get("cf-connecting-ip") ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "";
-}
-
-function configuredIps() {
-  const values = process.env.WORKPLACE_IPS ?? (env as { WORKPLACE_IPS?: string }).WORKPLACE_IPS ?? "";
-  return new Set(values.split(",").map((value) => value.trim()).filter(Boolean));
-}
-
-function networkStatus(request: Request) {
-  const ip = sourceIp(request);
-  const allowed = configuredIps();
-  if (!allowed.size) return { status: "unknown", ip } as const;
-  return { status: allowed.has(ip) ? "store" : "external", ip } as const;
-}
-
-function shouldStoreSourceIp() {
-  return (process.env.WORK_RECORD_STORE_IP ?? (env as { WORK_RECORD_STORE_IP?: string }).WORK_RECORD_STORE_IP) === "true";
-}
-
-function locationValues(value: unknown) {
-  if (!value || typeof value !== "object") return {};
-  const input = value as LocationInput;
-  const number = (candidate: unknown) => typeof candidate === "number" && Number.isFinite(candidate) ? String(candidate) : null;
-  return {
-    latitude: number(input.latitude),
-    longitude: number(input.longitude),
-    accuracy: number(input.accuracy),
-  };
 }
 
 function todayJst() {
@@ -123,7 +90,7 @@ export async function GET(request: Request, context: Context) {
     const plan = slot ? plans.find((row) => row.id === slot.planId) : null;
     return slot && plan ? { ...slot, planId: plan.id, planName: plan.name, userEmail: assignment.userEmail, record: recordsWithState.find((record) => record.slotId === slot.id && record.userEmail === assignment.userEmail) ?? null } : null;
   }).filter(Boolean);
-  return Response.json({ group, currentUserEmail: user.email, currentNetworkStatus: networkStatus(request).status, records: recordsWithState, breaks, schedule, members, canManage: manager }, { headers: { "Cache-Control": "no-store" } });
+  return Response.json({ group, currentUserEmail: user.email, records: recordsWithState, breaks, schedule, members, canManage: manager }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(request: Request, context: Context) {
@@ -133,9 +100,7 @@ export async function POST(request: Request, context: Context) {
   const current = await contextData(groupId, user.email);
   if ("error" in current) return current.error;
   const { db, membership } = current;
-  const body = await request.json().catch(() => ({})) as { action?: string; recordId?: string; slotId?: string; scheduledDate?: string; location?: LocationInput; note?: string; claimedStartAt?: string; claimedEndAt?: string };
-  const network = networkStatus(request);
-  const location = locationValues(body.location);
+  const body = await request.json().catch(() => ({})) as { action?: string; recordId?: string; slotId?: string; scheduledDate?: string; note?: string; claimedStartAt?: string; claimedEndAt?: string };
 
   if (body.action === "create-claim") {
     if (!body.slotId || !body.claimedStartAt || !body.claimedEndAt) return error("slotId and claim times are required.", 400);
@@ -197,12 +162,10 @@ export async function POST(request: Request, context: Context) {
     const row = {
       id: crypto.randomUUID(), groupId, planId, slotId, userEmail: user.email,
       scheduledDate, scheduledStartTime, scheduledEndTime, startedAt: now, claimedStartAt: now,
-      startNetworkStatus: network.status, startSourceIp: shouldStoreSourceIp() ? network.ip : "",
-      startLatitude: location.latitude, startLongitude: location.longitude, startAccuracy: location.accuracy,
       status: "working", employeeNote: String(body.note ?? "").trim().slice(0, 500),
     };
     await db.insert(workRecords).values(row);
-    await recordAudit({ groupId, userEmail: user.email, action: "work.start", entityType: "workRecord", entityId: row.id, summary: `勤務開始: ${scheduledDate} ${scheduledStartTime}`, details: { networkStatus: network.status, slotId } });
+    await recordAudit({ groupId, userEmail: user.email, action: "work.start", entityType: "workRecord", entityId: row.id, summary: `勤務開始: ${scheduledDate} ${scheduledStartTime}`, details: { slotId } });
     return Response.json({ ok: true, record: row }, { status: 201 });
   }
 
@@ -232,8 +195,8 @@ export async function POST(request: Request, context: Context) {
     if (!record) return error("Work record not found.", 404);
     if (record.endedAt) return error("This work record has already ended.", 409);
     const endedAt = new Date().toISOString();
-    await db.update(workRecords).set({ endedAt, claimedEndAt: endedAt, endNetworkStatus: network.status, endSourceIp: shouldStoreSourceIp() ? network.ip : "", endLatitude: location.latitude, endLongitude: location.longitude, endAccuracy: location.accuracy, status: "working", updatedAt: endedAt, employeeNote: String(body.note ?? record.employeeNote).trim().slice(0, 500) }).where(eq(workRecords.id, record.id));
-    await recordAudit({ groupId, userEmail: user.email, action: "work.end", entityType: "workRecord", entityId: record.id, summary: `勤務終了: ${record.scheduledDate}`, details: { networkStatus: network.status } });
+    await db.update(workRecords).set({ endedAt, claimedEndAt: endedAt, status: "working", updatedAt: endedAt, employeeNote: String(body.note ?? record.employeeNote).trim().slice(0, 500) }).where(eq(workRecords.id, record.id));
+    await recordAudit({ groupId, userEmail: user.email, action: "work.end", entityType: "workRecord", entityId: record.id, summary: `勤務終了: ${record.scheduledDate}` });
     return Response.json({ ok: true, recordId: record.id, status: "working", endedAt });
   }
   return error("action must be start or end.", 400);

@@ -185,6 +185,7 @@ export default function Home() {
   const [dashboardOpen, setDashboardOpen] = useState(false);
   const [auditLogsOpen, setAuditLogsOpen] = useState(false);
   const [workRecordsOpen, setWorkRecordsOpen] = useState(false);
+  const [workRecordsManager, setWorkRecordsManager] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [groupId, setGroupId] = useState("");
   const [form, setForm] = useState<FormState>(emptyForm(todayKey));
@@ -457,8 +458,14 @@ export default function Home() {
           setMenuGroupId(groupId);
           setAuditLogsOpen(true);
         }}
-        onWorkRecords={(groupId) => {
+        onWorkDeclare={(groupId) => {
           setMenuGroupId(groupId);
+          setWorkRecordsManager(false);
+          setWorkRecordsOpen(true);
+        }}
+        onWorkApprove={(groupId) => {
+          setMenuGroupId(groupId);
+          setWorkRecordsManager(true);
           setWorkRecordsOpen(true);
         }}
       />
@@ -991,7 +998,7 @@ export default function Home() {
       )}
       {workRecordsOpen && menuGroupId && (
         <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setWorkRecordsOpen(false); }}>
-          <div className="modal groups-modal work-records-modal"><WorkRecordsPanel groupId={menuGroupId} manager={editableGroups.some((group) => group.groupId === menuGroupId)} /></div>
+          <div className="modal groups-modal work-records-modal"><WorkRecordsPanel groupId={menuGroupId} manager={workRecordsManager} /></div>
         </div>
       )}
       {groupPreferencesOpen && menuGroupId && (
