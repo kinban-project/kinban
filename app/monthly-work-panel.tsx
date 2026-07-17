@@ -68,6 +68,13 @@ export default function MonthlyWorkPanel({ groupId, manager }: { groupId: string
     if (statusFilter === "unsubmitted-scheduled") return item.status === "unsubmitted" && item.plannedMinutes > 0;
     return statusFilter === "all" || item.status === statusFilter;
   });
+  const totals = filteredSummaries.reduce((result, item) => ({
+    plannedMinutes: result.plannedMinutes + item.plannedMinutes,
+    declaredMinutes: result.declaredMinutes + item.declaredMinutes,
+    missingCount: result.missingCount + item.missingCount,
+    unresolvedCount: result.unresolvedCount + item.unresolvedCount,
+    offScheduleCount: result.offScheduleCount + item.offScheduleCount,
+  }), { plannedMinutes: 0, declaredMinutes: 0, missingCount: 0, unresolvedCount: 0, offScheduleCount: 0 });
 
   async function submit() {
     setBusy(true);
@@ -99,12 +106,7 @@ export default function MonthlyWorkPanel({ groupId, manager }: { groupId: string
     </div>
     {notice && <p className="panel-notice">{notice}</p>}
     {manager && !selectedEmail ? <>
-      <div className="monthly-summary-grid">{filteredSummaries.map((item) => <article className="monthly-summary-card" key={item.userEmail}>
-        <div className="monthly-summary-head"><strong>{item.displayName}</strong><span className={`monthly-status monthly-status-${item.status}`}>{statusLabels[item.status] ?? item.status}</span></div>
-        <div className="monthly-summary-values"><span>予定 <b>{formatMinutes(item.plannedMinutes)}</b></span><span>申告 <b>{formatMinutes(item.declaredMinutes)}</b></span><span>差分 <b>{formatMinutes(item.declaredMinutes - item.plannedMinutes)}</b></span></div>
-        <div className="monthly-summary-flags">未入力 {item.missingCount}日 ／ 未処理 {item.unresolvedCount}件 ／ シフト外 {item.offScheduleCount}日</div>
-        <div className="monthly-summary-actions"><button className="small-action" onClick={() => setSelectedEmail(item.userEmail)}>日別確認</button>{item.status === "submitted" && <button className="small-action" disabled={busy} onClick={() => void review(item.userEmail, "approve")}>月次承認</button>}{item.status === "submitted" && <button className="small-action danger" disabled={busy} onClick={() => void review(item.userEmail, "reject")}>差戻し</button>}</div>
-      </article>)}</div>
+      <div className="monthly-summary-table-wrap"><table className="monthly-summary-table"><thead><tr><th>メンバー</th><th>状態</th><th>予定</th><th>申告</th><th>差分</th><th>未入力</th><th>未処理</th><th>シフト外</th><th>操作</th></tr></thead><tbody>{filteredSummaries.map((item) => <tr key={item.userEmail}><th>{item.displayName}</th><td><span className={`monthly-status monthly-status-${item.status}`}>{statusLabels[item.status] ?? item.status}</span></td><td>{formatMinutes(item.plannedMinutes)}</td><td>{formatMinutes(item.declaredMinutes)}</td><td className={item.declaredMinutes !== item.plannedMinutes ? "monthly-diff-warning" : ""}>{formatMinutes(item.declaredMinutes - item.plannedMinutes)}</td><td>{item.missingCount}日</td><td>{item.unresolvedCount}件</td><td>{item.offScheduleCount}日</td><td><div className="monthly-summary-actions"><button className="small-action" onClick={() => setSelectedEmail(item.userEmail)}>日別確認</button>{item.status === "submitted" && <button className="small-action" disabled={busy} onClick={() => void review(item.userEmail, "approve")}>月次承認</button>}{item.status === "submitted" && <button className="small-action danger" disabled={busy} onClick={() => void review(item.userEmail, "reject")}>差戻し</button>}</div></td></tr>)}<tr className="monthly-summary-total"><th>表示中の合計</th><td>{filteredSummaries.length}人</td><td>{formatMinutes(totals.plannedMinutes)}</td><td>{formatMinutes(totals.declaredMinutes)}</td><td className={totals.declaredMinutes !== totals.plannedMinutes ? "monthly-diff-warning" : ""}>{formatMinutes(totals.declaredMinutes - totals.plannedMinutes)}</td><td>{totals.missingCount}日</td><td>{totals.unresolvedCount}件</td><td>{totals.offScheduleCount}日</td><td>—</td></tr></tbody></table></div>
     </> : <>
       <div className="monthly-self-summary"><div><strong>{selfSummary?.displayName ?? "自分"}</strong><span className={`monthly-status monthly-status-${selfClaim?.status ?? "unsubmitted"}`}>{statusLabels[selfClaim?.status ?? "unsubmitted"]}</span></div><span>シフト予定 <b>{formatMinutes(selfSummary?.plannedMinutes ?? 0)}</b></span><span>申告実績 <b>{formatMinutes(selfSummary?.declaredMinutes ?? 0)}</b></span><span>シフト外 {selfSummary?.offScheduleCount ?? 0}日</span>{!manager && <button className="primary-button" disabled={busy || hasUnresolved || selfClaim?.status === "approved"} onClick={() => void submit()}>{selfClaim?.status === "submitted" ? "月次申告済み" : "月次申告"}</button>}</div>
       {manager && selectedEmail && <button className="small-action" onClick={() => setSelectedEmail("")}>サマリへ戻る</button>}

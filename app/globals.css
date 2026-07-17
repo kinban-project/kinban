@@ -79,6 +79,14 @@ button { cursor: pointer; }
 .monthly-summary-values b, .monthly-self-summary b { color: var(--ink); }
 .monthly-summary-flags { color: var(--muted); font-size: 11px; }
 .monthly-summary-actions { display: flex; gap: 6px; }
+.monthly-summary-table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+.monthly-summary-table { width: 100%; min-width: 980px; border-collapse: collapse; font-size: 11px; }
+.monthly-summary-table th, .monthly-summary-table td { padding: 9px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; white-space: nowrap; }
+.monthly-summary-table thead th { background: #f2f6f1; color: var(--muted); font-weight: 600; }
+.monthly-summary-table tbody th { background: #fbfcfa; font-weight: 700; }
+.monthly-summary-table td:nth-child(3), .monthly-summary-table td:nth-child(4), .monthly-summary-table td:nth-child(5), .monthly-summary-table td:nth-child(6), .monthly-summary-table td:nth-child(7), .monthly-summary-table td:nth-child(8) { text-align: right; }
+.monthly-summary-total th, .monthly-summary-total td { border-top: 2px solid var(--teal); background: #eef5d9; font-weight: 700; }
+.monthly-diff-warning { color: #a44942; font-weight: 700; }
 .monthly-status { display: inline-block; padding: 3px 7px; border-radius: 999px; font-size: 10px; white-space: nowrap; }
 .monthly-status-unsubmitted { background: #f0f2ef; color: #68736b; }
 .monthly-status-submitted { background: #fff0c8; color: #7a5a00; }
