@@ -130,7 +130,7 @@ export async function POST(request: Request, context: Context) {
     const existing = await db.select().from(workRecords).where(and(eq(workRecords.slotId, slot.id), eq(workRecords.userEmail, user.email))).limit(1);
     if (existing[0] && existing[0].status !== "rejected") return Response.json({ ok: true, record: existing[0] });
     const now = new Date().toISOString();
-    const row = { id: crypto.randomUUID(), groupId, planId: plan.id, slotId: slot.id, userEmail: user.email, scheduledDate: slot.date, scheduledStartTime: slot.startTime, scheduledEndTime: slot.endTime, claimedStartAt, claimedEndAt, status: "working", employeeNote: "", createdAt: now, updatedAt: now };
+    const row = { id: crypto.randomUUID(), groupId, planId: plan.id, slotId: slot.id, userEmail: user.email, scheduledDate: slot.date, scheduledStartTime: slot.startTime, scheduledEndTime: slot.endTime, claimedStartAt, claimedEndAt, status: "unsubmitted", employeeNote: "", createdAt: now, updatedAt: now };
     await db.insert(workRecords).values(row);
     await recordAudit({ groupId, userEmail: user.email, action: "work.claim.create", entityType: "workRecord", entityId: row.id, summary: `勤務申告を作成: ${slot.date}` });
     return Response.json({ ok: true, record: row }, { status: 201 });
@@ -144,7 +144,7 @@ export async function POST(request: Request, context: Context) {
     const existing = await db.select().from(workRecords).where(and(eq(workRecords.groupId, groupId), eq(workRecords.userEmail, user.email), eq(workRecords.scheduledDate, body.scheduledDate), isNull(workRecords.slotId))).limit(1);
     if (existing[0] && existing[0].status !== "rejected") return Response.json({ ok: true, record: existing[0] });
     const now = new Date().toISOString();
-    const row = { id: crypto.randomUUID(), groupId, planId: null, slotId: null, userEmail: user.email, scheduledDate: body.scheduledDate, scheduledStartTime: "", scheduledEndTime: "", claimedStartAt, claimedEndAt, status: "working", employeeNote: "", createdAt: now, updatedAt: now };
+    const row = { id: crypto.randomUUID(), groupId, planId: null, slotId: null, userEmail: user.email, scheduledDate: body.scheduledDate, scheduledStartTime: "", scheduledEndTime: "", claimedStartAt, claimedEndAt, status: "unsubmitted", employeeNote: "", createdAt: now, updatedAt: now };
     await db.insert(workRecords).values(row);
     await recordAudit({ groupId, userEmail: user.email, action: "work.claim.create-manual", entityType: "workRecord", entityId: row.id, summary: `勤務申告を作成: ${body.scheduledDate}` });
     return Response.json({ ok: true, record: row }, { status: 201 });
