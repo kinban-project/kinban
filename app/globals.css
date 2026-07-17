@@ -206,7 +206,7 @@ button { cursor: pointer; }
 .monthly-note { width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 6px; padding: 6px 7px; color: var(--ink); background: #fff; font-size: 11px; }
 .monthly-work-table td { overflow: hidden; }
 .monthly-actions { display: flex; flex-wrap: wrap; gap: 4px; }
-.work-status-unsubmitted { background: #fff0c8; color: #7a5a00; }
+.work-status-unsubmitted { background: #f0f2ef; color: #68736b; }
 .work-status-none { background: #f0f2ef; color: #68736b; }
 .work-schedule-list { display: grid; gap: 8px; }
 .work-schedule-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: #fbfcfa; }
@@ -214,7 +214,8 @@ button { cursor: pointer; }
 .work-schedule-item span { color: var(--muted); font-size: 12px; }
 .work-status { display: inline-block; padding: 4px 8px; border-radius: 999px; font-size: 11px; white-space: nowrap; }
 .work-status-working { background: #dff0df; color: #23633c; }
-.work-status-submitted { background: #fff0c8; color: #7a5a00; }
+.work-status-submitted { background: #dff0df; color: #23633c; }
+.work-status-manager-pending { background: #fff0c8; color: #7a5a00; }
 .work-status-approved { background: #dcefeb; color: #17655d; }
 .work-status-rejected { background: #f6dddd; color: #8a3b3b; }
 .work-review-actions { display: flex; gap: 5px; }
