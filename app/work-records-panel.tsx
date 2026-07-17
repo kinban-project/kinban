@@ -13,8 +13,23 @@ function statusLabel(value: string, ended = false) { if (value === "working") re
 function networkLabel(value: string) { return ({ store: "店舗ネットワーク", external: "外部ネットワーク", unknown: "判定不可" } as Record<string, string>)[value] ?? value; }
 function formatTime(value?: string | null) { if (!value) return "—"; return new Intl.DateTimeFormat("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value)); }
 function formatClock(value?: string | null) { if (!value) return "—"; return new Intl.DateTimeFormat("ja-JP", { hour: "2-digit", minute: "2-digit" }).format(new Date(value)); }
-function timeOnly(value: string) { return value ? value.slice(11, 16) : ""; }
-function withDate(date: string, value: string) { return value ? `${date}T${value}` : ""; }
+function timeOnly(value: string, date: string) {
+  if (!value) return "";
+  const base = new Date(`${date}T00:00:00+09:00`).getTime();
+  const minutes = Math.round((new Date(value).getTime() - base) / 60000);
+  if (!Number.isFinite(minutes)) return "";
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+}
+function withDate(date: string, value: string) {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
+  if (!match) return "";
+  const hours = Number(match[1]); const minutes = Number(match[2]);
+  if (hours < 0 || hours > 30 || minutes > 59) return "";
+  const base = new Date(`${date}T00:00:00+09:00`); base.setMinutes(hours * 60 + minutes);
+  const parts = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(base);
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
+}
 function todayKey() { return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(new Date()); }
 function localDateTime(value?: string | null) { if (!value) return ""; const parts = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date(value)); const get = (type: string) => parts.find((part) => part.type === type)?.value ?? ""; return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`; }
 function monthKey(date: Date) { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`; }
@@ -46,7 +61,7 @@ export default function WorkRecordsPanel({ groupId, manager = false }: { groupId
 <th>{dayLabel(date)}</th>
 <td>{planned ? <><span className="monthly-shift-ref">{planned.startTime}〜{planned.endTime}</span>{record ? record.status !== "approved" && <button className="small-action" disabled={busy} onClick={() => void applySchedule(record)}>シフト通り</button> : date <= todayKey() ? <button className="small-action" disabled={busy} onClick={() => void createClaim(planned)}>シフト通り</button> : null}</> : <span className="monthly-record-value">対象なし</span>}</td>
 <td>{record ? <span className="monthly-record-value">{formatClock(record.startedAt)}〜{formatClock(record.endedAt)}</span> : <span className="monthly-record-value">—</span>}</td>
-<td>{record ? <div className="claim-time-fields monthly-claim"><input type="time" aria-label={`${date} 申告開始`} value={timeOnly(draft?.start ?? "")} disabled={record.status === "approved"} onChange={(event) => updateDraft(record, { start: withDate(date, event.target.value), end: draft?.end ?? "" })} /><span>〜</span><input type="time" aria-label={`${date} 申告終了`} value={timeOnly(draft?.end ?? "")} disabled={record.status === "approved"} onChange={(event) => updateDraft(record, { start: draft?.start ?? "", end: withDate(date, event.target.value) })} /></div> : date <= todayKey() && planned ? <span className="monthly-record-value">シフト通りで入力</span> : "—"}</td>
+<td>{record ? <div className="claim-time-fields monthly-claim"><input type="text" inputMode="numeric" placeholder="00:00" aria-label={`${date} 申告開始`} value={timeOnly(draft?.start ?? "", date)} disabled={record.status === "approved"} onChange={(event) => updateDraft(record, { start: withDate(date, event.target.value), end: draft?.end ?? "" })} /><span>〜</span><input type="text" inputMode="numeric" placeholder="00:00" aria-label={`${date} 申告終了`} value={timeOnly(draft?.end ?? "", date)} disabled={record.status === "approved"} onChange={(event) => updateDraft(record, { start: draft?.start ?? "", end: withDate(date, event.target.value) })} /></div> : date <= todayKey() && planned ? <span className="monthly-record-value">シフト通りで入力</span> : "—"}</td>
 <td>{record ? `${breakMinutes(breaksFor(record.id))}分` : "—"}{record && onBreak && <small>休憩中</small>}</td>
 <td>{record ? <span className={`work-status work-status-${record.status}`}>{statusLabel(record.status, Boolean(record.endedAt))}</span> : planned ? <span className="work-status work-status-unsubmitted">未申請</span> : <span className="work-status work-status-none">—</span>}</td>
 <td>{record ? <span className="monthly-actions">{record.status === "working" && (record.endedAt || draft?.end) && <button className="small-action" disabled={busy} onClick={() => void submit(record)}>申請</button>}{record.status === "working" && !record.endedAt && record.startedAt && <><button className="small-action" disabled={busy} onClick={() => void toggleBreak(record, onBreak ? "break-end" : "break-start")}>{onBreak ? "休憩終了" : "休憩開始"}</button>{!onBreak && <button className="small-action" disabled={busy} onClick={() => void end(record)}>勤務終了</button>}</>}</span> : planned && date > todayKey() ? <button className="small-action" disabled={busy} onClick={() => void start(planned.id)}>勤務開始</button> : "—"}</td>

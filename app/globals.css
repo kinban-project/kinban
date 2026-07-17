@@ -184,11 +184,19 @@ button { cursor: pointer; }
 .work-month-toolbar .primary-button { margin-left: auto; }
 .work-month-help { margin: 0 0 10px; color: var(--muted); font-size: 11px; }
 .monthly-work-wrap { max-height: 64vh; }
-.monthly-work-table { min-width: 1220px; }
+.monthly-work-table { width: 100%; min-width: 0; table-layout: fixed; }
+.monthly-work-table th:nth-child(1), .monthly-work-table td:nth-child(1) { width: 88px; }
+.monthly-work-table th:nth-child(2), .monthly-work-table td:nth-child(2) { width: 175px; }
+.monthly-work-table th:nth-child(3), .monthly-work-table td:nth-child(3) { width: 105px; }
+.monthly-work-table th:nth-child(4), .monthly-work-table td:nth-child(4) { width: 230px; }
+.monthly-work-table th:nth-child(5), .monthly-work-table td:nth-child(5) { width: 55px; }
+.monthly-work-table th:nth-child(6), .monthly-work-table td:nth-child(6) { width: 82px; }
+.monthly-work-table th:nth-child(7), .monthly-work-table td:nth-child(7) { width: 180px; }
 .monthly-work-table tbody th { background: #fbfcfa; white-space: nowrap; color: var(--ink); }
 .monthly-shift-ref, .monthly-record-value { display: block; white-space: nowrap; margin: 2px 0; }
-.monthly-claim { min-width: 190px; }
-.monthly-claim input { width: 82px; }
+.monthly-claim { min-width: 0; }
+.monthly-claim input { width: 76px; }
+.monthly-work-table td { overflow: hidden; }
 .monthly-actions { display: flex; flex-wrap: wrap; gap: 4px; }
 .work-status-unsubmitted { background: #fff0c8; color: #7a5a00; }
 .work-status-none { background: #f0f2ef; color: #68736b; }
