@@ -14,6 +14,7 @@ import GroupPreferencesPanel from "./group-preferences-panel";
 import AnnouncementsPanel from "./announcements-panel";
 import DashboardPanel from "./dashboard-panel";
 import WorkRecordsPanel from "./work-records-panel";
+import MonthlyWorkPanel from "./monthly-work-panel";
 import { localApiFetch } from "./local-api";
 import { displayShiftTime } from "./shift-time";
 
@@ -186,6 +187,8 @@ export default function Home() {
   const [auditLogsOpen, setAuditLogsOpen] = useState(false);
   const [workRecordsOpen, setWorkRecordsOpen] = useState(false);
   const [workRecordsManager, setWorkRecordsManager] = useState(false);
+  const [monthlyWorkOpen, setMonthlyWorkOpen] = useState(false);
+  const [monthlyWorkManager, setMonthlyWorkManager] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [groupId, setGroupId] = useState("");
   const [form, setForm] = useState<FormState>(emptyForm(todayKey));
@@ -467,6 +470,16 @@ export default function Home() {
           setMenuGroupId(groupId);
           setWorkRecordsManager(true);
           setWorkRecordsOpen(true);
+        }}
+        onMonthlyDeclare={(groupId) => {
+          setMenuGroupId(groupId);
+          setMonthlyWorkManager(false);
+          setMonthlyWorkOpen(true);
+        }}
+        onMonthlyApprove={(groupId) => {
+          setMenuGroupId(groupId);
+          setMonthlyWorkManager(true);
+          setMonthlyWorkOpen(true);
         }}
       />
       <section className="intro compact-intro">
@@ -999,6 +1012,11 @@ export default function Home() {
       {workRecordsOpen && menuGroupId && (
         <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setWorkRecordsOpen(false); }}>
           <div className="modal groups-modal work-records-modal"><WorkRecordsPanel groupId={menuGroupId} manager={workRecordsManager} /></div>
+        </div>
+      )}
+      {monthlyWorkOpen && menuGroupId && (
+        <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setMonthlyWorkOpen(false); }}>
+          <div className="modal groups-modal work-records-modal monthly-work-modal"><MonthlyWorkPanel groupId={menuGroupId} manager={monthlyWorkManager} /></div>
         </div>
       )}
       {groupPreferencesOpen && menuGroupId && (

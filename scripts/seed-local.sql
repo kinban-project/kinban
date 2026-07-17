@@ -3,6 +3,7 @@
 -- 7/1-7/31: normal operation, approval, rejection, punch and gap fixtures
 
 DELETE FROM work_breaks;
+DELETE FROM monthly_work_claims;
 DELETE FROM work_records;
 DELETE FROM audit_logs;
 DELETE FROM announcement_replies;
@@ -221,6 +222,14 @@ WHERE slots.plan_id IN ('seed-plan-first-half', 'seed-plan-second-half');
 INSERT INTO work_breaks (id, work_record_id, started_at, ended_at)
 SELECT 'break-' || lower(hex(randomblob(8))), id, date(scheduled_date) || 'T12:00:00+09:00', date(scheduled_date) || 'T12:45:00+09:00'
 FROM work_records WHERE user_email = 'member01@local.test' AND scheduled_date = '2026-06-30';
+
+INSERT INTO monthly_work_claims (id, group_id, user_email, month_key, status, submitted_at, approved_at, approved_by, manager_note) VALUES
+  ('monthly-june-tanaka', 'seed-group-store', 'tanaka@local.test', '2026-06', 'approved', '2026-07-01T09:00:00.000Z', '2026-07-01T10:00:00.000Z', 'tanaka@local.test', '月末確認済み'),
+  ('monthly-june-member01', 'seed-group-store', 'member01@local.test', '2026-06', 'approved', '2026-07-01T09:10:00.000Z', '2026-07-01T10:05:00.000Z', 'tanaka@local.test', ''),
+  ('monthly-june-member02', 'seed-group-store', 'member02@local.test', '2026-06', 'submitted', '2026-07-01T09:20:00.000Z', NULL, NULL, ''),
+  ('monthly-june-member03', 'seed-group-store', 'member03@local.test', '2026-06', 'rejected', '2026-07-01T09:30:00.000Z', NULL, NULL, '6月30日の申告内容を確認してください'),
+  ('monthly-june-member04', 'seed-group-store', 'member04@local.test', '2026-06', 'unsubmitted', NULL, NULL, NULL, ''),
+  ('monthly-june-member05', 'seed-group-store', 'member05@local.test', '2026-06', 'unsubmitted', NULL, NULL, NULL, '勤務終了の記録を確認してください');
 
 INSERT INTO shift_request_periods (id, group_id, plan_id, name, opens_on, closes_on, status, created_by) VALUES
   ('seed-request-june', 'seed-group-store', 'seed-plan-june', '6月末締めテスト（受付終了）', '2026-06-15', '2026-06-20', 'closed', 'tanaka@local.test'),

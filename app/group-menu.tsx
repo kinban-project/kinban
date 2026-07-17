@@ -25,6 +25,8 @@ type Props = {
   onAuditLogs: (id: string) => void;
   onWorkDeclare: (id: string) => void;
   onWorkApprove: (id: string) => void;
+  onMonthlyDeclare: (id: string) => void;
+  onMonthlyApprove: (id: string) => void;
 };
 
 function requestLabel(date?: string | null) {
@@ -81,6 +83,8 @@ export default function GroupMenu({
   onAuditLogs,
   onWorkDeclare,
   onWorkApprove,
+  onMonthlyDeclare,
+  onMonthlyApprove,
 }: Props) {
   const [openManagement, setOpenManagement] = useState<string | null>(null);
   return (
@@ -111,6 +115,7 @@ export default function GroupMenu({
               {group.name ?? group.groupId}
             </strong>
             <div className="group-menu-actions">
+              <button className="group-menu-button" type="button" onClick={() => onMonthlyDeclare(group.groupId)}>月次申告</button>
               <ClockControls groupId={group.groupId} />
               <button
                 className="group-menu-button"
@@ -145,6 +150,7 @@ export default function GroupMenu({
               {manager && (
                 <>
                   <div className="admin-inline">
+                    <button className="group-menu-button admin" type="button" onClick={() => onMonthlyApprove(group.groupId)}>月次承認</button>
                     <button
                       className="group-menu-button admin"
                       type="button"
@@ -202,6 +208,7 @@ export default function GroupMenu({
                     </button>
                     {openManagement === group.groupId && (
                       <div className="admin-popover">
+                        <button onClick={() => onMonthlyApprove(group.groupId)}>月次承認</button>
                         <button onClick={() => onShiftBuilder(group.groupId)}>
                           シフト作成
                         </button>

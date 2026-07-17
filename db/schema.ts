@@ -246,6 +246,20 @@ export const workRecords = sqliteTable("work_records", {
     .default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const monthlyWorkClaims = sqliteTable("monthly_work_claims", {
+  id: text("id").primaryKey(),
+  groupId: text("group_id").notNull(),
+  userEmail: text("user_email").notNull(),
+  monthKey: text("month_key").notNull(),
+  status: text("status").notNull().default("unsubmitted"),
+  submittedAt: text("submitted_at"),
+  approvedAt: text("approved_at"),
+  approvedBy: text("approved_by"),
+  managerNote: text("manager_note").notNull().default(""),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const workBreaks = sqliteTable("work_breaks", {
   id: text("id").primaryKey(),
   workRecordId: text("work_record_id").notNull(),

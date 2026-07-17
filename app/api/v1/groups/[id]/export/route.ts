@@ -21,6 +21,7 @@ import {
   shiftSlots,
   workRecords,
   workBreaks,
+  monthlyWorkClaims,
 } from "../../../../../../db/schema";
 import { requireApiIdentity } from "../../../../api-auth";
 
@@ -57,7 +58,7 @@ export async function GET(_request: Request, context: Context) {
   if (!membership || membership.status !== "active") return error("Active group membership is required.", 403);
   if (membership.role !== "owner" && membership.role !== "editor") return error("Owner or editor permission is required.", 403);
 
-  const [members, joinRequests, plans, preferences, availability, announcements, logs, groupEvents, records] = await Promise.all([
+  const [members, joinRequests, plans, preferences, availability, announcements, logs, groupEvents, records, monthlyClaims] = await Promise.all([
     db.select().from(groupMembers).where(eq(groupMembers.groupId, groupId)),
     db.select().from(groupJoinRequests).where(eq(groupJoinRequests.groupId, groupId)),
     db.select().from(shiftPlans).where(eq(shiftPlans.groupId, groupId)),
@@ -67,6 +68,7 @@ export async function GET(_request: Request, context: Context) {
     db.select().from(auditLogs).where(eq(auditLogs.groupId, groupId)),
     db.select().from(events).where(eq(events.groupId, groupId)),
     db.select().from(workRecords).where(eq(workRecords.groupId, groupId)),
+    db.select().from(monthlyWorkClaims).where(eq(monthlyWorkClaims.groupId, groupId)),
   ]);
 
   const emails = [...new Set(members.map((member) => member.userEmail))];
@@ -120,5 +122,6 @@ export async function GET(_request: Request, context: Context) {
     attachments: attachmentsForEvents,
     workRecords: records,
     workBreaks: breaks,
+    monthlyWorkClaims: monthlyClaims,
   }, { headers: { "Cache-Control": "no-store" } });
 }
