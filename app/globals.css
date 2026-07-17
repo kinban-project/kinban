@@ -86,7 +86,7 @@ button { cursor: pointer; }
 .monthly-status-rejected { background: #f6dddd; color: #8a3b3b; }
 .monthly-self-summary { margin: 12px 0; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #f5f8f4; }
 .monthly-self-summary > div { display: flex; align-items: center; gap: 8px; margin-right: auto; }
-.monthly-days-wrap { max-height: 64vh; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
+.monthly-days-wrap { border: 1px solid var(--line); border-radius: 10px; }
 .monthly-days-table { width: 100%; min-width: 780px; border-collapse: collapse; font-size: 12px; }
 .monthly-days-table th, .monthly-days-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
 .monthly-days-table thead th { position: sticky; top: 0; z-index: 1; background: #f2f6f1; }
