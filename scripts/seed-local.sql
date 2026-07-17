@@ -163,6 +163,14 @@ FROM shift_slots slots JOIN assignees
   ON assignees.start_time = slots.start_time AND assignees.role = slots.role
 WHERE slots.plan_id = 'seed-plan-june';
 
+UPDATE work_records SET
+  status = 'submitted',
+  claimed_start_at = '2026-06-30T17:00:00+09:00',
+  claimed_end_at = '2026-06-30T22:00:00+09:00',
+  approved_by = NULL,
+  approved_at = NULL
+WHERE scheduled_date = '2026-06-30' AND user_email = 'member02@local.test';
+
 WITH assignees(start_time, role, user_email) AS (VALUES
   ('09:30', 'ホール', 'tanaka@local.test'), ('09:30', 'ホール', 'member04@local.test'),
   ('09:30', '厨房', 'member01@local.test'), ('09:30', '厨房', 'member05@local.test'),
