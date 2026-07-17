@@ -196,6 +196,8 @@ button { cursor: pointer; }
 .monthly-shift-ref, .monthly-record-value { display: block; white-space: nowrap; margin: 2px 0; }
 .monthly-claim { min-width: 0; }
 .monthly-claim input { width: 76px; }
+.claim-time-select { width: 88px; min-width: 0; border: 1px solid var(--line); border-radius: 6px; padding: 5px 3px; color: var(--ink); background: #fff; font-size: 11px; }
+.monthly-claim { gap: 3px; }
 .monthly-work-table td { overflow: hidden; }
 .monthly-actions { display: flex; flex-wrap: wrap; gap: 4px; }
 .work-status-unsubmitted { background: #fff0c8; color: #7a5a00; }

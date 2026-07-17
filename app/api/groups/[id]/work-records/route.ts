@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { env } from "cloudflare:workers";
 import { getChatGPTUser } from "../../../../chatgpt-auth";
 import { getDb } from "../../../../../db";
@@ -113,7 +113,7 @@ export async function POST(request: Request, context: Context) {
   const current = await contextData(groupId, user.email);
   if ("error" in current) return current.error;
   const { db, membership } = current;
-  const body = await request.json().catch(() => ({})) as { action?: string; recordId?: string; slotId?: string; location?: LocationInput; note?: string; claimedStartAt?: string; claimedEndAt?: string };
+  const body = await request.json().catch(() => ({})) as { action?: string; recordId?: string; slotId?: string; scheduledDate?: string; location?: LocationInput; note?: string; claimedStartAt?: string; claimedEndAt?: string };
   const network = networkStatus(request);
   const location = locationValues(body.location);
 
@@ -133,6 +133,20 @@ export async function POST(request: Request, context: Context) {
     const row = { id: crypto.randomUUID(), groupId, planId: plan.id, slotId: slot.id, userEmail: user.email, scheduledDate: slot.date, scheduledStartTime: slot.startTime, scheduledEndTime: slot.endTime, claimedStartAt, claimedEndAt, status: "working", employeeNote: "", createdAt: now, updatedAt: now };
     await db.insert(workRecords).values(row);
     await recordAudit({ groupId, userEmail: user.email, action: "work.claim.create", entityType: "workRecord", entityId: row.id, summary: `勤務申告を作成: ${slot.date}` });
+    return Response.json({ ok: true, record: row }, { status: 201 });
+  }
+
+  if (body.action === "create-manual-claim") {
+    if (!body.scheduledDate || !body.claimedStartAt || !body.claimedEndAt) return error("scheduledDate and claim times are required.", 400);
+    const claimedStartAt = inputToIso(body.claimedStartAt);
+    const claimedEndAt = inputToIso(body.claimedEndAt);
+    if (!claimedStartAt || !claimedEndAt || new Date(claimedEndAt).getTime() <= new Date(claimedStartAt).getTime()) return error("Invalid claim time.", 400);
+    const existing = await db.select().from(workRecords).where(and(eq(workRecords.groupId, groupId), eq(workRecords.userEmail, user.email), eq(workRecords.scheduledDate, body.scheduledDate), isNull(workRecords.slotId))).limit(1);
+    if (existing[0] && existing[0].status !== "rejected") return Response.json({ ok: true, record: existing[0] });
+    const now = new Date().toISOString();
+    const row = { id: crypto.randomUUID(), groupId, planId: null, slotId: null, userEmail: user.email, scheduledDate: body.scheduledDate, scheduledStartTime: "", scheduledEndTime: "", claimedStartAt, claimedEndAt, status: "working", employeeNote: "", createdAt: now, updatedAt: now };
+    await db.insert(workRecords).values(row);
+    await recordAudit({ groupId, userEmail: user.email, action: "work.claim.create-manual", entityType: "workRecord", entityId: row.id, summary: `勤務申告を作成: ${body.scheduledDate}` });
     return Response.json({ ok: true, record: row }, { status: 201 });
   }
 
