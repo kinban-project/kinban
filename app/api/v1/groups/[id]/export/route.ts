@@ -32,6 +32,14 @@ function error(message: string, status: number) {
   return Response.json({ error: message }, { status });
 }
 
+function chunk<T>(values: T[], size = 50) {
+  const result: T[][] = [];
+  for (let index = 0; index < values.length; index += size) {
+    result.push(values.slice(index, index + size));
+  }
+  return result;
+}
+
 export async function GET(_request: Request, context: Context) {
   const identity = await requireApiIdentity(_request);
   if (identity instanceof Response) return identity;
@@ -81,12 +89,12 @@ export async function GET(_request: Request, context: Context) {
   const slotIds = slots.map((slot) => slot.id);
   const periodIds = periods.map((period) => period.id);
   const [assignmentRows, requestRows, submissionRows] = await Promise.all([
-    slotIds.length ? db.select().from(shiftAssignments).where(inArray(shiftAssignments.slotId, slotIds)) : [],
-    periodIds.length ? db.select().from(shiftRequests).where(inArray(shiftRequests.periodId, periodIds)) : [],
-    periodIds.length ? db.select().from(shiftRequestSubmissions).where(inArray(shiftRequestSubmissions.periodId, periodIds)) : [],
+    Promise.all(chunk(slotIds).map((ids) => db.select().from(shiftAssignments).where(inArray(shiftAssignments.slotId, ids)))).then((rows) => rows.flat()),
+    Promise.all(chunk(periodIds).map((ids) => db.select().from(shiftRequests).where(inArray(shiftRequests.periodId, ids)))).then((rows) => rows.flat()),
+    Promise.all(chunk(periodIds).map((ids) => db.select().from(shiftRequestSubmissions).where(inArray(shiftRequestSubmissions.periodId, ids)))).then((rows) => rows.flat()),
   ]);
   const recordIds = records.map((record) => record.id);
-  const breaks = recordIds.length ? await db.select().from(workBreaks).where(inArray(workBreaks.workRecordId, recordIds)) : [];
+  const breaks = (await Promise.all(chunk(recordIds).map((ids) => db.select().from(workBreaks).where(inArray(workBreaks.workRecordId, ids))))).flat();
 
   return Response.json({
     schemaVersion: 1,

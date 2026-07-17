@@ -149,10 +149,16 @@ export async function GET(request: Request, context: Context) {
   }));
   const recordIds = records.map((record) => record.id);
   const breaks = recordIds.length
-    ? await db
-        .select()
-        .from(workBreaks)
-        .where(inArray(workBreaks.workRecordId, recordIds))
+    ? (
+        await Promise.all(
+          chunk(recordIds, 50).map((ids) =>
+            db
+              .select()
+              .from(workBreaks)
+              .where(inArray(workBreaks.workRecordId, ids)),
+          ),
+        )
+      ).flat()
     : [];
   const members = manager
     ? await db

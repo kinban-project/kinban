@@ -60,6 +60,7 @@ function statusLabel(value: string, ended = false) {
   );
 }
 function formatTime(value?: string | null) {
+  if (value && Number.isNaN(new Date(value).getTime())) return "";
   if (!value) return "—";
   return new Intl.DateTimeFormat("ja-JP", {
     month: "numeric",
@@ -69,6 +70,7 @@ function formatTime(value?: string | null) {
   }).format(new Date(value));
 }
 function formatClock(value?: string | null) {
+  if (value && Number.isNaN(new Date(value).getTime())) return "";
   if (!value) return "—";
   return new Intl.DateTimeFormat("ja-JP", {
     hour: "2-digit",
@@ -156,6 +158,7 @@ function TimeSelect({
 }
 function localDateTime(value?: string | null) {
   if (!value) return "";
+  if (Number.isNaN(new Date(value).getTime())) return "";
   const parts = new Intl.DateTimeFormat("sv-SE", {
     timeZone: "Asia/Tokyo",
     year: "numeric",
