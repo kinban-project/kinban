@@ -13,6 +13,7 @@ import GroupMenu from "./group-menu";
 import GroupPreferencesPanel from "./group-preferences-panel";
 import AnnouncementsPanel from "./announcements-panel";
 import DashboardPanel from "./dashboard-panel";
+import WorkRecordsPanel from "./work-records-panel";
 import { localApiFetch } from "./local-api";
 import { displayShiftTime } from "./shift-time";
 
@@ -183,6 +184,7 @@ export default function Home() {
   const [announcementsOpen, setAnnouncementsOpen] = useState(false);
   const [dashboardOpen, setDashboardOpen] = useState(false);
   const [auditLogsOpen, setAuditLogsOpen] = useState(false);
+  const [workRecordsOpen, setWorkRecordsOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [groupId, setGroupId] = useState("");
   const [form, setForm] = useState<FormState>(emptyForm(todayKey));
@@ -454,6 +456,10 @@ export default function Home() {
         onAuditLogs={(groupId) => {
           setMenuGroupId(groupId);
           setAuditLogsOpen(true);
+        }}
+        onWorkRecords={(groupId) => {
+          setMenuGroupId(groupId);
+          setWorkRecordsOpen(true);
         }}
       />
       <section className="intro compact-intro">
@@ -981,6 +987,11 @@ export default function Home() {
       {auditLogsOpen && menuGroupId && (
         <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setAuditLogsOpen(false); }}>
           <div className="modal groups-modal"><AuditLogPanel groupId={menuGroupId} /></div>
+        </div>
+      )}
+      {workRecordsOpen && menuGroupId && (
+        <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setWorkRecordsOpen(false); }}>
+          <div className="modal groups-modal"><WorkRecordsPanel groupId={menuGroupId} manager={editableGroups.some((group) => group.groupId === menuGroupId)} /></div>
         </div>
       )}
       {groupPreferencesOpen && menuGroupId && (
