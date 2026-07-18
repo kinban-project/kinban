@@ -68,6 +68,28 @@ function ClockControls({ groupId }: { groupId: string }) {
   return <button className="group-menu-button clock-button clock-start" type="button" disabled={busy} onClick={() => void record("start")}>勤務開始</button>;
 }
 
+function WorkDeclareButton({ groupId, onClick }: { groupId: string; onClick: () => void }) {
+  const [rejectedCount, setRejectedCount] = useState(0);
+
+  async function loadRejectedCount() {
+    const response = await localApiFetch(`/api/groups/${groupId}/work-records`);
+    if (!response.ok) return;
+    const data = await response.json() as { currentUserEmail?: string; records?: ClockRecord[] };
+    setRejectedCount((data.records ?? []).filter((record) =>
+      record.userEmail === data.currentUserEmail && record.status === "rejected"
+    ).length);
+  }
+
+  useEffect(() => { void loadRejectedCount(); }, [groupId]);
+
+  return (
+    <button className={`group-menu-button${rejectedCount > 0 ? " has-rejected" : ""}`} type="button" onClick={onClick}>
+      勤務申告
+      {rejectedCount > 0 && <span className="unread-badge rejection-badge">{rejectedCount}</span>}
+    </button>
+  );
+}
+
 export default function GroupMenu({
   groups,
   onApplications,
@@ -146,7 +168,7 @@ export default function GroupMenu({
                 お知らせ
                 {unread > 0 && <span className="unread-badge">{unread}</span>}
               </button>
-              <button className="group-menu-button" type="button" onClick={() => onWorkDeclare(group.groupId)}>勤務申告</button>
+              <WorkDeclareButton groupId={group.groupId} onClick={() => onWorkDeclare(group.groupId)} />
               {manager && (
                 <>
                   <div className="admin-inline">

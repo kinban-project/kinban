@@ -281,6 +281,8 @@ export default function WorkRecordsPanel({
   const [month, setMonth] = useState(monthKey(new Date()));
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
+  const [rejectTarget, setRejectTarget] = useState<RecordRow | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   async function load() {
     setBusy(true);
@@ -349,8 +351,8 @@ export default function WorkRecordsPanel({
       body: JSON.stringify(body),
     });
   }
-  async function review(recordId: string, status: "approved" | "rejected") {
-    const response = await patch({ recordId, status });
+  async function review(recordId: string, status: "approved" | "rejected", managerNote = "") {
+    const response = await patch({ recordId, status, ...(status === "rejected" ? { managerNote } : {}) });
     setNotice(
       response.ok
         ? status === "approved"
@@ -359,6 +361,17 @@ export default function WorkRecordsPanel({
         : "勤務記録を更新できませんでした。",
     );
     if (response.ok) await load();
+    return response.ok;
+  }
+  async function confirmReject() {
+    if (!rejectTarget || !rejectReason.trim()) return;
+    setBusy(true);
+    const succeeded = await review(rejectTarget.id, "rejected", rejectReason.trim());
+    if (succeeded) {
+      setRejectTarget(null);
+      setRejectReason("");
+    }
+    setBusy(false);
   }
   async function reviewMany(recordIds: string[]) {
     if (!recordIds.length) return;
@@ -707,7 +720,8 @@ export default function WorkRecordsPanel({
                       </td>
                       <td>
                         {record ? (
-                          <div className="claim-time-fields monthly-claim">
+                          <>
+                            <div className="claim-time-fields monthly-claim">
                             <TimeSelect
                               value={draft?.start ?? ""}
                               date={date}
@@ -733,7 +747,9 @@ export default function WorkRecordsPanel({
                                 })
                               }
                             />
-                          </div>
+                            </div>
+                            {record.status === "rejected" && record.managerNote && <div className="work-rejection-note">差戻し理由：{record.managerNote}</div>}
+                          </>
                         ) : past ? (
                           <div className="claim-time-fields monthly-claim">
                             <TimeSelect
@@ -1219,7 +1235,7 @@ function ManagerView({
                           </button>
                           <button
                             className="small-action danger"
-                            onClick={() => void review(record.id, "rejected")}
+                            onClick={() => { setRejectTarget(record); setRejectReason(record.managerNote ?? ""); }}
                           >
                             差戻し
                           </button>
@@ -1321,7 +1337,8 @@ function ManagerView({
                   <button
                     className="small-action danger"
                     onClick={() => {
-                      void review(detail.id, "rejected");
+                      setRejectTarget(detail);
+                      setRejectReason(detail.managerNote ?? "");
                       setDetail(null);
                     }}
                   >
@@ -1329,6 +1346,60 @@ function ManagerView({
                   </button>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+      {rejectTarget && (
+        <div className="approval-detail-overlay" role="dialog" aria-modal="true">
+          <div className="approval-detail-panel rejection-dialog">
+            <div className="modal-head">
+              <div>
+                <p className="eyebrow">REJECTION REASON</p>
+                <h3>差戻し理由</h3>
+                <p className="rejection-target">
+                  {names.get(rejectTarget.userEmail) ?? rejectTarget.userEmail} ・ {rejectTarget.scheduledDate}
+                </p>
+              </div>
+              <button className="small-action" type="button" onClick={() => { setRejectTarget(null); setRejectReason(""); }}>
+                閉じる
+              </button>
+            </div>
+            <div className="rejection-presets" aria-label="差戻し理由の定型文">
+              {[
+                "シフト時間と申告時間が異なります",
+                "休憩時間を確認してください",
+                "備考に理由を入力してください",
+                "打刻漏れの可能性があります",
+                "申告内容を確認してください",
+              ].map((preset) => (
+                <button
+                  key={preset}
+                  className="small-action"
+                  type="button"
+                  onClick={() => setRejectReason((current) => current ? `${current} ${preset}` : preset)}
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
+            <label className="rejection-reason-label">
+              差戻し理由
+              <textarea
+                value={rejectReason}
+                maxLength={500}
+                autoFocus
+                onChange={(event) => setRejectReason(event.target.value)}
+                placeholder="理由を入力してください"
+              />
+            </label>
+            <div className="approval-detail-actions">
+              <button className="small-action" type="button" onClick={() => { setRejectTarget(null); setRejectReason(""); }}>
+                キャンセル
+              </button>
+              <button className="small-action danger" type="button" disabled={!rejectReason.trim() || busy} onClick={() => void confirmReject()}>
+                差戻しを確定
+              </button>
             </div>
           </div>
         </div>
