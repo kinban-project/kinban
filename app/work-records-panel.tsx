@@ -281,8 +281,6 @@ export default function WorkRecordsPanel({
   const [month, setMonth] = useState(monthKey(new Date()));
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
-  const [rejectTarget, setRejectTarget] = useState<RecordRow | null>(null);
-  const [rejectReason, setRejectReason] = useState("");
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   async function load() {
     setBusy(true);
@@ -362,16 +360,6 @@ export default function WorkRecordsPanel({
     );
     if (response.ok) await load();
     return response.ok;
-  }
-  async function confirmReject() {
-    if (!rejectTarget || !rejectReason.trim()) return;
-    setBusy(true);
-    const succeeded = await review(rejectTarget.id, "rejected", rejectReason.trim());
-    if (succeeded) {
-      setRejectTarget(null);
-      setRejectReason("");
-    }
-    setBusy(false);
   }
   async function reviewMany(recordIds: string[]) {
     if (!recordIds.length) return;
@@ -895,7 +883,7 @@ function ManagerView({
   breaksFor: (id: string) => BreakRow[];
   activeRecords: RecordRow[];
   pendingRecords: RecordRow[];
-  review: (id: string, status: "approved" | "rejected") => Promise<void>;
+  review: (id: string, status: "approved" | "rejected", managerNote?: string) => Promise<boolean>;
   reviewMany: (ids: string[]) => Promise<void>;
   monthAction: (
     action: "close-month" | "reopen-month",
@@ -915,6 +903,19 @@ function ManagerView({
   const [differenceFilter, setDifferenceFilter] = useState("all");
   const [selected, setSelected] = useState<string[]>([]);
   const [detail, setDetail] = useState<RecordRow | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<RecordRow | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectBusy, setRejectBusy] = useState(false);
+  async function confirmReject() {
+    if (!rejectTarget || !rejectReason.trim()) return;
+    setRejectBusy(true);
+    const succeeded = await review(rejectTarget.id, "rejected", rejectReason.trim());
+    if (succeeded) {
+      setRejectTarget(null);
+      setRejectReason("");
+    }
+    setRejectBusy(false);
+  }
   const monthRecords = records.filter((record) =>
     record.scheduledDate.startsWith(month),
   );
@@ -1397,7 +1398,7 @@ function ManagerView({
               <button className="small-action" type="button" onClick={() => { setRejectTarget(null); setRejectReason(""); }}>
                 キャンセル
               </button>
-              <button className="small-action danger" type="button" disabled={!rejectReason.trim() || busy} onClick={() => void confirmReject()}>
+              <button className="small-action danger" type="button" disabled={!rejectReason.trim() || rejectBusy} onClick={() => void confirmReject()}>
                 差戻しを確定
               </button>
             </div>
