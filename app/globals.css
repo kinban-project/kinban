@@ -78,12 +78,13 @@ button { cursor: pointer; }
 .monthly-summary-values { display: flex; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: 11px; }
 .monthly-summary-values b, .monthly-self-summary b { color: var(--ink); }
 .monthly-summary-flags { color: var(--muted); font-size: 11px; }
-.monthly-summary-actions { display: flex; width: 100%; gap: 6px; }
+.monthly-summary-actions { display: flex; width: 100%; justify-content: flex-end; gap: 1.5em; }
 .monthly-member-link { border: 0; padding: 0; background: transparent; color: var(--teal); font: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .monthly-member-link:hover { color: var(--ink); }
-.monthly-reject-action { margin-left: auto; padding-left: 1.5em !important; border-left: 1px solid var(--line) !important; border-radius: 0 !important; }
+.monthly-reject-action { margin-left: 0; }
 .monthly-summary-table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
 .monthly-summary-table { width: 100%; min-width: 980px; border-collapse: collapse; font-size: 11px; }
+.monthly-summary-table th:last-child, .monthly-summary-table td:last-child { width: 220px; }
 .monthly-summary-table th, .monthly-summary-table td { padding: 9px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; white-space: nowrap; }
 .monthly-summary-table thead th { background: #f2f6f1; color: var(--muted); font-weight: 600; }
 .monthly-summary-table tbody th { background: #fbfcfa; font-weight: 700; }
