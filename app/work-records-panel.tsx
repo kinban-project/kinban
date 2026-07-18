@@ -1218,7 +1218,7 @@ function ManagerView({
                             承認
                           </button>
                           <button
-                            className="small-action"
+                            className="small-action danger"
                             onClick={() => void review(record.id, "rejected")}
                           >
                             差戻し
@@ -1319,7 +1319,7 @@ function ManagerView({
                     承認
                   </button>
                   <button
-                    className="small-action"
+                    className="small-action danger"
                     onClick={() => {
                       void review(detail.id, "rejected");
                       setDetail(null);
