@@ -137,10 +137,22 @@ export async function POST(request: Request, context: Context) {
   }
   if (!manager) return jsonError("管理者権限が必要です", 403);
   if (!existing) return jsonError("月次申告がありません", 404);
-  if (body.action === "approve" || body.action === "reject") {
+  if (body.action === "approve" || body.action === "reject" || body.action === "reopen") {
     if (body.action === "approve" && existing.status !== "submitted") return jsonError("月次申告済みのメンバーのみ承認できます", 400);
-    const nextStatus = body.action === "approve" ? "approved" : "rejected";
+    if (body.action === "reopen" && existing.status !== "approved") return jsonError("月次承認済みの申告のみ解除できます", 400);
+    const nextStatus = body.action === "approve" ? "approved" : body.action === "reject" ? "rejected" : "submitted";
     await db.update(monthlyWorkClaims).set({ status: nextStatus, approvedAt: body.action === "approve" ? now : null, approvedBy: body.action === "approve" ? userEmail : null, managerNote: body.managerNote?.trim().slice(0, 500) ?? existing.managerNote, updatedAt: now }).where(eq(monthlyWorkClaims.id, existing.id));
+    const bounds = monthBounds(month)!;
+    await db.update(workRecords).set(
+      body.action === "approve"
+        ? { monthlyClosedAt: now, monthlyClosedBy: userEmail, updatedAt: now }
+        : { monthlyClosedAt: null, monthlyClosedBy: null, updatedAt: now },
+    ).where(and(
+      eq(workRecords.groupId, groupId),
+      eq(workRecords.userEmail, targetEmail),
+      gte(workRecords.scheduledDate, bounds.start),
+      lte(workRecords.scheduledDate, bounds.end),
+    ));
     return Response.json({ ok: true, status: nextStatus });
   }
   return jsonError("不明な操作です", 400);

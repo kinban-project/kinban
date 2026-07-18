@@ -279,6 +279,8 @@ export default function WorkRecordsPanel({
   const [claimDrafts, setClaimDrafts] = useState<Record<string, Draft>>({});
   const [manualDrafts, setManualDrafts] = useState<Record<string, Draft>>({});
   const [month, setMonth] = useState(monthKey(new Date()));
+  const [monthlyStatus, setMonthlyStatus] = useState("unsubmitted");
+  const [monthlyBusy, setMonthlyBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -325,6 +327,39 @@ export default function WorkRecordsPanel({
     void load();
     return () => Object.values(saveTimers.current).forEach(clearTimeout);
   }, [groupId]);
+  async function loadMonthlyStatus() {
+    const response = await localApiFetch(
+      `/api/groups/${groupId}/monthly-work?month=${month}`,
+    );
+    if (!response.ok) return;
+    const data = (await response.json()) as {
+      claims?: Array<{ userEmail: string; status: string }>;
+      currentUserEmail?: string;
+    };
+    const claim = data.claims?.find(
+      (item) => item.userEmail === data.currentUserEmail,
+    );
+    setMonthlyStatus(claim?.status ?? "unsubmitted");
+  }
+  useEffect(() => {
+    void loadMonthlyStatus();
+  }, [groupId, month]);
+  async function submitMonthly() {
+    setMonthlyBusy(true);
+    const response = await localApiFetch(`/api/groups/${groupId}/monthly-work`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "submit", month }),
+    });
+    const data = (await response.json().catch(() => ({}))) as { error?: string };
+    setNotice(
+      response.ok
+        ? "月次申告を提出しました。"
+        : (data.error ?? "月次申告を提出できませんでした。"),
+    );
+    if (response.ok) setMonthlyStatus("submitted");
+    setMonthlyBusy(false);
+  }
   async function monthAction(
     action: "close-month" | "reopen-month",
     monthKeyValue: string,
@@ -563,6 +598,21 @@ export default function WorkRecordsPanel({
       ),
     [days, recordsByDate, claimDrafts],
   );
+  const monthlyIncomplete = records.some(
+    (record) =>
+      record.scheduledDate.startsWith(month) &&
+      (!record.claimedStartAt ||
+        !record.claimedEndAt ||
+        record.status === "working"),
+  );
+  const monthlyStatusLabel =
+    monthlyStatus === "approved"
+      ? "月次承認済み"
+      : monthlyStatus === "submitted"
+        ? "月次承認待ち"
+        : monthlyStatus === "rejected"
+          ? "差戻し"
+          : "月次申告待ち";
   return (
     <section className="work-records-panel">
       <div className="modal-head">
@@ -618,6 +668,18 @@ export default function WorkRecordsPanel({
             <strong>勤務日数 {monthSummary.days}日</strong>
             <span>実働 {formatMinutes(monthSummary.work)}</span>
             <span>休憩 {formatMinutes(monthSummary.breaks)}</span>
+            <span className={`work-status work-status-${monthlyStatus}`}>
+              {monthlyStatusLabel}
+            </span>
+            <button
+              className="primary-button"
+              disabled={
+                monthlyBusy || monthlyIncomplete || monthlyStatus === "approved"
+              }
+              onClick={() => void submitMonthly()}
+            >
+              {monthlyStatus === "submitted" ? "月次申告済み" : "月次申告"}
+            </button>
           </div>
           <div className="monthly-work-wrap work-records-table-wrap">
             <table className="work-records-table monthly-work-table">

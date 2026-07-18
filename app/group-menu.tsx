@@ -137,7 +137,6 @@ export default function GroupMenu({
               {group.name ?? group.groupId}
             </strong>
             <div className="group-menu-actions">
-              <button className="group-menu-button" type="button" onClick={() => onMonthlyDeclare(group.groupId)}>月次申告</button>
               <ClockControls groupId={group.groupId} />
               <button
                 className="group-menu-button"
