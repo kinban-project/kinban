@@ -12,16 +12,23 @@ function validSubscription(value: SubscriptionPayload) {
   return Boolean(value.endpoint?.startsWith("https://") && value.keys?.p256dh && value.keys.auth);
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const user = await getChatGPTUser();
   if (!user) return Response.json({ error: "ChatGPT sign-in is required." }, { status: 401 });
   const db = getDb();
   const [subscriptions, deliveries] = await Promise.all([
-    db.select({ id: pushSubscriptions.id, active: pushSubscriptions.active, lastSeenAt: pushSubscriptions.lastSeenAt, createdAt: pushSubscriptions.createdAt }).from(pushSubscriptions).where(eq(pushSubscriptions.userEmail, user.email)),
+    db.select({ id: pushSubscriptions.id, endpoint: pushSubscriptions.endpoint, active: pushSubscriptions.active, lastSeenAt: pushSubscriptions.lastSeenAt, createdAt: pushSubscriptions.createdAt }).from(pushSubscriptions).where(eq(pushSubscriptions.userEmail, user.email)),
     db.select({ status: pushDeliveries.status, createdAt: pushDeliveries.createdAt }).from(pushDeliveries).where(eq(pushDeliveries.userEmail, user.email)).orderBy(desc(pushDeliveries.createdAt)).limit(10),
   ]);
+  const endpoint = new URL(request.url).searchParams.get("endpoint")?.trim() ?? "";
   const config = webPushConfig();
-  return Response.json({ configured: config.enabled, publicKey: config.publicKey || null, subscriptions, deliveries });
+  return Response.json({
+    configured: config.enabled,
+    publicKey: config.publicKey || null,
+    subscriptions: subscriptions.map(({ id, active, lastSeenAt, createdAt }) => ({ id, active, lastSeenAt, createdAt })),
+    currentSubscriptionActive: Boolean(endpoint && subscriptions.some((subscription) => subscription.active && subscription.endpoint === endpoint)),
+    deliveries,
+  });
 }
 
 export async function POST(request: Request) {

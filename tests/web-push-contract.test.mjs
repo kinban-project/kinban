@@ -7,6 +7,7 @@ const push = await fs.readFile("app/push.ts", "utf8");
 const api = await fs.readFile("app/api/push/route.ts", "utf8");
 const worker = await fs.readFile("public/kinban-sw.js", "utf8");
 const control = await fs.readFile("app/push-notification-control.tsx", "utf8");
+const page = await fs.readFile("app/page.tsx", "utf8");
 
 test("web push stores subscriptions per user and deduplicates deliveries", () => {
   assert.match(schema, /pushSubscriptions/);
@@ -15,6 +16,7 @@ test("web push stores subscriptions per user and deduplicates deliveries", () =>
   assert.match(push, /onConflictDoNothing\(\)/);
   assert.match(push, /response\.status === 404 \|\| response\.status === 410/);
   assert.doesNotMatch(push, /console\.log\(.*endpoint/);
+  assert.match(push, /chunk\(recipients, 50\)/);
 });
 
 test("notification APIs and worker protect subscription details and open only local routes", () => {
@@ -26,5 +28,13 @@ test("notification APIs and worker protect subscription details and open only lo
   assert.match(worker, /clients\.matchAll/);
   assert.match(control, /Notification\.requestPermission/);
   assert.match(control, /pushManager\.subscribe/);
+  assert.match(control, /currentSubscriptionActive/);
+  assert.match(api, /currentSubscriptionActive/);
+  assert.match(page, /new URLSearchParams\(window\.location\.search\)/);
+  assert.match(page, /targetView === "assistant"/);
+  assert.match(page, /targetView === "work-records"/);
+  assert.match(page, /targetView === "monthly-work"/);
+  assert.match(page, /targetView === "roster"/);
+  assert.match(page, /targetView === "announcements"/);
   assert.match(control, /ホーム画面に追加/);
 });

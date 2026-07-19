@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import GroupsPanel from "./groups-panel";
 import GroupEntryPanel from "./group-entry-panel";
 import ShiftBuilder from "./shift-builder";
@@ -187,6 +187,7 @@ export default function Home() {
   const [menuGroupId, setMenuGroupId] = useState<string | undefined>();
   const [groupPreferencesOpen, setGroupPreferencesOpen] = useState(false);
   const [announcementsOpen, setAnnouncementsOpen] = useState(false);
+  const [announcementsTab, setAnnouncementsTab] = useState<"announcements" | "assistant">("announcements");
   const [dashboardOpen, setDashboardOpen] = useState(false);
   const [auditLogsOpen, setAuditLogsOpen] = useState(false);
   const [workRecordsOpen, setWorkRecordsOpen] = useState(false);
@@ -200,6 +201,7 @@ export default function Home() {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [usedBytes, setUsedBytes] = useState(0);
+  const notificationTargetRef = useRef<string | null>(null);
   const days = useMemo(
     () => daysForMonth(cursor.getFullYear(), cursor.getMonth()),
     [cursor],
@@ -215,6 +217,31 @@ export default function Home() {
   useEffect(() => {
     void loadCalendar();
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const targetGroupId = params.get("group")?.trim() ?? "";
+    const targetView = params.get("view")?.trim() ?? "";
+    const targetKey = `${targetGroupId}:${targetView}`;
+    if (!targetGroupId || !targetView || notificationTargetRef.current === targetKey)
+      return;
+    if (!groups.some((group) => group.groupId === targetGroupId)) return;
+    notificationTargetRef.current = targetKey;
+    setMenuGroupId(targetGroupId);
+    if (targetView === "roster") setShiftRosterOpen(true);
+    if (targetView === "announcements" || targetView === "assistant") {
+      setAnnouncementsTab(targetView === "assistant" ? "assistant" : "announcements");
+      setAnnouncementsOpen(true);
+    }
+    if (targetView === "work-records") {
+      setWorkRecordsManager(false);
+      setWorkRecordsOpen(true);
+    }
+    if (targetView === "monthly-work") {
+      setMonthlyWorkManager(false);
+      setMonthlyWorkOpen(true);
+    }
+  }, [groups]);
 
   async function loadCalendar() {
     const response = await localApiFetch("/api/calendar");
@@ -455,6 +482,7 @@ export default function Home() {
         onMembers={(groupId) => openGroupTarget(groupId, "members")}
         onAnnouncements={(groupId) => {
           setMenuGroupId(groupId);
+          setAnnouncementsTab("announcements");
           setAnnouncementsOpen(true);
         }}
         onDashboard={(groupId) => {
@@ -995,6 +1023,7 @@ export default function Home() {
             <ModalClose onClose={() => setAnnouncementsOpen(false)} />
             <AnnouncementsPanel
               groupId={menuGroupId}
+              initialTab={announcementsTab}
               manager={editableGroups.some(
                 (group) => group.groupId === menuGroupId,
               )}

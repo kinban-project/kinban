@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { localApiFetch } from "./local-api";
 
-type PushState = { configured: boolean; publicKey: string | null; subscriptions: Array<{ id: string; active: boolean }>; deliveries: Array<{ status: string; createdAt: string }> };
+type PushState = { configured: boolean; publicKey: string | null; subscriptions: Array<{ id: string; active: boolean }>; currentSubscriptionActive: boolean; deliveries: Array<{ status: string; createdAt: string }> };
 
 function decodePublicKey(value: string) {
   const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
@@ -20,7 +20,12 @@ export default function PushNotificationControl() {
   const isIos = typeof navigator !== "undefined" && /iPad|iPhone|iPod/.test(navigator.userAgent);
 
   async function load() {
-    const response = await localApiFetch("/api/push");
+    const registration = supported
+      ? await navigator.serviceWorker.getRegistration()
+      : undefined;
+    const subscription = await registration?.pushManager.getSubscription();
+    const endpoint = subscription?.endpoint ?? "";
+    const response = await localApiFetch(`/api/push${endpoint ? `?endpoint=${encodeURIComponent(endpoint)}` : ""}`);
     if (response.ok) setState(await response.json() as PushState);
   }
 
@@ -66,7 +71,7 @@ export default function PushNotificationControl() {
     setBusy(false);
   }
 
-  const enabled = (state?.subscriptions.filter((subscription) => subscription.active).length ?? 0) > 0;
+  const enabled = Boolean(state?.currentSubscriptionActive);
   return <section className="push-notification-control">
     <div><strong>通知</strong><p>この端末で、緊急連絡や確認が必要な更新を受け取ります。</p></div>
     {!supported ? <p className="push-notification-note">このブラウザはWeb Pushに対応していません。</p> : !state?.configured ? <p className="push-notification-note">通知サーバーはまだ設定されていません。</p> : <div className="push-notification-actions">

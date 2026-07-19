@@ -8,9 +8,9 @@ type Announcement = { id: string; title: string; body: string; createdBy: string
 type Reply = { id: string; announcementId: string; userEmail: string; body: string; createdAt: string };
 type Member = { userEmail: string; displayName?: string | null };
 type ReadDetail = { announcementId: string; userEmail: string; readAt: string };
-type Props = { groupId: string; manager?: boolean };
+type Props = { groupId: string; manager?: boolean; initialTab?: "announcements" | "assistant" };
 
-export default function AnnouncementsPanel({ groupId, manager = false }: Props) {
+export default function AnnouncementsPanel({ groupId, manager = false, initialTab = "announcements" }: Props) {
   const [items, setItems] = useState<Announcement[]>([]);
   const [replies, setReplies] = useState<Reply[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
@@ -24,7 +24,7 @@ export default function AnnouncementsPanel({ groupId, manager = false }: Props) 
   const [notificationLevel, setNotificationLevel] = useState<"normal" | "important" | "urgent">("normal");
   const [reply, setReply] = useState<Record<string, string>>({});
   const [notice, setNotice] = useState("");
-  const [tab, setTab] = useState<"announcements" | "assistant">("announcements");
+  const [tab, setTab] = useState<"announcements" | "assistant">(initialTab);
 
   async function load() {
     const [response, groupResponse] = await Promise.all([
@@ -47,6 +47,7 @@ export default function AnnouncementsPanel({ groupId, manager = false }: Props) 
   }
 
   useEffect(() => { void load(); }, [groupId]);
+  useEffect(() => { setTab(initialTab); }, [groupId, initialTab]);
 
   async function post(action: string, announcementId?: string, text?: string) {
     const response = await localApiFetch(`/api/groups/${groupId}/announcements`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, announcementId, title, body: text ?? body, notificationLevel }) });

@@ -8,6 +8,13 @@ type Db = ReturnType<typeof getDb>;
 type PushMessage = { eventId: string; title: string; body: string; url: string; urgency?: "normal" | "high" };
 type PushRuntime = Record<string, string | undefined>;
 
+function chunk<T>(items: T[], size: number) {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size)
+    chunks.push(items.slice(index, index + size));
+  return chunks;
+}
+
 function setting(name: "VAPID_SUBJECT" | "VAPID_PUBLIC_KEY" | "VAPID_PRIVATE_KEY") {
   return ((env as unknown as PushRuntime)[name] || process.env[name] || "").trim();
 }
@@ -23,7 +30,21 @@ export async function sendWebPushToUsers(db: Db, userEmails: string[], message: 
   const recipients = [...new Set(userEmails.filter(Boolean))];
   if (!recipients.length) return { attempted: 0, sent: 0, failed: 0, disabled: 0 };
   const config = webPushConfig();
-  const subscriptions = await db.select().from(pushSubscriptions).where(and(inArray(pushSubscriptions.userEmail, recipients), eq(pushSubscriptions.active, true)));
+  const subscriptions = (
+    await Promise.all(
+      chunk(recipients, 50).map((emails) =>
+        db
+          .select()
+          .from(pushSubscriptions)
+          .where(
+            and(
+              inArray(pushSubscriptions.userEmail, emails),
+              eq(pushSubscriptions.active, true),
+            ),
+          ),
+      ),
+    )
+  ).flat();
   if (!config.enabled) {
     await Promise.all(subscriptions.map((subscription) => db.insert(pushDeliveries).values({ id: crypto.randomUUID(), eventId: message.eventId, userEmail: subscription.userEmail, subscriptionId: subscription.id, status: "disabled", errorCode: "vapid_not_configured" }).onConflictDoNothing()));
     return { attempted: subscriptions.length, sent: 0, failed: 0, disabled: subscriptions.length };
