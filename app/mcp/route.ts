@@ -2496,28 +2496,36 @@ export async function POST(request: Request) {
             eq(shiftPlans.status, "published"),
           ),
         );
-      const slots = plans.length
-        ? await db
-            .select()
-            .from(shiftSlots)
-            .where(
-              inArray(
-                shiftSlots.planId,
-                plans.map((plan) => plan.id),
+      const planIds = plans.map((plan) => plan.id);
+      const slots = planIds.length
+        ? (
+            await Promise.all(
+              chunk(planIds, 50).map((ids) =>
+                db
+                  .select()
+                  .from(shiftSlots)
+                  .where(inArray(shiftSlots.planId, ids)),
               ),
             )
+          ).flat()
         : [];
       const slotIds = slots.map((slot) => slot.id);
       const assignments = slotIds.length
-        ? await db
-            .select()
-            .from(shiftAssignments)
-            .where(
-              and(
-                inArray(shiftAssignments.slotId, slotIds),
-                eq(shiftAssignments.userEmail, source[0].memberEmail),
+        ? (
+            await Promise.all(
+              chunk(slotIds, 50).map((ids) =>
+                db
+                  .select()
+                  .from(shiftAssignments)
+                  .where(
+                    and(
+                      inArray(shiftAssignments.slotId, ids),
+                      eq(shiftAssignments.userEmail, source[0].memberEmail),
+                    ),
+                  ),
               ),
             )
+          ).flat()
         : [];
       const requestedSlotId = text(args.slotId);
       const candidates = slots.filter(
