@@ -4,7 +4,6 @@ import { getDb } from "../../../../../db";
 import { assistantMessages, groupAssistants, groupMembers } from "../../../../../db/schema";
 import { recordAudit } from "../../../../audit-log";
 import { getMembership } from "../../group-access";
-import { issueAssistantContext } from "../../../../assistant-context";
 
 export const dynamic = "force-dynamic";
 
@@ -47,9 +46,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   if (!assistant || assistant.status !== "active") return Response.json({ error: "KINBANアシスタントは現在停止中です" }, { status: 409 });
   const messageId = crypto.randomUUID();
   await db.insert(assistantMessages).values({ id: messageId, groupId: id, memberEmail: user.email, senderType: "member", senderEmail: user.email, body: text, status: "pending" });
-  const contextToken = await issueAssistantContext(db, { groupId: id, mode: "member", memberEmail: user.email, messageId, issuedBy: user.email });
   await recordAudit({ groupId: id, userEmail: user.email, action: "assistant.message", entityType: "assistantMessage", entityId: messageId, summary: "KINBANアシスタントへメッセージを送信" });
-  return Response.json({ ok: true, messageId, contextToken: contextToken.token, contextExpiresAt: contextToken.expiresAt }, { status: 201 });
+  return Response.json({ ok: true, messageId }, { status: 201 });
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {

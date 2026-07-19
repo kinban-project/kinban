@@ -50,7 +50,7 @@ export default function McpGuide() {
       <div className="guide-warning">
         <strong>Execution context is required for assistant group reads</strong>
         <p>
-          Member chat responses include a short-lived <code>contextToken</code> bound to that member and message. Manager operations must first request <code>POST /api/groups/&lt;groupId&gt;/assistant/contexts</code>. MCP rejects group member, work record, announcement, dashboard, and assistant-message reads without a valid context. Member contexts cannot select another member and work records are returned without manager-only fields.
+          A scheduled assistant should call <code>claim_next_assistant_message</code> to receive one pending member message and its short-lived, member-bound <code>contextToken</code>. Manager operations must first request <code>POST /api/groups/&lt;groupId&gt;/assistant/contexts</code>. MCP rejects group member, work record, announcement, dashboard, assistant-message, and shift-detail reads without a valid context. Member contexts cannot select another member, only see published shifts, and receive work records without manager-only fields.
         </p>
       </div>
       <div className="guide-warning">

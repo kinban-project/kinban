@@ -21,8 +21,23 @@ test("assistant MCP tokens are group scoped and allowlisted", () => {
   assert.match(route, /requiredAssistantContext/);
   assert.match(route, /boundMemberEmail/);
   assert.match(schema, /assistantContexts = sqliteTable\("assistant_contexts"/);
-  assert.match(assistantRoute, /contextToken/);
   assert.match(contextRoute, /mode: "operations"/);
+});
+
+test("assistant polling claims one message and binds its member context", () => {
+  assert.match(route, /name: "claim_next_assistant_message"/);
+  assert.match(route, /status: "processing"/);
+  assert.match(route, /claimExpiresAt/);
+  assert.match(route, /issueAssistantContext\(db, \{ groupId, mode: "member"/);
+  assert.match(route, /boundMemberEmail && \(target\.memberEmail !== boundMemberEmail/);
+  assert.doesNotMatch(assistantRoute, /contextToken: contextToken\.token/);
+});
+
+test("assistant shift reads require context and member contexts cannot see drafts or other assignments", () => {
+  assert.match(route, /planContext = identity\.tokenType === "assistant" \? await requiredAssistantContext/);
+  assert.match(route, /Member contexts can only read published shift plans/);
+  assert.match(route, /allAssignments\.filter\(\(assignment\) => assignment\.userEmail === memberContextEmail\)/);
+  assert.match(route, /boundMemberEmail \? eq\(shiftPlans\.status, "published"\)/);
 });
 
 test("assistant mutations require a one-time human confirmation token", () => {
