@@ -1,5 +1,5 @@
 import ExportGuide from "./export-guide";
-const MCP_BASE = "https://my-day-calendar.chita256.chatgpt.site/mcp";
+const MCP_BASE = "https://my-day-calendar.chita256.chatgpt.site/api/mcp";
 function Code({ children }: { children: string }) {
   return (
     <pre className="guide-code">
@@ -49,7 +49,7 @@ export default function McpGuide() {
       </div>
       <p className="guide-note">
         MCPの公開URL：<code>{MCP_BASE}</code>。ローカル開発時は{" "}
-        <code>http://localhost:3001/mcp</code>{" "}
+        <code>http://localhost:3001/mcp</code>（公開サイトは <code>/api/mcp</code>）{" "}
         です。ChatGPT側の接続設定や公開審査は別途必要で、エンドポイントを作っただけで左メニューのアプリに自動登録されるものではありません。
       </p>
     </section>
