@@ -18,6 +18,7 @@ export default function ShiftRoster({ initialGroupId }: { initialGroupId?: strin
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [detail, setDetail] = useState<Detail | null>(null);
+  const [mobileView, setMobileView] = useState<"self" | "all" | "shortage">("self");
   const [busy, setBusy] = useState(true);
   const [notice, setNotice] = useState("");
   const topScrollRef = useRef<HTMLDivElement>(null);
@@ -75,6 +76,16 @@ export default function ShiftRoster({ initialGroupId }: { initialGroupId?: strin
   const rosterWidth = 96 + times.length * 104;
   const selectedPlan = plans.find((plan) => plan.id === selectedId);
   const selectedGroupName = groupName.get(detail?.plan.groupId ?? selectedPlan?.groupId ?? "");
+  const mobileSlots = useMemo(() =>
+    [...(detail?.slots ?? [])]
+      .sort((a, b) => `${a.date}|${a.startTime}`.localeCompare(`${b.date}|${b.startTime}`))
+      .map((slot) => {
+        const members = assignmentMap.get(slot.id) ?? [];
+        return { slot, members, isSelf: members.some((member) => member.isSelf), shortage: members.length < slot.requiredCount };
+      })
+      .filter((entry) => mobileView === "self" ? entry.isSelf : mobileView === "shortage" ? entry.shortage : true),
+    [detail, assignmentMap, mobileView],
+  );
 
   function syncTopScroll() {
     if (topScrollRef.current && tableScrollRef.current) tableScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
@@ -89,7 +100,16 @@ export default function ShiftRoster({ initialGroupId }: { initialGroupId?: strin
     {plans.length > 0 && <div className="roster-toolbar"><select className="roster-plan-select" aria-label="表示するシフト" value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>{plans.map((plan) => <option value={plan.id} key={plan.id}>{plan.name} ／ {plan.startDate}〜{plan.endDate}</option>)}</select><div className="roster-legend"><span className="roster-legend-self">自分</span><span className="roster-legend-other">他の人</span>{(selectedPlan?.shortageSlotCount ?? 0) > 0 && <span className="roster-legend-shortage">未充足</span>}</div></div>}
     {busy && <p className="shift-help">読み込み中…</p>}
     {!busy && !detail && <div className="empty-state"><p>公開済みのシフトはまだありません。</p></div>}
-    {detail && <><div className="roster-top-scroll" ref={topScrollRef} onScroll={syncTopScroll} aria-label="シフト表を左右にスクロール"><div style={{ width: `${rosterWidth}px` }} /></div><div className="roster-table-wrap" ref={tableScrollRef} onScroll={syncTableScroll}><table className="roster-table"><thead><tr><th>日付</th>{times.map((time) => <th key={time}>{displayShiftTime(time)}</th>)}</tr></thead><tbody>{rows.map((date) => <tr key={date}><th>{dateLabel(date)}</th>{times.map((time) => { const cellSlots = slotsByCell.get(`${date}|${time}`) ?? []; const shortage = cellSlots.some((slot) => (assignmentMap.get(slot.id)?.length ?? 0) < slot.requiredCount); return <td className={shortage ? "roster-shortage" : ""} key={time}>{cellSlots.map((slot) => { const assigned = assignmentMap.get(slot.id) ?? []; return <div className="roster-role-box" key={slot.id}><div className="roster-role-head"><strong>{slot.role || "担当"}</strong><small>{assigned.length}/{slot.requiredCount}</small></div>{assigned.length ? assigned.map((person) => <span className={`roster-person ${person.isSelf ? "is-self" : "is-other"}`} key={`${slot.id}-${person.email}`}>{person.name}</span>) : <span className="roster-empty">未割当</span>}</div>; })}</td>; })}</tr>)}</tbody></table></div><p className="shift-help">カレンダーにはグループ予定として全員分が表示されます。担当者の確認にはこの一覧を利用してください。</p></>}
+    {detail && <>
+      <div className="mobile-roster-tabs" aria-label="シフト一覧の表示方法">
+        <button type="button" className={mobileView === "self" ? "active" : ""} onClick={() => setMobileView("self")}>自分</button>
+        <button type="button" className={mobileView === "all" ? "active" : ""} onClick={() => setMobileView("all")}>全体配置</button>
+        <button type="button" className={mobileView === "shortage" ? "active" : ""} onClick={() => setMobileView("shortage")}>未充足</button>
+      </div>
+      <div className="mobile-roster-list">
+        {mobileSlots.length ? mobileSlots.map(({ slot, members, shortage }) => <article className={`mobile-roster-card${shortage ? " shortage" : ""}`} key={slot.id}><div><strong>{dateLabel(slot.date)}</strong><span>{displayShiftTime(slot.startTime)}〜{displayShiftTime(slot.endTime)}</span></div><div className="mobile-roster-card-body"><b>{slot.role || "担当未設定"}</b><small>{members.length}/{slot.requiredCount}名</small></div><p>{members.length ? members.map((member) => member.name).join("・") : "未割当"}</p></article>) : <p className="mobile-roster-empty">表示できるシフトはありません。</p>}
+      </div>
+      <div className="roster-desktop-grid"><div className="roster-top-scroll" ref={topScrollRef} onScroll={syncTopScroll} aria-label="シフト表を左右にスクロール"><div style={{ width: `${rosterWidth}px` }} /></div><div className="roster-table-wrap" ref={tableScrollRef} onScroll={syncTableScroll}><table className="roster-table"><thead><tr><th>日付</th>{times.map((time) => <th key={time}>{displayShiftTime(time)}</th>)}</tr></thead><tbody>{rows.map((date) => <tr key={date}><th>{dateLabel(date)}</th>{times.map((time) => { const cellSlots = slotsByCell.get(`${date}|${time}`) ?? []; const shortage = cellSlots.some((slot) => (assignmentMap.get(slot.id)?.length ?? 0) < slot.requiredCount); return <td className={shortage ? "roster-shortage" : ""} key={time}>{cellSlots.map((slot) => { const assigned = assignmentMap.get(slot.id) ?? []; return <div className="roster-role-box" key={slot.id}><div className="roster-role-head"><strong>{slot.role || "担当"}</strong><small>{assigned.length}/{slot.requiredCount}</small></div>{assigned.length ? assigned.map((person) => <span className={`roster-person ${person.isSelf ? "is-self" : "is-other"}`} key={`${slot.id}-${person.email}`}>{person.name}</span>) : <span className="roster-empty">未割当</span>}</div>; })}</td>; })}</tr>)}</tbody></table></div><p className="shift-help">カレンダーにはグループ予定として全員分が表示されます。担当者の確認にはこの一覧を利用してください。</p></div></>}
     {notice && <p className="group-notice" role="status">{notice}</p>}
   </section>;
 }
