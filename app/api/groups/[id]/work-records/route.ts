@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, lte } from "drizzle-orm";
 import { getChatGPTUser } from "../../../../chatgpt-auth";
 import { getDb } from "../../../../../db";
 import {
@@ -105,6 +105,13 @@ export async function GET(request: Request, context: Context) {
   if ("error" in current) return current.error;
   const { db, group, membership } = current;
   const manager = managerRoles.has(membership.role);
+  const query = new URL(request.url).searchParams;
+  const requestedUser = query.get("userEmail")?.trim() ?? "";
+  const from = query.get("from")?.trim() ?? "";
+  const to = query.get("to")?.trim() ?? "";
+  const status = query.get("status")?.trim() ?? "";
+  const page = Math.max(1, Number.parseInt(query.get("page") ?? "1", 10) || 1);
+  const pageSize = Math.min(200, Math.max(1, Number.parseInt(query.get("pageSize") ?? "100", 10) || 100));
   const plans = await db
     .select()
     .from(shiftPlans)
@@ -131,15 +138,22 @@ export async function GET(request: Request, context: Context) {
         )
       ).flat()
     : [];
-  const records = await db
+  const recordFilters = [
+    eq(workRecords.groupId, groupId),
+    manager && requestedUser ? eq(workRecords.userEmail, requestedUser) : undefined,
+    manager ? undefined : eq(workRecords.userEmail, user.email),
+    from ? gte(workRecords.scheduledDate, from) : undefined,
+    to ? lte(workRecords.scheduledDate, to) : undefined,
+    status ? eq(workRecords.status, status) : undefined,
+  ];
+  const pagedRecords = await db
     .select()
     .from(workRecords)
-    .where(
-      and(
-        eq(workRecords.groupId, groupId),
-        manager ? undefined : eq(workRecords.userEmail, user.email),
-      ),
-    );
+    .where(and(...recordFilters))
+    .limit(pageSize + 1)
+    .offset((page - 1) * pageSize);
+  const hasNext = pagedRecords.length > pageSize;
+  const records = pagedRecords.slice(0, pageSize);
   const recordsWithState = records.map((record) => ({
     ...record,
     attendanceExpired:
@@ -198,6 +212,7 @@ export async function GET(request: Request, context: Context) {
       schedule,
       members,
       canManage: manager,
+      pagination: { page, pageSize, hasNext, nextPage: hasNext ? page + 1 : null },
     },
     { headers: { "Cache-Control": "no-store" } },
   );
