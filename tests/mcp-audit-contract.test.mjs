@@ -11,3 +11,23 @@ test("MCP shift mutations and audit search are wired to the audit log", () => {
   assert.match(route, /auditLogs\.groupId/);
   assert.match(route, /details: \{ source: "mcp"/);
 });
+
+test("all group-scoped MCP mutations record an audit action", () => {
+  for (const action of [
+    "account.profile",
+    "group.member",
+    "group.join_request",
+    "group.preferences",
+    "shift.create",
+    "shift.delete",
+    "shift.adjust",
+    "shift.request",
+    "shift.assign",
+    "shift.publish",
+    "announcement.create",
+    "announcement.reply",
+    "announcement.read",
+  ]) {
+    assert.ok(route.includes(`"${action}"`), action);
+  }
+});

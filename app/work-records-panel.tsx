@@ -282,11 +282,13 @@ export default function WorkRecordsPanel({
   const [monthlyStatus, setMonthlyStatus] = useState("unsubmitted");
   const [monthlyBusy, setMonthlyBusy] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [recordPage, setRecordPage] = useState(1);
+  const [recordHasNext, setRecordHasNext] = useState(false);
   const [notice, setNotice] = useState("");
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   async function load() {
     setBusy(true);
-    const response = await localApiFetch(`/api/groups/${groupId}/work-records`);
+    const response = await localApiFetch(`/api/groups/${groupId}/work-records?page=${recordPage}&pageSize=100`);
     if (response.ok) {
       const data = (await response.json()) as {
         group?: { name?: string };
@@ -294,6 +296,7 @@ export default function WorkRecordsPanel({
         breaks?: BreakRow[];
         schedule?: ScheduleRow[];
         members?: Member[];
+        pagination?: { page?: number; hasNext?: boolean };
       };
       const nextRecords = data.records ?? [];
       const nextBreaks = data.breaks ?? [];
@@ -302,6 +305,7 @@ export default function WorkRecordsPanel({
       setBreaks(nextBreaks);
       setSchedule(data.schedule ?? []);
       setMembers(data.members ?? []);
+      setRecordHasNext(Boolean(data.pagination?.hasNext));
       setClaimDrafts(
         Object.fromEntries(
           nextRecords.map((record) => [
@@ -326,7 +330,7 @@ export default function WorkRecordsPanel({
   useEffect(() => {
     void load();
     return () => Object.values(saveTimers.current).forEach(clearTimeout);
-  }, [groupId]);
+  }, [groupId, recordPage]);
   async function loadMonthlyStatus() {
     const response = await localApiFetch(
       `/api/groups/${groupId}/monthly-work?month=${month}`,
@@ -634,6 +638,9 @@ export default function WorkRecordsPanel({
           review={review}
           reviewMany={reviewMany}
           monthAction={monthAction}
+          page={recordPage}
+          hasNext={recordHasNext}
+          onPageChange={setRecordPage}
         />
       ) : (
         <>
@@ -951,6 +958,9 @@ function ManagerView({
     action: "close-month" | "reopen-month",
     monthKey: string,
   ) => Promise<void>;
+  page: number;
+  hasNext: boolean;
+  onPageChange: (page: number) => void;
 }) {
   const names = new Map(
     members.map((member) => [
@@ -1093,6 +1103,9 @@ function ManagerView({
         )}
       </div>
       <div className="approval-toolbar">
+        <button className="small-action" disabled={page <= 1} onClick={() => onPageChange(Math.max(1, page - 1))}>前のページ</button>
+        <span className="approval-page-label">{page}ページ</span>
+        <button className="small-action" disabled={!hasNext} onClick={() => onPageChange(page + 1)}>次のページ</button>
         <select
           aria-label="承認対象月"
           value={month}
