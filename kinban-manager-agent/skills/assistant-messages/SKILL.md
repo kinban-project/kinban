@@ -7,23 +7,23 @@ description: KINBANアシスタント宛のメッセージを、グループ専�
 
 ## 基本方針
 
-- `claim_next_assistant_message(groupId)` で1件を取得し、返された `message.id` をその問い合わせの識別子として使う。
+- `claim_next_assistant_message(groupId)` で1件を取得し、返された `message.id` と `claimId` を、その問い合わせの識別子・処理リースとして対で使う。
 - 短期 `contextToken` は使わない。AIキーは対象グループに限定されており、シフト・勤務記録・お知らせなどの運営情報を確認できる。
 - ただし、他メンバーの個人情報、勤務希望、勤怠、連絡内容をメンバーへの返信に含めない。
-- 管理操作は、**管理者が送ったメッセージの `message.id`** を `sourceMessageId` として渡す場合だけ実行できる。MCPが送信者の役割とグループ設定を確認する。
+- 管理操作は、**現在claim中の管理者メッセージ**の `message.id` を `sourceMessageId`、同じ処理の `claimId` を渡す場合だけ実行できる。MCPが送信者の役割、処理リース、グループ設定を確認する。
 - メンバーのメッセージは、返信・保留・完了の根拠には使えるが、シフト公開、勤怠承認、お知らせ配信などの根拠には使えない。
 
 ## 手順
 
 1. AI専用キーで `claim_next_assistant_message(groupId)` を1回呼ぶ。
 2. `message: null` なら、未処理なしとして終了する。
-3. 本文と `message.id` を確認し、必要ならグループの公開済みシフト・勤怠・お知らせを照会する。
+3. 本文、`message.id`、`claimId` を確認し、必要ならグループの公開済みシフト・勤怠・お知らせを照会する。
 4. 次のいずれかで状態を終える。
-   - **定型的な回答が可能**: `reply_assistant_message` で返信し、`processed` にする。
-   - **管理者の判断が必要**: `defer_assistant_message` で `needs_review` にする。
-   - **後で再試行したい**: `release_assistant_message` で `pending` に戻す。
-   - **返信不要で対応済み**: `complete_assistant_message` で `processed` にする。
-5. 管理者からの指示で変更操作を行う場合は、対象・理由・影響をレポートへ短く残し、`sourceMessageId: message.id` を指定する。
+   - **定型的な回答が可能**: `reply_assistant_message` に `messageId` と同じ `claimId` を渡して返信し、`processed` にする。
+   - **管理者の判断が必要**: `defer_assistant_message` に同じ `claimId` を渡して `needs_review` にする。
+   - **後で再試行したい**: `release_assistant_message` に同じ `claimId` を渡して `pending` に戻す。
+   - **返信不要で対応済み**: `complete_assistant_message` に同じ `claimId` を渡して `processed` にする。
+5. 管理者からの指示で変更操作を行う場合は、対象・理由・影響をレポートへ短く残し、`sourceMessageId: message.id` と同じ `claimId` を指定する。
 
 ## 状態
 

@@ -3,7 +3,7 @@
 ## 入力
 
 - 対象月
-- 運営コンテキスト
+- グループ専用AIキー（読み取り）
 - `runbooks/defaults/attendance-review-policy.md` と `runbooks/local/`
 
 ## 実施内容

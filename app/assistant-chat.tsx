@@ -18,7 +18,6 @@ export default function AssistantChat({ groupId, manager = false }: { groupId: s
   const [message, setMessage] = useState("");
   const [notice, setNotice] = useState("");
   const [sending, setSending] = useState(false);
-  const [confirmationTokens, setConfirmationTokens] = useState<Record<string, string>>({});
 
   const load = useCallback(async (member?: string) => {
     const query = member ? `?member=${encodeURIComponent(member)}` : "";
@@ -42,13 +41,6 @@ export default function AssistantChat({ groupId, manager = false }: { groupId: s
     setSending(false);
   }
 
-  async function issueReplyConfirmation(messageId: string) {
-    const response = await localApiFetch(`/api/groups/${groupId}/assistant/confirmations`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "assistant.reply", entityId: messageId }) });
-    const result = await response.json().catch(() => ({})) as { confirmationToken?: string; error?: string };
-    if (response.ok && result.confirmationToken) setConfirmationTokens((current) => ({ ...current, [messageId]: result.confirmationToken! }));
-    else setNotice(result.error ?? "確認トークンを発行できませんでした。");
-  }
-
   if (!data) return <p className="empty-state">KINBANアシスタントを読み込んでいます…</p>;
   const active = data.assistant?.status === "active";
   const viewingOwnChat = selectedMember === data.currentEmail;
@@ -70,7 +62,6 @@ export default function AssistantChat({ groupId, manager = false }: { groupId: s
         <strong>{item.senderType === "assistant" ? "KINBANアシスタント" : item.memberEmail === data.currentEmail ? "あなた" : item.memberEmail.split("@")[0]}</strong>
         <p>{item.body}</p>
         <small>{item.createdAt}{item.senderType === "member" && item.status === "pending" ? "・AI確認待ち" : item.senderType === "member" && item.status === "processing" ? "・AI対応中" : item.senderType === "member" && item.status === "needs_review" ? "・管理者確認待ち" : ""}</small>
-        {manager && item.senderType === "member" && item.status !== "processed" && <div className="assistant-confirmation"><button className="small-action" type="button" onClick={() => void issueReplyConfirmation(item.id)}>返信確認トークンを発行</button>{confirmationTokens[item.id] && <code>{confirmationTokens[item.id]}</code>}</div>}
       </div>) : <p className="empty-state">まだ会話はありません。シフトや勤怠についてメッセージを送れます。</p>}
     </div>
     {active && viewingOwnChat ? <form className="assistant-composer" onSubmit={send}>
