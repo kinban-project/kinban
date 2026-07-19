@@ -41,6 +41,7 @@ next-env.d.ts
 /outputs/
 /work/
 /pet_runs/
+/tmp/
 
 # Separate reference materials kept outside this application repository
 /docs/
