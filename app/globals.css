@@ -217,6 +217,9 @@ button { cursor: pointer; }
 .assignment-preview-table td { padding: 8px 9px; border-top: 1px solid var(--line); vertical-align: top; }
 .assignment-preview-table td:nth-child(4) { min-width: 220px; }
 .assignment-preview-issue { color: #a44942; font-weight: 800; }
+.request-comment-field { display: grid; gap: 6px; margin: 12px 0; color: var(--muted); font-size: 12px; }
+.request-comment-field textarea { min-height: 64px; width: 100%; resize: vertical; border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px; font: inherit; color: var(--ink); background: #fff; }
+.member-request-comment { display: block; max-width: 520px; margin-top: 5px; color: var(--muted); font-size: 11px; white-space: pre-wrap; }
 .dashboard-shortage-metric { display: block; margin-top: 5px; color: #a44942; font-size: 9px; font-weight: 700; }.dashboard-plan-shortage { color: #a44942 !important; }
 .audit-content { display: flex; align-items: center; gap: 10px; white-space: nowrap; }.audit-content > span { overflow: hidden; text-overflow: ellipsis; }.audit-detail { flex: 0 0 auto; font-size: 10px; }.audit-detail summary { color: var(--teal); cursor: pointer; }.audit-detail pre { max-width: 420px; max-height: 220px; overflow: auto; margin: 6px 0 0; padding: 8px; border-radius: 7px; background: #f6f8f5; color: #5f6962; font: 10px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; }
 .work-records-panel { padding: 4px; }

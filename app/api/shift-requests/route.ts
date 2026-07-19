@@ -32,13 +32,14 @@ export async function GET(request: Request) {
   const plan = period ? plans.find((item) => item.id === period.planId) : null;
   const slots = plan ? await db.select().from(shiftSlots).where(eq(shiftSlots.planId, plan.id)) : [];
   const requests = period ? await db.select().from(shiftRequests).where(and(eq(shiftRequests.periodId, period.id), eq(shiftRequests.userEmail, user.email))) : [];
-  return Response.json({ group, membership, periods, plans, members, availability, preferences, period, plan, slots, requests, canManage: editable(membership.role) });
+  const [submission] = period ? await db.select().from(shiftRequestSubmissions).where(and(eq(shiftRequestSubmissions.periodId, period.id), eq(shiftRequestSubmissions.userEmail, user.email))).limit(1) : [];
+  return Response.json({ group, membership, periods, plans, members, availability, preferences, period, plan, slots, requests, submission: submission ?? null, canManage: editable(membership.role) });
 }
 
 export async function POST(request: Request) {
   const user = await getChatGPTUser();
   if (!user) return Response.json({ error: "ログインが必要です" }, { status: 401 });
-  const body = await request.json() as { action?: string; groupId?: string; periodId?: string; planId?: string; name?: string; opensOn?: string; closesOn?: string; entries?: Array<{ dayOfWeek: number; status: string; startTime?: string; endTime?: string; note?: string }>; requests?: Array<{ date: string; startTime: string; endTime: string; preference: string; note?: string }> };
+  const body = await request.json() as { action?: string; groupId?: string; periodId?: string; planId?: string; name?: string; opensOn?: string; closesOn?: string; entries?: Array<{ dayOfWeek: number; status: string; startTime?: string; endTime?: string; note?: string }>; requests?: Array<{ date: string; startTime: string; endTime: string; preference: string; note?: string }>; requestComment?: string };
   const groupId = body.groupId ?? "";
   const membership = await getMembership(groupId, user.email);
   if (!membership) return Response.json({ error: "グループのメンバーではありません" }, { status: 403 });
@@ -88,9 +89,10 @@ export async function POST(request: Request) {
     const rows = requests.map((item) => ({ id: crypto.randomUUID(), periodId: period.id, userEmail: user.email, date: item.date, startTime: item.startTime, endTime: item.endTime, preference: item.preference, note: item.note?.trim() ?? "" }));
     const savedAt = new Date().toISOString();
     const [submission] = await db.select().from(shiftRequestSubmissions).where(and(eq(shiftRequestSubmissions.periodId, period.id), eq(shiftRequestSubmissions.userEmail, user.email))).limit(1);
+    const requestComment = body.requestComment?.trim().slice(0, 500) ?? "";
     const submissionStatement = submission
-      ? db.update(shiftRequestSubmissions).set({ savedAt }).where(eq(shiftRequestSubmissions.id, submission.id))
-      : db.insert(shiftRequestSubmissions).values({ id: crypto.randomUUID(), periodId: period.id, userEmail: user.email, savedAt });
+      ? db.update(shiftRequestSubmissions).set({ savedAt, requestComment }).where(eq(shiftRequestSubmissions.id, submission.id))
+      : db.insert(shiftRequestSubmissions).values({ id: crypto.randomUUID(), periodId: period.id, userEmail: user.email, savedAt, requestComment });
     await db.batch([db.delete(shiftRequests).where(and(eq(shiftRequests.periodId, period.id), eq(shiftRequests.userEmail, user.email))), ...rows.map((row) => db.insert(shiftRequests).values(row)), submissionStatement]);
     await recordAudit({ groupId, userEmail: user.email, action: "shift.request", entityType: "shiftRequestPeriod", entityId: period.id, summary: `勤務希望を保存: ${period.name}`, details: { count: rows.length, savedAt } });
     return Response.json({ ok: true, count: rows.length, savedAt });

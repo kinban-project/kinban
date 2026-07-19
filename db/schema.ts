@@ -215,6 +215,7 @@ export const shiftRequestSubmissions = sqliteTable(
     periodId: text("period_id").notNull(),
     userEmail: text("user_email").notNull(),
     savedAt: text("saved_at").notNull(),
+    requestComment: text("request_comment").notNull().default(""),
   },
 );
 

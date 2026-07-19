@@ -43,6 +43,7 @@ type RequestSubmission = {
   periodId: string;
   userEmail: string;
   savedAt: string;
+  requestComment?: string;
 };
 type Detail = {
   plan: Plan;
@@ -231,7 +232,10 @@ export default function ShiftAdjustment({
         detail.requestSubmissions?.find(
           (submission) => submission.userEmail === member.userEmail,
         )?.savedAt ?? null;
-      return { member, days, totalHours, warnings, updatedAt };
+      const requestComment = detail.requestSubmissions?.find(
+        (submission) => submission.userEmail === member.userEmail,
+      )?.requestComment?.trim() ?? "";
+      return { member, days, totalHours, warnings, updatedAt, requestComment };
     });
   }, [detail, assignments, preferences]);
   function preferenceFor(slot: Slot, userEmail: string) {
@@ -564,6 +568,9 @@ export default function ShiftAdjustment({
                 <span className={row.updatedAt ? "" : "not-registered"}>
                   希望更新：{formatSubmissionTime(row.updatedAt)}
                 </span>
+                {row.requestComment && (
+                  <span className="member-request-comment">今回の希望: {row.requestComment}</span>
+                )}
                 {row.warnings && <em>基本設定の範囲外</em>}
               </div>
             ))}

@@ -60,6 +60,7 @@ type Data = {
   plan: Plan | null;
   slots: Slot[];
   requests: RequestRow[];
+  submission?: { requestComment?: string } | null;
   canManage: boolean;
 };
 
@@ -91,6 +92,7 @@ export default function ShiftRequests({
     Record<number, Availability[]>
   >({});
   const [requestMap, setRequestMap] = useState<Record<string, RequestRow>>({});
+  const [requestComment, setRequestComment] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -156,6 +158,7 @@ export default function ShiftRequests({
         next.requests.map((entry) => [dayKey(entry as Slot), entry]),
       ),
     );
+    setRequestComment(next.submission?.requestComment ?? "");
   }
   useEffect(() => {
     const timer = window.setTimeout(() => void loadGroups(), 0);
@@ -219,6 +222,7 @@ export default function ShiftRequests({
         groupId,
         periodId: activePeriod.id,
         requests: Object.values(requestMap),
+        requestComment,
       }),
     });
     setNotice(
@@ -300,6 +304,15 @@ export default function ShiftRequests({
       </div>
       {activePeriod && (
         <div id="request-slots" className="request-section">
+          <label className="request-comment-field">
+            今回の希望に関するコメント（500文字以内）
+            <textarea
+              value={requestComment}
+              maxLength={500}
+              onChange={(event) => setRequestComment(event.target.value)}
+              placeholder="今回だけの事情や勤務量の希望があれば入力してください"
+            />
+          </label>
           <div className="request-grid-wrap">
             <table className="request-grid">
               <thead>
