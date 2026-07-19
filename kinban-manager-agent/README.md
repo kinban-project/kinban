@@ -24,8 +24,8 @@ cd D:\coconara\codexhelp\kinban-manager-agent
 
 作成先では、次の順番で設定します。
 
-1. `.env.example` を `.env` にコピーする。ローカルの `scripts/seed-local.sql` を実行済みなら、値を変えずにサンプル店へ接続できる。
-2. 実運用では、KINBANの対象グループの管理者画面で「運営支援AIキー」を発行し、`.env` の `KINBAN_ASSISTANT_API_KEY`・`KINBAN_GROUP_ID`・`KINBAN_MCP_URL` を置き換える。
+1. `.env.example` を `.env.local` にコピーする。ローカルの `scripts/seed-local.sql` を実行済みなら、値を変えずにサンプル店へ接続できる。
+2. 実運用では、KINBANの対象グループの管理者画面で「運営支援AIキー」を発行し、`.env.local` の `KINBAN_ASSISTANT_API_KEY`・`KINBAN_GROUP_ID`・`KINBAN_MCP_URL` を置き換える。
 3. `config/agent-config.example.json` を `config/agent-config.json` にコピーし、表示名や運用担当者名だけを設定する。
 4. 読み取り専用の接続確認を実行する。
 

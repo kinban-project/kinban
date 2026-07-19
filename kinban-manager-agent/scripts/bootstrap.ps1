@@ -54,7 +54,7 @@ function Sync-TemplateNode {
 }
 
 New-Item -ItemType Directory -Force -Path $destinationRoot | Out-Null
-Get-ChildItem -LiteralPath $templateRoot -Force | Where-Object { $_.Name -notin @(".env", "workspace") } | ForEach-Object {
+Get-ChildItem -LiteralPath $templateRoot -Force | Where-Object { $_.Name -notin @(".env", ".env.local", "workspace") } | ForEach-Object {
   Sync-TemplateNode -Source $_ -Target (Join-Path $destinationRoot $_.Name) -RelativePath $_.Name
 }
 
@@ -68,12 +68,12 @@ if (-not (Test-Path -LiteralPath $workspaceReadme)) {
   $changes.Add("preserved  workspace/")
 }
 
-if (-not (Test-Path -LiteralPath (Join-Path $destinationRoot ".env"))) {
-  Write-Host "Next: copy .env.example to .env and set the assistant key, MCP URL, and group ID."
+if (-not (Test-Path -LiteralPath (Join-Path $destinationRoot ".env.local")) -and -not (Test-Path -LiteralPath (Join-Path $destinationRoot ".env"))) {
+  Write-Host "Next: copy .env.example to .env.local and set the assistant key, MCP URL, and group ID."
 }
 
 Write-Host ("Template {0}: {1}" -f ($(if ($Update) { "updated" } else { "created" }), $destinationRoot))
 Write-Host "Change summary:"
 $changes | Sort-Object | ForEach-Object { Write-Host "  $_" }
-Write-Host "Preserved on update: .env, workspace/, runbooks/local/"
+Write-Host "Preserved on update: .env, .env.local, workspace/, runbooks/local/"
 if ($Update) { Write-Warning "Review updated defaults and organization-specific local runbooks before using them." }

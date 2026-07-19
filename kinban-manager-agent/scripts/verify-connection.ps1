@@ -3,9 +3,10 @@ param()
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
-$envFile = Join-Path $root ".env"
+$envFile = Join-Path $root ".env.local"
+if (-not (Test-Path -LiteralPath $envFile)) { $envFile = Join-Path $root ".env" }
 
-if (-not (Test-Path -LiteralPath $envFile)) { throw ".env is missing. Copy .env.example and set the required values." }
+if (-not (Test-Path -LiteralPath $envFile)) { throw ".env.local is missing. Copy .env.example and set the required values." }
 
 Get-Content -LiteralPath $envFile | ForEach-Object {
   $line = $_.Trim()
@@ -15,7 +16,7 @@ Get-Content -LiteralPath $envFile | ForEach-Object {
 }
 
 foreach ($name in "KINBAN_MCP_URL", "KINBAN_ASSISTANT_API_KEY", "KINBAN_GROUP_ID") {
-  if (-not (Get-Item -Path ("Env:" + $name) -ErrorAction SilentlyContinue).Value) { throw "$name is not configured in .env." }
+  if (-not (Get-Item -Path ("Env:" + $name) -ErrorAction SilentlyContinue).Value) { throw "$name is not configured in $([System.IO.Path]::GetFileName($envFile))." }
 }
 
 $request = @{
