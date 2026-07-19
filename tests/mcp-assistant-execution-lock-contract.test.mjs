@@ -11,6 +11,10 @@ const retryMigration = fs.readFileSync(
   "drizzle/0032_make_assistant_execution_retriable.sql",
   "utf8",
 );
+const leaseMigration = fs.readFileSync(
+  "drizzle/0034_add_assistant_execution_lease.sql",
+  "utf8",
+);
 const mcp = fs.readFileSync("app/mcp/route.ts", "utf8");
 
 test("assistant claims use a lease identifier and current lease checks", () => {
@@ -39,7 +43,18 @@ test("manager operations reserve one execution per message, operation, and targe
     mcp,
     /This manager instruction is already being processed\. Retry after it completes\./,
   );
-  assert.match(mcp, /eq\(assistantMessageExecutions\.status, "failed"\)/);
+  assert.match(
+    mcp,
+    /canRecoverProcessing \? "processing" : "failed"/,
+  );
+  assert.match(schema, /leaseId: text\("lease_id"\)/);
+  assert.match(leaseMigration, /ADD COLUMN lease_id text NOT NULL DEFAULT ''/);
+  assert.match(mcp, /const assistantExecutionLeaseMs = 60 \* 1000/);
+  assert.match(mcp, /execution\.updatedAt <= expiredBefore/);
+  assert.match(
+    mcp,
+    /eq\(assistantMessageExecutions\.leaseId, activeExecution\.leaseId\)/,
+  );
 });
 
 test("message state operations require the current claim rather than a stale message id", () => {

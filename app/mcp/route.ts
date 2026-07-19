@@ -157,6 +157,7 @@ const assistantManagementTools = new Set([
   "review_monthly_work",
   "create_announcement",
 ]);
+const assistantExecutionLeaseMs = 60 * 1000;
 function assistantExecutionTarget(name: string, args: Args) {
   if (name === "create_shift_plan")
     return `${text(args.name)}|${text(args.startDate)}|${text(args.endDate)}`;
@@ -892,7 +893,8 @@ export async function POST(request: Request) {
   const name = payload.params.name;
   const args = payload.params.arguments ?? {};
   const db = getDb();
-  let activeExecution: { id: string; groupId: string } | null = null;
+  let activeExecution: { id: string; groupId: string; leaseId: string } | null =
+    null;
   async function completeManagedExecution(value: unknown) {
     if (activeExecution) {
       await db
@@ -906,6 +908,7 @@ export async function POST(request: Request) {
           and(
             eq(assistantMessageExecutions.id, activeExecution.id),
             eq(assistantMessageExecutions.status, "processing"),
+            eq(assistantMessageExecutions.leaseId, activeExecution.leaseId),
           ),
         );
       activeExecution = null;
@@ -968,6 +971,8 @@ export async function POST(request: Request) {
       const messageId = text(args.sourceMessageId);
       const target = assistantExecutionTarget(name, args);
       const executionId = crypto.randomUUID();
+      const executionLeaseId = crypto.randomUUID();
+      const executionNow = new Date().toISOString();
       await db
         .insert(assistantMessageExecutions)
         .values({
@@ -979,7 +984,8 @@ export async function POST(request: Request) {
           status: "processing",
           errorCode: "",
           attemptCount: 1,
-          updatedAt: new Date().toISOString(),
+          leaseId: executionLeaseId,
+          updatedAt: executionNow,
         })
         .onConflictDoNothing();
       const [execution] = await db
@@ -1006,7 +1012,15 @@ export async function POST(request: Request) {
             message:
               "This manager instruction has already been executed for the same operation and target.",
           });
-        if (execution?.status === "processing")
+        const retryLeaseId = crypto.randomUUID();
+        const retryNow = new Date().toISOString();
+        const expiredBefore = new Date(
+          Date.now() - assistantExecutionLeaseMs,
+        ).toISOString();
+        const canRecoverProcessing =
+          execution.status === "processing" &&
+          execution.updatedAt <= expiredBefore;
+        if (execution.status === "processing" && !canRecoverProcessing)
           return rpcError(
             payload.id,
             "This manager instruction is already being processed. Retry after it completes.",
@@ -1015,14 +1029,21 @@ export async function POST(request: Request) {
           .update(assistantMessageExecutions)
           .set({
             status: "processing",
-            errorCode: "",
+            errorCode: canRecoverProcessing
+              ? "recovered_expired_processing"
+              : "",
             attemptCount: execution.attemptCount + 1,
-            updatedAt: new Date().toISOString(),
+            leaseId: retryLeaseId,
+            updatedAt: retryNow,
           })
           .where(
             and(
               eq(assistantMessageExecutions.id, execution.id),
-              eq(assistantMessageExecutions.status, "failed"),
+              eq(
+                assistantMessageExecutions.status,
+                canRecoverProcessing ? "processing" : "failed",
+              ),
+              eq(assistantMessageExecutions.updatedAt, execution.updatedAt),
             ),
           )
           .returning();
@@ -1031,9 +1052,13 @@ export async function POST(request: Request) {
             payload.id,
             "This manager instruction is already being processed. Retry after it completes.",
           );
-        activeExecution = { id: retried.id, groupId };
+        activeExecution = { id: retried.id, groupId, leaseId: retryLeaseId };
       } else {
-        activeExecution = { id: executionId, groupId };
+        activeExecution = {
+          id: executionId,
+          groupId,
+          leaseId: executionLeaseId,
+        };
       }
       await recordAudit({
         groupId,
@@ -3070,7 +3095,13 @@ export async function POST(request: Request) {
             caught instanceof Error ? caught.name.slice(0, 80) : "mcp_error",
           updatedAt: new Date().toISOString(),
         })
-        .where(eq(assistantMessageExecutions.id, activeExecution.id));
+        .where(
+          and(
+            eq(assistantMessageExecutions.id, activeExecution.id),
+            eq(assistantMessageExecutions.status, "processing"),
+            eq(assistantMessageExecutions.leaseId, activeExecution.leaseId),
+          ),
+        );
     return rpcError(
       payload.id,
       caught instanceof Error ? caught.message : "MCP tool failed",
@@ -3088,6 +3119,7 @@ export async function POST(request: Request) {
           and(
             eq(assistantMessageExecutions.id, activeExecution.id),
             eq(assistantMessageExecutions.status, "processing"),
+            eq(assistantMessageExecutions.leaseId, activeExecution.leaseId),
           ),
         );
   }
