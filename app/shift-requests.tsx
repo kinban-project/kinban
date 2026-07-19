@@ -148,7 +148,12 @@ export default function ShiftRequests({
     if (!response.ok) return;
     const next = (await response.json()) as Data;
     setData(next);
-    setPeriodId(next.period?.id ?? next.periods[0]?.id ?? "");
+    const preferredPeriod =
+      next.periods.find((period) => period.status === "open") ??
+      next.period ??
+      next.periods[0] ??
+      null;
+    setPeriodId(preferredPeriod?.id ?? "");
     const grouped: Record<number, Availability[]> = {};
     for (const entry of next.availability)
       (grouped[entry.dayOfWeek] ??= []).push(entry);
@@ -211,6 +216,7 @@ export default function ShiftRequests({
     }
     setRequestMap(next);
   }
+  const changedCount = Object.keys(requestMap).length;
   async function saveRequests() {
     if (!activePeriod) return;
     setBusy(true);
@@ -385,9 +391,68 @@ export default function ShiftRequests({
               </tbody>
             </table>
           </div>
+          <div className="mobile-request-list">
+            {dates.map((date) => (
+              <article className="mobile-request-date" key={date}>
+                <div className="mobile-request-date-head">
+                  <strong>{date}（{weekdays[dateDay(date)]}）</strong>
+                  <select
+                    aria-label={`${date}を一括変更`}
+                    defaultValue=""
+                    onChange={(event) => setDatePreference(date, event.target.value)}
+                  >
+                    <option value="">日付一括</option>
+                    <option value="base">基本に戻す</option>
+                    <option value="want">出勤希望</option>
+                    <option value="possible">可能</option>
+                    <option value="off">休み希望</option>
+                    <option value="unavailable">勤務不可</option>
+                  </select>
+                </div>
+                {(slotsByDate.get(date) ?? []).map((slot) => {
+                  const key = dayKey(slot);
+                  const override = requestMap[key];
+                  const value = override?.preference ?? basePreference(slot);
+                  return (
+                    <div className={`mobile-request-slot preference-${value}`} key={key}>
+                      <div>
+                        <strong>{displayShiftTime(slot.startTime)}〜{displayShiftTime(slot.endTime)}</strong>
+                        {slot.role && <small>{slot.role}</small>}
+                        <span>{override ? "変更済み" : `基本：${labels[value]}`}</span>
+                      </div>
+                      <div className="mobile-preference-actions" aria-label={`${date} ${slot.startTime}の希望`}>
+                        {Object.entries(labels).map(([option, label]) => (
+                          <button
+                            type="button"
+                            key={option}
+                            className={option === value ? "active" : ""}
+                            onClick={() => setPreference(slot, option)}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </article>
+            ))}
+          </div>
           <p className="request-help">
             通常は基本設定が適用されます。変更したセルだけ「変更」と表示されます。日付左側のメニューから一括変更できます。
           </p>
+        </div>
+      )}
+      {activePeriod && (
+        <div className="mobile-request-savebar">
+          <span>{changedCount}件変更</span>
+          <button
+            className="primary-button"
+            onClick={() => void saveRequests()}
+            disabled={busy || activePeriod.status !== "open"}
+          >
+            {activePeriod.status === "open" ? (busy ? "保存中…" : "希望を保存") : "受付は終了しました"}
+          </button>
         </div>
       )}
       {notice && (
