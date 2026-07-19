@@ -686,7 +686,7 @@ export default function ShiftBuilder({
                 <label>
                   受付期限
                   <input
-                    type="date"
+                    type="datetime-local"
                   value={toDateTimeLocal(detail.requestPeriod.closesOn)}
                     onChange={(event) =>
                       setDetail({
