@@ -74,7 +74,22 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (!plan) return Response.json({ error: "シフト計画が見つかりません" }, { status: 404 });
   const membership = await getMembership(plan.groupId, user.email);
   if (!membership || (membership.role !== "owner" && membership.role !== "editor")) return Response.json({ error: "シフト編集にはグループの編集権限が必要です" }, { status: 403 });
-  const body = await request.json() as { action?: "start-requests"; requestCloseDate?: string; reason?: string; layout?: { notes?: string; slots?: Array<{ id?: string; date: string; startTime: string; endTime: string; requiredCount: number; role?: string }>; closedDates?: string[] }; assignments?: Record<string, string[]>; status?: "draft" | "published" };
+  const body = await request.json() as { action?: "start-requests"; requestCloseDate?: string; reason?: string; expectedVersion?: number; layout?: { notes?: string; slots?: Array<{ id?: string; date: string; startTime: string; endTime: string; requiredCount: number; role?: string }>; closedDates?: string[] }; assignments?: Record<string, string[]>; status?: "draft" | "published" };
+  if (body.expectedVersion !== undefined && body.expectedVersion !== plan.version)
+    return Response.json({ error: "このシフトは別の管理者によって更新されています。最新状態を読み直してから再度保存してください。", conflict: true, latestVersion: plan.version, latestPlan: plan }, { status: 409 });
+  const expectedVersion = body.expectedVersion;
+  let nextVersion = plan.version + 1;
+  if (expectedVersion !== undefined) {
+    const [locked] = await db.update(shiftPlans)
+      .set({ version: expectedVersion + 1 })
+      .where(and(eq(shiftPlans.id, id), eq(shiftPlans.version, expectedVersion)))
+      .returning({ version: shiftPlans.version });
+    if (!locked) {
+      const [latestPlan] = await db.select().from(shiftPlans).where(eq(shiftPlans.id, id)).limit(1);
+      return Response.json({ error: "このシフトは別の管理者によって更新されています。最新状態を読み直してから再度保存してください。", conflict: true, latestVersion: latestPlan?.version ?? plan.version, latestPlan: latestPlan ?? plan }, { status: 409 });
+    }
+    nextVersion = locked.version;
+  }
   const slots = await db.select().from(shiftSlots).where(eq(shiftSlots.planId, id));
   const beforeAssignmentChunks = await Promise.all(chunk(slots.map((slot) => slot.id), 50).map((slotIds) => slotIds.length ? db.select().from(shiftAssignments).where(inArray(shiftAssignments.slotId, slotIds)) : Promise.resolve([])));
   const beforeAssignments = beforeAssignmentChunks.flat();
@@ -84,7 +99,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const nextSlots = (body.layout.slots ?? []).filter((slot) => !closedDates.has(slot.date) && slot.date >= plan.startDate && slot.date <= plan.endDate && isValidShiftTime(slot.startTime) && isValidShiftTime(slot.endTime) && shiftTimeToMinutes(slot.startTime) < shiftTimeToMinutes(slot.endTime)).map((slot) => ({ id: slot.id ?? crypto.randomUUID(), planId: id, date: slot.date, startTime: slot.startTime, endTime: slot.endTime, requiredCount: Math.max(1, Math.min(50, Number(slot.requiredCount) || 1)), role: slot.role?.trim() ?? "" }));
      const beforeLayout = new Map(slots.map((slot) => [slot.id, `${slot.date}|${slot.startTime}|${slot.endTime}|${slot.role}|${slot.requiredCount}`]));
      const layoutChanges = nextSlots.flatMap((slot) => beforeLayout.get(slot.id) === `${slot.date}|${slot.startTime}|${slot.endTime}|${slot.role}|${slot.requiredCount}` ? [] : [{ id: slot.id, date: slot.date, startTime: slot.startTime, endTime: slot.endTime, role: slot.role, requiredCount: slot.requiredCount }]);
-     const statements = [db.delete(shiftAssignments).where(inArray(shiftAssignments.slotId, slots.map((slot) => slot.id))), db.delete(shiftSlots).where(eq(shiftSlots.planId, id)), ...chunk(nextSlots, 8).map((rows) => db.insert(shiftSlots).values(rows)), db.update(shiftPlans).set({ notes: body.layout.notes?.trim().slice(0, 2000) ?? plan.notes }).where(eq(shiftPlans.id, id))];
+    const statements = [db.delete(shiftAssignments).where(inArray(shiftAssignments.slotId, slots.map((slot) => slot.id))), db.delete(shiftSlots).where(eq(shiftSlots.planId, id)), ...chunk(nextSlots, 8).map((rows) => db.insert(shiftSlots).values(rows)), db.update(shiftPlans).set({ notes: body.layout.notes?.trim().slice(0, 2000) ?? plan.notes, ...(expectedVersion === undefined ? { version: nextVersion } : {}) }).where(eq(shiftPlans.id, id))];
     if (body.requestCloseDate && requestPeriod?.status === "pending") statements.push(db.update(shiftRequestPeriods).set({ closesOn: body.requestCloseDate }).where(eq(shiftRequestPeriods.id, requestPeriod.id)));
     await db.batch(statements);
     await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: "shift.update", entityType: "shiftPlan", entityId: id, summary: `シフト枠を保存: ${plan.name}`, details: { slotCount: nextSlots.length, closedDates: body.layout.closedDates ?? [] } });
@@ -96,7 +111,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const closesOn = body.requestCloseDate ?? requestPeriod.closesOn;
     if (!closesOn) return Response.json({ error: "シフト希望受付期限を設定してください" }, { status: 400 });
     const opensOn = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(new Date());
-    await db.update(shiftRequestPeriods).set({ opensOn, closesOn, status: "open" }).where(eq(shiftRequestPeriods.id, requestPeriod.id));
+    await db.batch([
+      db.update(shiftRequestPeriods).set({ opensOn, closesOn, status: "open" }).where(eq(shiftRequestPeriods.id, requestPeriod.id)),
+      ...(expectedVersion === undefined ? [db.update(shiftPlans).set({ version: nextVersion }).where(eq(shiftPlans.id, id))] : []),
+    ]);
     await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: "shift.request.open", entityType: "shiftRequestPeriod", entityId: requestPeriod.id, summary: `勤務希望受付を開始: ${plan.name}`, details: { closesOn } });
     return Response.json({ ok: true, status: "open", opensOn, closesOn });
   }
@@ -135,7 +153,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const status = body.status ?? plan.status;
   const statements = chunk(slots.map((slot) => slot.id), 50).map((slotIds) => db.delete(shiftAssignments).where(inArray(shiftAssignments.slotId, slotIds)));
   for (const rows of chunk(allRows, 8)) statements.push(db.insert(shiftAssignments).values(rows));
-  statements.push(db.update(shiftPlans).set({ status }).where(eq(shiftPlans.id, id)));
+  statements.push(db.update(shiftPlans).set({ status, ...(expectedVersion === undefined ? { version: nextVersion } : {}) }).where(eq(shiftPlans.id, id)));
   if (status === "published") {
     statements.push(db.delete(events).where(eq(events.shiftPlanId, id)));
     const profiles = members.length ? await db.select().from(accountProfiles).where(inArray(accountProfiles.userEmail, members.map((member) => member.userEmail))) : [];

@@ -13,6 +13,7 @@ type Plan = {
   startDate: string;
   endDate: string;
   status: "draft" | "published";
+  version: number;
   requestStatus?: "pending" | "open" | "closed" | null;
 };
 type Slot = {
@@ -324,7 +325,7 @@ export default function ShiftAdjustment({
     const response = await localApiFetch(`/api/shifts/${detail.plan.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ assignments, status: nextStatus, reason }),
+      body: JSON.stringify({ assignments, status: nextStatus, reason, expectedVersion: detail.plan.version }),
     });
     const data = (await response.json()) as { error?: string };
     setNotice(

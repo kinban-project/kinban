@@ -98,6 +98,7 @@ export const shiftPlans = sqliteTable("shift_plans", {
   status: text("status", { enum: ["draft", "published"] })
     .notNull()
     .default("draft"),
+  version: integer("version").notNull().default(1),
   createdBy: text("created_by").notNull(),
   createdAt: text("created_at")
     .notNull()

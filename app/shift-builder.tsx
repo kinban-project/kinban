@@ -18,6 +18,7 @@ type Plan = {
   slotMinutes: number;
   defaultRequiredCount: number;
   status: "draft" | "published";
+  version: number;
   requestStatus?: "pending" | "open" | "closed" | null;
 };
 type Slot = {
@@ -289,6 +290,7 @@ export default function ShiftBuilder({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         action,
+        expectedVersion: detail.plan.version,
         requestCloseDate: detail.requestPeriod?.closesOn,
         layout: { notes: detail.plan.notes, slots: detail.slots, closedDates },
       }),
