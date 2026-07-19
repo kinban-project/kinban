@@ -231,6 +231,7 @@ export const workRecords = sqliteTable("work_records", {
   claimedStartAt: text("claimed_start_at"),
   claimedEndAt: text("claimed_end_at"),
   claimedBreakMinutes: integer("claimed_break_minutes"),
+  activeKey: text("active_key"),
   status: text("status").notNull().default("working"),
   employeeNote: text("employee_note").notNull().default(""),
   managerNote: text("manager_note").notNull().default(""),

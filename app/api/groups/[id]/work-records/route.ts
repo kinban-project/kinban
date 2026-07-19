@@ -357,6 +357,7 @@ export async function POST(request: Request, context: Context) {
   }
 
   if (body.action === "start") {
+    const now = new Date().toISOString();
     const openRecords = await db
       .select()
       .from(workRecords)
@@ -368,6 +369,15 @@ export async function POST(request: Request, context: Context) {
           isNull(workRecords.endedAt),
         ),
       );
+    const expiredIds = openRecords
+      .filter((record) => attendanceExpired(record.startedAt))
+      .map((record) => record.id);
+    if (expiredIds.length) {
+      await db
+        .update(workRecords)
+        .set({ activeKey: null, updatedAt: now })
+        .where(inArray(workRecords.id, expiredIds));
+    }
     if (openRecords.some((record) => !attendanceExpired(record.startedAt)))
       return error(
         "勤務中の記録が残っています。先に勤務終了を記録してください。",
@@ -427,7 +437,6 @@ export async function POST(request: Request, context: Context) {
       if (existing[0] && existing[0].status !== "rejected")
         return error("A work record already exists for this shift.", 409);
     }
-    const now = new Date().toISOString();
     const row = {
       id: crypto.randomUUID(),
       groupId,
@@ -439,12 +448,20 @@ export async function POST(request: Request, context: Context) {
       scheduledEndTime,
       startedAt: now,
       claimedStartAt: now,
+      activeKey: `${groupId}:${user.email}`,
       status: "working",
       employeeNote: String(body.note ?? "")
         .trim()
         .slice(0, 500),
     };
-    await db.insert(workRecords).values(row);
+    try {
+      await db.insert(workRecords).values(row);
+    } catch (caught) {
+      // The partial unique index is the final arbiter for concurrent starts.
+      if (String(caught).toLowerCase().includes("unique"))
+        return error("A work record is already active for this group and user.", 409);
+      throw caught;
+    }
     await recordAudit({
       groupId,
       userEmail: user.email,
@@ -534,6 +551,7 @@ export async function POST(request: Request, context: Context) {
       .set({
         endedAt,
         claimedEndAt: endedAt,
+        activeKey: null,
         status: "working",
         updatedAt: endedAt,
         employeeNote: String(body.note ?? record.employeeNote)
