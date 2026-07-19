@@ -1,6 +1,7 @@
 import { and, eq, gte, inArray, isNull, lte } from "drizzle-orm";
 import { getDb } from "../../db";
 import { groupMembers, monthlyWorkClaims, workBreaks, workRecords } from "../../db/schema";
+import { attendanceExpired } from "../attendance-expired";
 import { recordAudit } from "../audit-log";
 
 type Db = ReturnType<typeof getDb>;
@@ -43,9 +44,16 @@ export async function mcpClock(db: Db, groupId: string, email: string, action: s
   if (!membership || membership.status !== "active") return error("Active group membership is required.");
   if (action === "start") {
     const open = await db.select().from(workRecords).where(and(eq(workRecords.groupId, groupId), eq(workRecords.userEmail, email), eq(workRecords.status, "working"), isNull(workRecords.endedAt))).limit(1);
-    if (open.length) return error("An active work record already exists.");
+    const nowExpired = open.filter((record) => attendanceExpired(record.startedAt)).map((record) => record.id);
+    if (nowExpired.length) await db.update(workRecords).set({ activeKey: null, updatedAt: now }).where(inArray(workRecords.id, nowExpired));
+    if (open.some((record) => !attendanceExpired(record.startedAt))) return error("An active work record already exists.");
     const row = { id: crypto.randomUUID(), groupId, planId: null, slotId: null, userEmail: email, scheduledDate: todayJst(), scheduledStartTime: "", scheduledEndTime: "", startedAt: now, claimedStartAt: now, activeKey: `${groupId}:${email}`, status: "working", employeeNote: "" };
-    await db.insert(workRecords).values(row);
+    try {
+      await db.insert(workRecords).values(row);
+    } catch (caught) {
+      if (String(caught).toLowerCase().includes("unique")) return error("An active work record already exists.");
+      throw caught;
+    }
     await recordAudit({ groupId, userEmail: email, action: "work.start", entityType: "workRecord", entityId: row.id, summary: "勤務開始を記録しました", details: { source: "mcp" } });
     return { ok: true, record: row };
   }
