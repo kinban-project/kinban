@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { localApiFetch } from "./local-api";
 import AssistantChat from "./assistant-chat";
 
-type Announcement = { id: string; title: string; body: string; createdBy: string; createdAt: string };
+type Announcement = { id: string; title: string; body: string; createdBy: string; createdAt: string; notificationLevel?: "normal" | "important" | "urgent"; category?: string };
 type Reply = { id: string; announcementId: string; userEmail: string; body: string; createdAt: string };
 type Member = { userEmail: string; displayName?: string | null };
 type ReadDetail = { announcementId: string; userEmail: string; readAt: string };
@@ -21,6 +21,7 @@ export default function AnnouncementsPanel({ groupId, manager = false }: Props) 
   const [expandedReads, setExpandedReads] = useState<Record<string, boolean>>({});
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [notificationLevel, setNotificationLevel] = useState<"normal" | "important" | "urgent">("normal");
   const [reply, setReply] = useState<Record<string, string>>({});
   const [notice, setNotice] = useState("");
   const [tab, setTab] = useState<"announcements" | "assistant">("announcements");
@@ -48,7 +49,7 @@ export default function AnnouncementsPanel({ groupId, manager = false }: Props) 
   useEffect(() => { void load(); }, [groupId]);
 
   async function post(action: string, announcementId?: string, text?: string) {
-    const response = await localApiFetch(`/api/groups/${groupId}/announcements`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, announcementId, title, body: text ?? body }) });
+    const response = await localApiFetch(`/api/groups/${groupId}/announcements`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, announcementId, title, body: text ?? body, notificationLevel }) });
     setNotice(response.ok ? "保存しました" : "保存できませんでした");
     if (response.ok) { setTitle(""); setBody(""); if (announcementId) setReply((current) => ({ ...current, [announcementId]: "" })); await load(); }
   }
@@ -57,13 +58,13 @@ export default function AnnouncementsPanel({ groupId, manager = false }: Props) 
     <div className="modal-head"><div><p className="eyebrow">MESSAGES</p><h2>お知らせ・連絡{selectedGroupName ? `（${selectedGroupName}）` : ""}</h2></div></div>
     <div className="message-tabs" role="tablist"><button className={tab === "announcements" ? "active" : ""} onClick={() => setTab("announcements")} role="tab" aria-selected={tab === "announcements"}>お知らせ</button><button className={tab === "assistant" ? "active" : ""} onClick={() => setTab("assistant")} role="tab" aria-selected={tab === "assistant"}>KINBANアシスタント</button></div>
     {tab === "assistant" ? <AssistantChat groupId={groupId} manager={manager} /> : <>
-    {manager && <form className="announcement-create" onSubmit={(event) => { event.preventDefault(); void post("create"); }}><input required value={title} onChange={(event) => setTitle(event.target.value)} placeholder="タイトル" /><textarea required rows={3} value={body} onChange={(event) => setBody(event.target.value)} placeholder="メンバーへのお知らせ" /><button className="primary-button">お知らせを作成</button></form>}
+    {manager && <form className="announcement-create" onSubmit={(event) => { event.preventDefault(); void post("create"); }}><input required value={title} onChange={(event) => setTitle(event.target.value)} placeholder="タイトル" /><textarea required rows={3} value={body} onChange={(event) => setBody(event.target.value)} placeholder="メンバーへのお知らせ" /><label>通知レベル<select value={notificationLevel} onChange={(event) => setNotificationLevel(event.target.value as "normal" | "important" | "urgent")}><option value="normal">通常（アプリ内のみ）</option><option value="important">重要（アプリ内のみ）</option><option value="urgent">緊急（Web Push）</option></select></label><button className="primary-button">お知らせを作成</button></form>}
     <div className="announcement-list">
       {items.length ? items.map((item) => {
         const readCount = new Set(readDetails.filter((row) => row.announcementId === item.id).map((row) => row.userEmail)).size;
         const unreadMembers = members.filter((member) => !readDetails.some((row) => row.announcementId === item.id && row.userEmail === member.userEmail));
         return <article className="announcement-item" key={item.id}>
-          <div className="announcement-head"><strong>{item.title}</strong><small>{item.createdAt}</small>{manager && <><span className="announcement-read-summary">既読 {readCount}/{members.length}</span><button className="small-action" onClick={() => setExpandedReads((current) => ({ ...current, [item.id]: !current[item.id] }))}>{expandedReads[item.id] ? "詳細を隠す" : "未読者を表示"}</button></>}{!manager && !reads.includes(item.id) && <button className="small-action" onClick={() => void post("read", item.id)}>既読にする</button>}</div>
+          <div className="announcement-head"><strong>{item.title}</strong>{item.notificationLevel === "urgent" && <span className="announcement-read-summary">緊急</span>}<small>{item.createdAt}</small>{manager && <><span className="announcement-read-summary">既読 {readCount}/{members.length}</span><button className="small-action" onClick={() => setExpandedReads((current) => ({ ...current, [item.id]: !current[item.id] }))}>{expandedReads[item.id] ? "詳細を隠す" : "未読者を表示"}</button></>}{!manager && !reads.includes(item.id) && <button className="small-action" onClick={() => void post("read", item.id)}>既読にする</button>}</div>
           <p>{item.body}</p>
           {manager && expandedReads[item.id] && <div className="announcement-read-detail"><strong>未読者（{unreadMembers.length}人）</strong>{unreadMembers.length ? <div>{unreadMembers.map((member) => <span key={member.userEmail}>{memberNames[member.userEmail] ?? member.userEmail.split("@")[0]}</span>)}</div> : <p>全員が既読です。</p>}</div>}
           <div className="announcement-replies">{replies.filter((row) => row.announcementId === item.id).map((row) => <div key={row.id}><strong>{memberNames[row.userEmail] ?? row.userEmail.split("@")[0]}</strong><span>{row.body}</span></div>)}</div>

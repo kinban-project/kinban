@@ -6,7 +6,7 @@ import { localApiFetch } from "./local-api";
 type Assistant = { displayName: string; role: "editor"; status: "active" | "inactive" };
 type Member = { userEmail: string; displayName?: string | null };
 type AnnouncementDraft = { id: string; sourceMessageId: string; requesterEmail: string; date: string; startTime: string; endTime: string; role: string; title: string; body: string; status: "needs_review" | "published" | "rejected"; managerNote: string; announcementId?: string | null; createdAt: string };
-type Message = { id: string; memberEmail: string; senderType: "member" | "assistant"; body: string; status: "pending" | "processing" | "processed" | "failed" | "needs_review"; createdAt: string };
+type Message = { id: string; memberEmail: string; senderType: "member" | "assistant" | "system"; body: string; status: "pending" | "processing" | "processed" | "failed" | "needs_review"; createdAt: string };
 type ChatData = { assistant: Assistant | null; messages: Message[]; members: Member[]; drafts?: AnnouncementDraft[]; currentEmail: string; selectedMember: string; manager: boolean };
 
 function memberName(member: Member) {
@@ -95,7 +95,7 @@ export default function AssistantChat({ groupId, manager = false }: { groupId: s
     </section>}
     <div className="assistant-messages" aria-live="polite">
       {data.messages.length ? data.messages.map((item) => <div className={`assistant-message ${item.senderType}`} key={item.id}>
-        <strong>{item.senderType === "assistant" ? "KINBANアシスタント" : item.memberEmail === data.currentEmail ? "あなた" : item.memberEmail.split("@")[0]}</strong>
+        <strong>{item.senderType === "assistant" || item.senderType === "system" ? "KINBANアシスタント" : item.memberEmail === data.currentEmail ? "あなた" : item.memberEmail.split("@")[0]}</strong>
         <p>{item.body}</p>
         <small>{item.createdAt}{item.senderType === "member" && item.status === "pending" ? "・AI確認待ち" : item.senderType === "member" && item.status === "processing" ? "・AI対応中" : item.senderType === "member" && item.status === "needs_review" ? "・管理者確認待ち" : ""}</small>
       </div>) : <p className="empty-state">まだ会話はありません。シフトや勤怠についてメッセージを送れます。</p>}

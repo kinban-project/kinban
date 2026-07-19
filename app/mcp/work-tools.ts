@@ -3,6 +3,7 @@ import { getDb } from "../../db";
 import { groupMembers, monthlyWorkClaims, workBreaks, workRecords } from "../../db/schema";
 import { attendanceExpired } from "../attendance-expired";
 import { recordAudit } from "../audit-log";
+import { sendBusinessPush } from "../notification-events";
 
 type Db = ReturnType<typeof getDb>;
 type Args = Record<string, unknown>;
@@ -104,6 +105,7 @@ export async function mcpDailyReview(db: Db, groupId: string, actorEmail: string
   const now = new Date().toISOString();
   await db.update(workRecords).set({ status, managerNote: managerNote.slice(0, 500), approvedBy: actorEmail, approvedAt: now, updatedAt: now }).where(eq(workRecords.id, record.id));
   await recordAudit({ groupId, userEmail: actorEmail, action: "work.review", entityType: "workRecord", entityId: record.id, summary: `勤務申告を${status === "approved" ? "承認" : "差戻し"}しました`, details: { status, managerNote, source: "mcp" } });
+  if (status === "rejected") await sendBusinessPush(db, { recipients: [record.userEmail], eventId: `daily-work-rejected:${record.id}:${now}`, title: "KINBAN", body: "勤怠の確認・修正が必要です", url: `/?group=${encodeURIComponent(groupId)}&view=work-records`, urgency: "high" });
   return { ok: true, recordId, status };
 }
 
@@ -138,5 +140,6 @@ export async function mcpReviewMonthly(db: Db, groupId: string, actorEmail: stri
   await db.update(monthlyWorkClaims).set({ status: nextStatus, approvedAt: action === "approve" ? now : null, approvedBy: action === "approve" ? actorEmail : null, managerNote: managerNote.slice(0, 500), updatedAt: now }).where(eq(monthlyWorkClaims.id, claim.id));
   await db.update(workRecords).set(action === "approve" ? { monthlyClosedAt: now, monthlyClosedBy: actorEmail, updatedAt: now } : { monthlyClosedAt: null, monthlyClosedBy: null, updatedAt: now }).where(and(eq(workRecords.groupId, groupId), eq(workRecords.userEmail, targetEmail), gte(workRecords.scheduledDate, bounds.start), lte(workRecords.scheduledDate, bounds.end)));
   await recordAudit({ groupId, userEmail: actorEmail, action: `work.month.${action}`, entityType: "monthlyWorkClaim", entityId: claim.id, summary: `${month}の月次申告を${action === "approve" ? "承認" : action === "reject" ? "差戻し" : "再開"}しました`, details: { targetEmail, source: "mcp" } });
+  if (action === "reject") await sendBusinessPush(db, { recipients: [targetEmail], eventId: `monthly-work-rejected:${claim.id}:${now}`, title: "KINBAN", body: "勤怠の確認・修正が必要です", url: `/?group=${encodeURIComponent(groupId)}&view=monthly-work`, urgency: "high" });
   return { ok: true, month, userEmail: targetEmail, status: nextStatus };
 }

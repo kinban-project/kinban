@@ -6,6 +6,7 @@ import { getMembership } from "../../groups/group-access";
 import { isValidShiftTime, shiftDateTime, shiftTimeToMinutes } from "../../../shift-time";
 import { recordAudit } from "../../../audit-log";
 import { canViewAdminNote, toPublicMember } from "../../groups/member-dto";
+import { createSystemMessagesAndPush } from "../../../notification-events";
 
 export const dynamic = "force-dynamic";
 
@@ -168,6 +169,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: status === "published" ? "shift.publish" : "shift.assign", entityType: "shiftPlan", entityId: id, summary: status === "published" ? `シフトを公開: ${plan.name}` : `担当割り当てを保存: ${plan.name}`, details: { assignedCount: allRows.length, warnings: warnings.length } });
   if (plan.status === "published") {
     await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: "shift.update", entityType: "shiftPlan", entityId: id, summary: `公開済みシフトを更新: ${plan.name}`, details: { changeType: "assignments", reason: body.reason?.trim().slice(0, 300) ?? "", assignmentChangeCount: assignmentChanges.length, assignmentChanges: assignmentChanges.slice(0, 40), assignedCount: allRows.length, warnings: warnings.length } });
+    const recipients = [...new Set(assignmentChanges.flatMap((change) => [...change.added, ...change.removed]))];
+    await createSystemMessagesAndPush(db, { groupId: plan.groupId, recipients, eventId: `shift-change:${id}:${nextVersion}`, eventType: "published_shift_changed", body: "公開済みシフトが更新されました。シフト一覧を確認してください。", pushTitle: "KINBAN", pushBody: "公開済みシフトが更新されました", url: `/?group=${encodeURIComponent(plan.groupId)}&view=roster` });
   }
   return Response.json({ ok: true, status, warnings });
 }

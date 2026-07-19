@@ -114,7 +114,7 @@ export const assistantMessages = sqliteTable("assistant_messages", {
   id: text("id").primaryKey(),
   groupId: text("group_id").notNull(),
   memberEmail: text("member_email").notNull(),
-  senderType: text("sender_type", { enum: ["member", "assistant"] })
+  senderType: text("sender_type", { enum: ["member", "assistant", "system"] })
     .notNull()
     .default("member"),
   senderEmail: text("sender_email"),
@@ -125,10 +125,14 @@ export const assistantMessages = sqliteTable("assistant_messages", {
   claimedAt: text("claimed_at"),
   claimExpiresAt: text("claim_expires_at"),
   claimId: text("claim_id"),
+  eventType: text("event_type").notNull().default(""),
+  eventId: text("event_id").notNull().default(""),
   createdAt: text("created_at")
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
-});
+}, (table) => [
+  uniqueIndex("assistant_message_event_recipient_unique_idx").on(table.groupId, table.memberEmail, table.eventId),
+]);
 
 export const assistantMessageExecutions = sqliteTable("assistant_message_executions", {
   id: text("id").primaryKey(),
@@ -250,6 +254,8 @@ export const groupAnnouncements = sqliteTable("group_announcements", {
   createdBy: text("created_by").notNull(),
   title: text("title").notNull(),
   body: text("body").notNull(),
+  notificationLevel: text("notification_level", { enum: ["normal", "important", "urgent"] }).notNull().default("normal"),
+  category: text("category").notNull().default(""),
   createdAt: text("created_at")
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),

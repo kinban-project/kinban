@@ -13,6 +13,7 @@ import { getMembership } from "../../group-access";
 import { getChatGPTUser } from "../../../../chatgpt-auth";
 import { toPublicMember } from "../../member-dto";
 import { shiftTimeToMinutes } from "../../../../shift-time";
+import { sendBusinessPush } from "../../../../notification-events";
 
 export const dynamic = "force-dynamic";
 
@@ -154,6 +155,7 @@ export async function POST(request: Request, context: Context) {
       gte(workRecords.scheduledDate, bounds.start),
       lte(workRecords.scheduledDate, bounds.end),
     ));
+    if (body.action === "reject") await sendBusinessPush(db, { recipients: [targetEmail], eventId: `monthly-work-rejected:${existing.id}:${now}`, title: "KINBAN", body: "勤怠の確認・修正が必要です", url: `/?group=${encodeURIComponent(groupId)}&view=monthly-work`, urgency: "high" });
     return Response.json({ ok: true, status: nextStatus });
   }
   return jsonError("不明な操作です", 400);

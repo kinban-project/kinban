@@ -4,6 +4,7 @@ import { getDb } from "../../../../../db";
 import { assistantAnnouncementDrafts, assistantMessages, groupAnnouncements, groupAssistants, groupMembers } from "../../../../../db/schema";
 import { recordAudit } from "../../../../audit-log";
 import { getMembership } from "../../group-access";
+import { activeGroupEmails, sendBusinessPush } from "../../../../notification-events";
 
 export const dynamic = "force-dynamic";
 
@@ -106,12 +107,17 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const announcementId = crypto.randomUUID();
     const replyId = crypto.randomUUID();
     await db.batch([
-      db.insert(groupAnnouncements).values({ id: announcementId, groupId: id, createdBy: user.email, title: draft.title, body: draft.body }),
+      db.insert(groupAnnouncements).values({ id: announcementId, groupId: id, createdBy: user.email, title: draft.title, body: draft.body, notificationLevel: "urgent", category: "shift_replacement" }),
       db.update(assistantAnnouncementDrafts).set({ status: "published", announcementId, managerNote: body.managerNote?.trim().slice(0, 500) ?? draft.managerNote, reviewedBy: user.email, reviewedAt: now, updatedAt: now }).where(and(eq(assistantAnnouncementDrafts.id, draft.id), eq(assistantAnnouncementDrafts.status, "needs_review"))),
       db.update(assistantMessages).set({ status: "processed", claimedAt: null, claimExpiresAt: null, claimId: null }).where(eq(assistantMessages.id, draft.sourceMessageId)),
       db.insert(assistantMessages).values({ id: replyId, groupId: id, memberEmail: draft.requesterEmail, senderType: "assistant", senderEmail: user.email, body: "交代募集のお知らせを配信しました。対応可能な方からの連絡をお待ちください。", status: "processed" }),
     ]);
     await recordAudit({ groupId: id, userEmail: user.email, action: "assistant.announcement_draft.publish", entityType: "assistantAnnouncementDraft", entityId: draft.id, summary: "交代募集のお知らせ案を承認して配信", details: { sourceMessageId: draft.sourceMessageId, slotId: draft.slotId, announcementId, requesterEmail: draft.requesterEmail } });
+    const recipients = await activeGroupEmails(db, id);
+    await Promise.all([
+      sendBusinessPush(db, { recipients, eventId: `announcement:${announcementId}`, title: "KINBAN", body: "緊急のお知らせがあります", url: `/?group=${encodeURIComponent(id)}&view=announcements`, urgency: "high" }),
+      sendBusinessPush(db, { recipients: [draft.requesterEmail], eventId: `assistant-reply:${replyId}`, title: "KINBAN", body: "KINBANアシスタントから新しい連絡があります", url: `/?group=${encodeURIComponent(id)}&view=assistant`, urgency: "high" }),
+    ]);
     return Response.json({ ok: true, status: "published", announcementId });
   }
 

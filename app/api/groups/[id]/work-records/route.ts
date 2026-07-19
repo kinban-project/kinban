@@ -13,6 +13,7 @@ import {
 import { recordAudit } from "../../../../audit-log";
 import { attendanceExpired } from "../../../../attendance-expired";
 import { shiftDateTime } from "../../../../shift-time";
+import { sendBusinessPush } from "../../../../notification-events";
 
 export const dynamic = "force-dynamic";
 
@@ -797,5 +798,6 @@ export async function PATCH(request: Request, context: Context) {
     summary: `勤務記録を${body.status === "approved" ? "承認" : "差戻し"}`,
     details: { status: body.status, managerNote: body.managerNote ?? "" },
   });
+  if (body.status === "rejected") await sendBusinessPush(current.db, { recipients: [record.userEmail], eventId: `daily-work-rejected:${record.id}:${now}`, title: "KINBAN", body: "勤怠の確認・修正が必要です", url: `/?group=${encodeURIComponent(groupId)}&view=work-records`, urgency: "high" });
   return Response.json({ ok: true, recordId: record.id, status: body.status });
 }
