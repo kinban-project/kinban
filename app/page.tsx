@@ -55,6 +55,10 @@ type GroupMembership = {
   unreadAnnouncements?: number;
 };
 
+function ModalClose({ onClose }: { onClose: () => void }) {
+  return <button type="button" className="modal-global-close" onClick={onClose} aria-label="閉じる">×</button>;
+}
+
 const today = new Date();
 const todayKey = keyForDate(today);
 const MAX_FILE_BYTES = 1024 * 1024;
@@ -899,6 +903,7 @@ export default function Home() {
           }}
         >
           <div className="modal groups-modal">
+            <ModalClose onClose={() => setGroupsOpen(false)} />
             <GroupsPanel
               initialGroupId={menuGroupId}
               onChanged={() => {
@@ -932,6 +937,7 @@ export default function Home() {
           }}
         >
           <div className="modal shift-modal">
+            <ModalClose onClose={() => setShiftOpen(false)} />
             <ShiftBuilder initialGroupId={menuGroupId} />
           </div>
         </div>
@@ -945,6 +951,7 @@ export default function Home() {
           }}
         >
           <div className="modal shift-modal">
+            <ModalClose onClose={() => setShiftAdjustmentOpen(false)} />
             <ShiftAdjustment initialGroupId={menuGroupId} />
           </div>
         </div>
@@ -957,6 +964,7 @@ export default function Home() {
           }}
         >
           <div className="modal shift-modal">
+            <ModalClose onClose={() => setShiftRosterOpen(false)} />
             <ShiftRoster initialGroupId={menuGroupId} />
           </div>
         </div>
@@ -970,6 +978,7 @@ export default function Home() {
           }}
         >
           <div className="modal shift-modal request-modal">
+            <ModalClose onClose={() => setShiftRequestsOpen(false)} />
             <ShiftRequests initialGroupId={menuGroupId} />
           </div>
         </div>
@@ -983,6 +992,7 @@ export default function Home() {
           }}
         >
           <div className="modal groups-modal">
+            <ModalClose onClose={() => setAnnouncementsOpen(false)} />
             <AnnouncementsPanel
               groupId={menuGroupId}
               manager={editableGroups.some(
@@ -1000,23 +1010,24 @@ export default function Home() {
           }}
         >
           <div className="modal groups-modal">
+            <ModalClose onClose={() => setDashboardOpen(false)} />
             <DashboardPanel groupId={menuGroupId} />
           </div>
         </div>
       )}
       {auditLogsOpen && menuGroupId && (
         <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setAuditLogsOpen(false); }}>
-          <div className="modal groups-modal"><AuditLogPanel groupId={menuGroupId} /></div>
+          <div className="modal groups-modal"><ModalClose onClose={() => setAuditLogsOpen(false)} /><AuditLogPanel groupId={menuGroupId} /></div>
         </div>
       )}
       {workRecordsOpen && menuGroupId && (
         <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setWorkRecordsOpen(false); }}>
-          <div className="modal groups-modal work-records-modal"><WorkRecordsPanel groupId={menuGroupId} manager={workRecordsManager} /></div>
+          <div className="modal groups-modal work-records-modal"><ModalClose onClose={() => setWorkRecordsOpen(false)} /><WorkRecordsPanel groupId={menuGroupId} manager={workRecordsManager} /></div>
         </div>
       )}
       {monthlyWorkOpen && menuGroupId && (
         <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setMonthlyWorkOpen(false); }}>
-          <div className="modal groups-modal work-records-modal monthly-work-modal"><MonthlyWorkPanel groupId={menuGroupId} manager={monthlyWorkManager} /></div>
+          <div className="modal groups-modal work-records-modal monthly-work-modal"><ModalClose onClose={() => setMonthlyWorkOpen(false)} /><MonthlyWorkPanel groupId={menuGroupId} manager={monthlyWorkManager} /></div>
         </div>
       )}
       {groupPreferencesOpen && menuGroupId && (
