@@ -3,6 +3,7 @@ import { getChatGPTUser } from "../../../../chatgpt-auth";
 import { getDb } from "../../../../../db";
 import { announcementReads, announcementReplies, groupAnnouncements, groupMembers } from "../../../../../db/schema";
 import { recordAudit } from "../../../../audit-log";
+import { canViewAdminNote, toPublicMember } from "../../member-dto";
 import { requireGroupMembership } from "../../group-access";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +24,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     : [];
   const replies = announcementIds.length ? await db.select().from(announcementReplies).where(inArray(announcementReplies.announcementId, announcementIds)) : [];
   const members = await db.select().from(groupMembers).where(and(eq(groupMembers.groupId, id), eq(groupMembers.status, "active")));
-  return Response.json({ announcements, reads, readDetails, replies, members, role: membership.role, currentEmail: user.email });
+  return Response.json({ announcements, reads, readDetails, replies, members: members.map((member) => toPublicMember(member, canViewAdminNote(membership.role))), role: membership.role, currentEmail: user.email });
 }
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {

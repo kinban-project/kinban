@@ -11,6 +11,7 @@ import {
 } from "../../../../../db/schema";
 import { getMembership } from "../../group-access";
 import { getChatGPTUser } from "../../../../chatgpt-auth";
+import { toPublicMember } from "../../member-dto";
 import { shiftTimeToMinutes } from "../../../../shift-time";
 
 export const dynamic = "force-dynamic";
@@ -107,7 +108,7 @@ export async function GET(request: Request, context: Context) {
     planned: assignments.filter((assignment) => { const slot = slotMap.get(assignment.slotId); return slot?.date === date && assignment.userEmail === requestedEmail; }).map((assignment) => { const slot = slotMap.get(assignment.slotId)!; return { startTime: slot.startTime, endTime: slot.endTime, role: slot.role, planName: planMap.get(slot.planId)?.name ?? "" }; }),
     records: records.filter((record) => record.userEmail === requestedEmail && record.scheduledDate === date).map((record) => ({ ...record, workedMinutes: workedMinutes(record), breakMinutes: record.claimedBreakMinutes ?? breakMinutesByRecord.get(record.id) ?? 0 })),
   }));
-  return Response.json({ month, members: visibleMembers, claims, summaries, days, viewedUserEmail: requestedEmail, canManage: manager, currentUserEmail: userEmail });
+  return Response.json({ month, members: visibleMembers.map((member) => toPublicMember(member, manager)), claims, summaries, days, viewedUserEmail: requestedEmail, canManage: manager, currentUserEmail: userEmail });
 }
 
 export async function POST(request: Request, context: Context) {
