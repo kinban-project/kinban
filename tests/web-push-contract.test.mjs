@@ -10,6 +10,10 @@ const control = await fs.readFile("app/push-notification-control.tsx", "utf8");
 const page = await fs.readFile("app/page.tsx", "utf8");
 
 test("web push stores subscriptions per user and deduplicates deliveries", () => {
+  assert.match(
+    schema,
+    /import \{\s*index,\s*integer,\s*sqliteTable,\s*text,\s*uniqueIndex,?\s*\} from "drizzle-orm\/sqlite-core";/,
+  );
   assert.match(schema, /pushSubscriptions/);
   assert.match(schema, /pushDeliveries/);
   assert.match(schema, /push_delivery_event_subscription_unique_idx/);
