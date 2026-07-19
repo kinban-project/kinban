@@ -78,7 +78,7 @@ export const assistantMessages = sqliteTable("assistant_messages", {
     .default("member"),
   senderEmail: text("sender_email"),
   body: text("body").notNull(),
-  status: text("status", { enum: ["pending", "processing", "processed", "failed"] })
+  status: text("status", { enum: ["pending", "processing", "processed", "failed", "needs_review"] })
     .notNull()
     .default("pending"),
   claimedAt: text("claimed_at"),

@@ -5,7 +5,7 @@ import { localApiFetch } from "./local-api";
 
 type Assistant = { displayName: string; role: "editor"; status: "active" | "inactive" };
 type Member = { userEmail: string; displayName?: string | null };
-type Message = { id: string; memberEmail: string; senderType: "member" | "assistant"; body: string; status: "pending" | "processing" | "processed" | "failed"; createdAt: string };
+type Message = { id: string; memberEmail: string; senderType: "member" | "assistant"; body: string; status: "pending" | "processing" | "processed" | "failed" | "needs_review"; createdAt: string };
 type ChatData = { assistant: Assistant | null; messages: Message[]; members: Member[]; currentEmail: string; selectedMember: string; manager: boolean };
 
 function memberName(member: Member) {
@@ -69,7 +69,7 @@ export default function AssistantChat({ groupId, manager = false }: { groupId: s
       {data.messages.length ? data.messages.map((item) => <div className={`assistant-message ${item.senderType}`} key={item.id}>
         <strong>{item.senderType === "assistant" ? "KINBANアシスタント" : item.memberEmail === data.currentEmail ? "あなた" : item.memberEmail.split("@")[0]}</strong>
         <p>{item.body}</p>
-        <small>{item.createdAt}{item.senderType === "member" && item.status === "pending" ? "・AI確認待ち" : item.senderType === "member" && item.status === "processing" ? "・AI対応中" : ""}</small>
+        <small>{item.createdAt}{item.senderType === "member" && item.status === "pending" ? "・AI確認待ち" : item.senderType === "member" && item.status === "processing" ? "・AI対応中" : item.senderType === "member" && item.status === "needs_review" ? "・管理者確認待ち" : ""}</small>
         {manager && item.senderType === "member" && item.status !== "processed" && <div className="assistant-confirmation"><button className="small-action" type="button" onClick={() => void issueReplyConfirmation(item.id)}>返信確認トークンを発行</button>{confirmationTokens[item.id] && <code>{confirmationTokens[item.id]}</code>}</div>}
       </div>) : <p className="empty-state">まだ会話はありません。シフトや勤怠についてメッセージを送れます。</p>}
     </div>
