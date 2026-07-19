@@ -25,6 +25,13 @@ description: KINBANアシスタント宛のメッセージを、グループ専�
    - **返信不要で対応済み**: `complete_assistant_message` に同じ `claimId` を渡して `processed` にする。
 5. 管理者からの指示で変更操作を行う場合は、対象・理由・影響をレポートへ短く残し、`sourceMessageId: message.id` と同じ `claimId` を指定する。
 
+## 交代希望
+
+- メンバーが交代・欠勤連絡をした場合、本文の個人事情を全体へ転載しない。
+- そのメッセージが現在claim中で、本人の公開済み割当が1件だけ特定できる場合は、`create_shift_swap_announcement_draft` に `messageId` と同じ `claimId` を渡して、管理者確認用のお知らせ案を作成する。
+- 対象割当が複数または不明な場合は自動確定しない。必要なら `slotId` を指定するか、管理者確認待ちにする。
+- この操作はお知らせを配信しない。配信・修正・差戻しはKINBANの管理者画面で行う。
+
 ## 状態
 
 | 状態 | 意味 | 次の担当 |

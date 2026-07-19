@@ -127,6 +127,30 @@ export const assistantContexts = sqliteTable("assistant_contexts", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const assistantAnnouncementDrafts = sqliteTable("assistant_announcement_drafts", {
+  id: text("id").primaryKey(),
+  groupId: text("group_id").notNull(),
+  sourceMessageId: text("source_message_id").notNull().unique(),
+  requesterEmail: text("requester_email").notNull(),
+  slotId: text("slot_id").notNull(),
+  date: text("date").notNull(),
+  startTime: text("start_time").notNull(),
+  endTime: text("end_time").notNull(),
+  role: text("role").notNull().default(""),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  status: text("status", { enum: ["needs_review", "published", "rejected"] }).notNull().default("needs_review"),
+  managerNote: text("manager_note").notNull().default(""),
+  announcementId: text("announcement_id"),
+  createdBy: text("created_by").notNull(),
+  reviewedBy: text("reviewed_by"),
+  reviewedAt: text("reviewed_at"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("assistant_announcement_draft_group_status_idx").on(table.groupId, table.status, table.createdAt),
+]);
+
 export const groupPreferences = sqliteTable("group_preferences", {
   id: text("id").primaryKey(),
   groupId: text("group_id").notNull(),

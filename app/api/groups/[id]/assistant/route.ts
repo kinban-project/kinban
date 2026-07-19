@@ -1,7 +1,7 @@
 import { and, asc, eq } from "drizzle-orm";
 import { getChatGPTUser } from "../../../../chatgpt-auth";
 import { getDb } from "../../../../../db";
-import { assistantMessages, groupAssistants, groupMembers } from "../../../../../db/schema";
+import { assistantAnnouncementDrafts, assistantMessages, groupAnnouncements, groupAssistants, groupMembers } from "../../../../../db/schema";
 import { recordAudit } from "../../../../audit-log";
 import { getMembership } from "../../group-access";
 
@@ -20,16 +20,19 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const requestedMember = new URL(request.url).searchParams.get("member")?.trim();
   const memberEmail = isManager(membership.role) && requestedMember ? requestedMember : user.email;
   const db = getDb();
-  const [target, assistant] = await Promise.all([
+  const [target, assistant, drafts] = await Promise.all([
     db.select({ userEmail: groupMembers.userEmail }).from(groupMembers).where(and(eq(groupMembers.groupId, id), eq(groupMembers.userEmail, memberEmail), eq(groupMembers.status, "active"))).limit(1),
     db.select().from(groupAssistants).where(eq(groupAssistants.groupId, id)).limit(1),
+    isManager(membership.role)
+      ? db.select().from(assistantAnnouncementDrafts).where(eq(assistantAnnouncementDrafts.groupId, id)).orderBy(asc(assistantAnnouncementDrafts.createdAt))
+      : Promise.resolve([]),
   ]);
   if (!target[0]) return Response.json({ error: "メンバーが見つかりません" }, { status: 404 });
   const messages = await db.select().from(assistantMessages).where(and(eq(assistantMessages.groupId, id), eq(assistantMessages.memberEmail, memberEmail))).orderBy(asc(assistantMessages.createdAt));
   const members = isManager(membership.role)
     ? await db.select({ userEmail: groupMembers.userEmail, displayName: groupMembers.displayName }).from(groupMembers).where(and(eq(groupMembers.groupId, id), eq(groupMembers.status, "active")))
     : [];
-  return Response.json({ assistant: assistant[0] ?? null, messages, members, currentEmail: user.email, selectedMember: memberEmail, manager: isManager(membership.role) });
+  return Response.json({ assistant: assistant[0] ?? null, messages, members, drafts, currentEmail: user.email, selectedMember: memberEmail, manager: isManager(membership.role) });
 }
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -58,6 +61,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (!membership) return Response.json({ error: "このグループのメンバーではありません" }, { status: 403 });
   if (!isManager(membership.role)) return Response.json({ error: "管理者権限が必要です" }, { status: 403 });
   const body = await request.json() as {
+    action?: "updateAnnouncementDraft" | "publishAnnouncementDraft" | "rejectAnnouncementDraft";
+    draftId?: string;
+    title?: string;
+    announcementBody?: string;
+    managerNote?: string;
     status?: "active" | "inactive";
     permissions?: {
       canCreateShifts?: boolean;
@@ -67,10 +75,49 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       canCreateAnnouncements?: boolean;
     };
   };
+  const db = getDb();
+
+  if (body.action) {
+    const draftId = body.draftId?.trim() ?? "";
+    const [draft] = await db.select().from(assistantAnnouncementDrafts).where(and(eq(assistantAnnouncementDrafts.id, draftId), eq(assistantAnnouncementDrafts.groupId, id))).limit(1);
+    if (!draft) return Response.json({ error: "お知らせ案が見つかりません" }, { status: 404 });
+    const now = new Date().toISOString();
+
+    if (body.action === "updateAnnouncementDraft") {
+      if (draft.status === "published") return Response.json({ error: "配信済みのお知らせ案は編集できません" }, { status: 409 });
+      const title = body.title?.trim().slice(0, 120) ?? "";
+      const announcementBody = body.announcementBody?.trim().slice(0, 2000) ?? "";
+      if (!title || !announcementBody) return Response.json({ error: "タイトルと本文を入力してください" }, { status: 400 });
+      await db.update(assistantAnnouncementDrafts).set({ title, body: announcementBody, managerNote: body.managerNote?.trim().slice(0, 500) ?? draft.managerNote, status: "needs_review", reviewedBy: null, reviewedAt: null, updatedAt: now }).where(eq(assistantAnnouncementDrafts.id, draft.id));
+      await recordAudit({ groupId: id, userEmail: user.email, action: "assistant.announcement_draft.update", entityType: "assistantAnnouncementDraft", entityId: draft.id, summary: "交代募集のお知らせ案を編集", details: { sourceMessageId: draft.sourceMessageId, slotId: draft.slotId } });
+      return Response.json({ ok: true, status: "needs_review" });
+    }
+
+    if (body.action === "rejectAnnouncementDraft") {
+      if (draft.status === "published") return Response.json({ error: "配信済みのお知らせ案は差戻しできません" }, { status: 409 });
+      const managerNote = body.managerNote?.trim().slice(0, 500) ?? "";
+      await db.update(assistantAnnouncementDrafts).set({ status: "rejected", managerNote, reviewedBy: user.email, reviewedAt: now, updatedAt: now }).where(eq(assistantAnnouncementDrafts.id, draft.id));
+      await db.update(assistantMessages).set({ status: "needs_review", claimedAt: null, claimExpiresAt: null, claimId: null }).where(eq(assistantMessages.id, draft.sourceMessageId));
+      await recordAudit({ groupId: id, userEmail: user.email, action: "assistant.announcement_draft.reject", entityType: "assistantAnnouncementDraft", entityId: draft.id, summary: "交代募集のお知らせ案を差戻し", details: { sourceMessageId: draft.sourceMessageId, slotId: draft.slotId, managerNote: managerNote || null } });
+      return Response.json({ ok: true, status: "rejected" });
+    }
+
+    if (draft.status !== "needs_review" || draft.announcementId) return Response.json({ error: "このお知らせ案は配信済み、または差戻し済みです" }, { status: 409 });
+    const announcementId = crypto.randomUUID();
+    const replyId = crypto.randomUUID();
+    await db.batch([
+      db.insert(groupAnnouncements).values({ id: announcementId, groupId: id, createdBy: user.email, title: draft.title, body: draft.body }),
+      db.update(assistantAnnouncementDrafts).set({ status: "published", announcementId, managerNote: body.managerNote?.trim().slice(0, 500) ?? draft.managerNote, reviewedBy: user.email, reviewedAt: now, updatedAt: now }).where(and(eq(assistantAnnouncementDrafts.id, draft.id), eq(assistantAnnouncementDrafts.status, "needs_review"))),
+      db.update(assistantMessages).set({ status: "processed", claimedAt: null, claimExpiresAt: null, claimId: null }).where(eq(assistantMessages.id, draft.sourceMessageId)),
+      db.insert(assistantMessages).values({ id: replyId, groupId: id, memberEmail: draft.requesterEmail, senderType: "assistant", senderEmail: user.email, body: "交代募集のお知らせを配信しました。対応可能な方からの連絡をお待ちください。", status: "processed" }),
+    ]);
+    await recordAudit({ groupId: id, userEmail: user.email, action: "assistant.announcement_draft.publish", entityType: "assistantAnnouncementDraft", entityId: draft.id, summary: "交代募集のお知らせ案を承認して配信", details: { sourceMessageId: draft.sourceMessageId, slotId: draft.slotId, announcementId, requesterEmail: draft.requesterEmail } });
+    return Response.json({ ok: true, status: "published", announcementId });
+  }
+
   const statusChanged = body.status === "active" || body.status === "inactive";
   const permissions = body.permissions && typeof body.permissions === "object" ? body.permissions : null;
   if (!statusChanged && !permissions) return Response.json({ error: "変更内容がありません" }, { status: 400 });
-  const db = getDb();
   const values = {
     ...(statusChanged ? { status: body.status } : {}),
     ...(permissions && typeof permissions.canCreateShifts === "boolean" ? { canCreateShifts: permissions.canCreateShifts } : {}),

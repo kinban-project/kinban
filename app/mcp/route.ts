@@ -2,6 +2,7 @@ import { and, count, desc, eq, gt, gte, inArray, isNull, like, lt, lte, or } fro
 import { getDb } from "../../db";
 import {
   accountProfiles,
+  assistantAnnouncementDrafts,
   assistantMessageExecutions,
   assistantMessages,
   auditLogs,
@@ -37,7 +38,7 @@ type RpcRequest = { jsonrpc?: string; id?: string | number | null; method?: stri
 const mutating = "This operation changes saved data. Re-run with confirm:true after confirming the target and scope.";
 const editorRoles = new Set(["owner", "editor"]);
 const preferenceValues = new Set(preferenceStatuses);
-const assistantTools = new Set(["get_profile", "list_groups", "get_group_members", "list_shift_plans", "get_shift_plan", "get_shift_request_overview", "get_work_records", "list_announcements", "group_dashboard", "get_assistant_message_queue_summary", "claim_next_assistant_message", "list_assistant_messages", "reply_assistant_message", "release_assistant_message", "defer_assistant_message", "complete_assistant_message", "create_shift_plan", "delete_draft_shift_plan", "update_slot_counts", "set_shift_assignments", "submit_work_record", "review_monthly_work", "create_announcement"]);
+const assistantTools = new Set(["get_profile", "list_groups", "get_group_members", "list_shift_plans", "get_shift_plan", "get_shift_request_overview", "get_work_records", "list_announcements", "group_dashboard", "get_assistant_message_queue_summary", "claim_next_assistant_message", "list_assistant_messages", "reply_assistant_message", "release_assistant_message", "defer_assistant_message", "complete_assistant_message", "create_shift_swap_announcement_draft", "create_shift_plan", "delete_draft_shift_plan", "update_slot_counts", "set_shift_assignments", "submit_work_record", "review_monthly_work", "create_announcement"]);
 const chunk = <T,>(items: T[], size: number) => {
   const chunks: T[][] = [];
   for (let index = 0; index < items.length; index += size) chunks.push(items.slice(index, index + size));
@@ -127,6 +128,7 @@ const tools = [
   { name: "release_assistant_message", description: "Return a currently claimed member message to the pending queue without replying. Use when it should be retried later.", inputSchema: { type: "object", required: ["groupId", "messageId", "claimId"], properties: { groupId: { type: "string" }, messageId: { type: "string" }, claimId: { type: "string" } } } },
   { name: "defer_assistant_message", description: "Mark a currently claimed member message as needs_review without replying. Use when a manager decision is needed.", inputSchema: { type: "object", required: ["groupId", "messageId", "claimId", "reason"], properties: { groupId: { type: "string" }, messageId: { type: "string" }, claimId: { type: "string" }, reason: { type: "string", maxLength: 500 } } } },
   { name: "complete_assistant_message", description: "Mark a currently claimed member message as processed without sending a reply. Use only when no member response is needed.", inputSchema: { type: "object", required: ["groupId", "messageId", "claimId", "reason"], properties: { groupId: { type: "string" }, messageId: { type: "string" }, claimId: { type: "string" }, reason: { type: "string", maxLength: 500 } } } },
+  { name: "create_shift_swap_announcement_draft", description: "For a currently claimed member request, create a manager-reviewable shift-swap announcement draft from exactly one of that member's published assignments. This never distributes an announcement. Supply slotId when the member has multiple eligible published assignments.", inputSchema: { type: "object", required: ["groupId", "messageId", "claimId"], properties: { groupId: { type: "string" }, messageId: { type: "string" }, claimId: { type: "string" }, slotId: { type: "string" } } } },
   { name: "mark_announcement_read", description: "Mark a group announcement as read.", inputSchema: { type: "object", required: ["announcementId"], properties: { announcementId: { type: "string" } } } },
   { name: "create_announcement", description: "Create a group announcement. Assistant calls require sourceMessageId and claimId from a currently claimed manager message plus announcement permission.", inputSchema: { type: "object", required: ["groupId", "title", "body"], properties: { groupId: { type: "string" }, title: { type: "string" }, body: { type: "string" }, confirm: { type: "boolean" }, sourceMessageId: { type: "string" }, claimId: { type: "string" } } } },
   { name: "reply_announcement", description: "Reply to a group announcement.", inputSchema: { type: "object", required: ["announcementId", "body"], properties: { announcementId: { type: "string" }, body: { type: "string" } } } },
@@ -184,7 +186,7 @@ export async function POST(request: Request) {
         (args as { status?: string }).status = "published";
       }
     }
-    if (identity.tokenType === "assistant" && ["reply_assistant_message", "release_assistant_message", "defer_assistant_message", "complete_assistant_message"].includes(name)) {
+    if (identity.tokenType === "assistant" && ["reply_assistant_message", "release_assistant_message", "defer_assistant_message", "complete_assistant_message", "create_shift_swap_announcement_draft"].includes(name)) {
       const now = new Date().toISOString();
       const [claimed] = await db.select({ id: assistantMessages.id }).from(assistantMessages).where(and(
         eq(assistantMessages.id, text(args.messageId)),
@@ -334,6 +336,44 @@ export async function POST(request: Request) {
         return rpc(payload.id, { message: claimed, contextMode: mode, claimId, claimExpiresAt });
       }
       return rpc(payload.id, { message: null });
+    }
+    if (name === "create_shift_swap_announcement_draft") {
+      if (identity.tokenType !== "assistant" || !identity.groupId) return rpcError(payload.id, "An assistant token is required.");
+      const groupId = text(args.groupId);
+      const restricted = assistantGroupError(identity, groupId);
+      if (restricted) return rpcError(payload.id, restricted);
+      if (!hasScope(identity, "assistant:reply") || !hasScope(identity, "shift:read")) return rpcError(payload.id, "Assistant token requires assistant:reply and shift:read scopes.");
+      const messageId = text(args.messageId);
+      const [source, existing] = await Promise.all([
+        db.select().from(assistantMessages).where(and(eq(assistantMessages.id, messageId), eq(assistantMessages.groupId, groupId), eq(assistantMessages.senderType, "member"))).limit(1),
+        db.select().from(assistantAnnouncementDrafts).where(eq(assistantAnnouncementDrafts.sourceMessageId, messageId)).limit(1),
+      ]);
+      if (!source[0]) return rpcError(payload.id, "Member message not found.");
+      if (existing[0]) return rpc(payload.id, { ok: true, duplicate: true, draft: existing[0] });
+      const sender = await membership(db, groupId, source[0].memberEmail);
+      if (!sender || sender.status !== "active" || editorRoles.has(sender.role)) return rpcError(payload.id, "Only an active member request can create a shift-swap draft.");
+      const plans = await db.select().from(shiftPlans).where(and(eq(shiftPlans.groupId, groupId), eq(shiftPlans.status, "published")));
+      const slots = plans.length ? await db.select().from(shiftSlots).where(inArray(shiftSlots.planId, plans.map((plan) => plan.id))) : [];
+      const slotIds = slots.map((slot) => slot.id);
+      const assignments = slotIds.length ? await db.select().from(shiftAssignments).where(and(inArray(shiftAssignments.slotId, slotIds), eq(shiftAssignments.userEmail, source[0].memberEmail))) : [];
+      const requestedSlotId = text(args.slotId);
+      const candidates = slots.filter((slot) => assignments.some((assignment) => assignment.slotId === slot.id) && (!requestedSlotId || slot.id === requestedSlotId));
+      if (candidates.length !== 1) {
+        await db.update(assistantMessages).set({ status: "needs_review", claimedAt: null, claimExpiresAt: null, claimId: null }).where(eq(assistantMessages.id, messageId));
+        await recordAudit({ groupId, userEmail: identity.email, action: "assistant.shift_swap_draft.defer", entityType: "assistantMessage", entityId: messageId, summary: "交代希望の対象シフトを自動特定できず管理者確認へ", details: { sourceMessageId: messageId, candidateSlotIds: candidates.map((slot) => slot.id) } });
+        return rpc(payload.id, { ok: false, needsReview: true, reason: candidates.length ? "Multiple published shifts matched. Select one slotId." : "No published shift matched this member.", candidates: candidates.map((slot) => ({ id: slot.id, date: slot.date, startTime: slot.startTime, endTime: slot.endTime, role: slot.role })) });
+      }
+      const slot = candidates[0];
+      const role = slot.role || "勤務";
+      const title = `【交代募集】${slot.date.slice(5).replace("-", "/")} ${slot.startTime}〜${slot.endTime} ${role}`;
+      const body = `${slot.date} ${slot.startTime}〜${slot.endTime} の${role}で、交代可能な方を募集しています。\n対応可能な方は管理者へご連絡ください。`;
+      const draft = { id: crypto.randomUUID(), groupId, sourceMessageId: messageId, requesterEmail: source[0].memberEmail, slotId: slot.id, date: slot.date, startTime: slot.startTime, endTime: slot.endTime, role: slot.role, title, body, createdBy: identity.email };
+      await db.batch([
+        db.insert(assistantAnnouncementDrafts).values(draft),
+        db.update(assistantMessages).set({ status: "needs_review", claimedAt: null, claimExpiresAt: null, claimId: null }).where(eq(assistantMessages.id, messageId)),
+      ]);
+      await recordAudit({ groupId, userEmail: identity.email, action: "assistant.shift_swap_draft.create", entityType: "assistantAnnouncementDraft", entityId: draft.id, summary: "交代希望から管理者確認用のお知らせ案を作成", details: { sourceMessageId: messageId, slotId: slot.id, requesterEmail: source[0].memberEmail } });
+      return rpc(payload.id, { ok: true, draft: { ...draft, status: "needs_review" } });
     }
     if (name === "list_assistant_messages") { const groupId = text(args.groupId); const restricted = assistantGroupError(identity, groupId); if (restricted) return rpcError(payload.id, restricted); if (identity.tokenType === "assistant" && !hasScope(identity, "assistant:read")) return rpcError(payload.id, "Assistant token scope does not allow assistant reads."); const self = await membership(db, groupId, identity.email); if (!self) return rpcError(payload.id, "Group membership required"); const manager = editorRoles.has(self.role); const memberEmail = manager ? text(args.memberEmail) : identity.email; const filters = [eq(assistantMessages.groupId, groupId)]; if (memberEmail) filters.push(eq(assistantMessages.memberEmail, memberEmail)); const requestedStatus = text(args.status); if (["pending", "processing", "processed", "failed", "needs_review"].includes(requestedStatus)) filters.push(eq(assistantMessages.status, requestedStatus as "pending" | "processing" | "processed" | "failed" | "needs_review")); const limit = Math.min(Math.max(Number(args.limit) || 100, 1), 500); const [assistant, messages] = await Promise.all([db.select().from(groupAssistants).where(eq(groupAssistants.groupId, groupId)).limit(1), db.select().from(assistantMessages).where(and(...filters)).orderBy(desc(assistantMessages.createdAt)).limit(limit)]); return rpc(payload.id, { assistant: assistant[0] ?? null, messages, manager, filter: { memberEmail: memberEmail || null, status: requestedStatus || null }, count: messages.length }); }
     if (name === "reply_assistant_message") { const groupId = text(args.groupId); const restricted = assistantGroupError(identity, groupId); if (restricted) return rpcError(payload.id, restricted); if (identity.tokenType === "assistant" && !hasScope(identity, "assistant:reply")) return rpcError(payload.id, "Assistant token scope does not allow assistant replies."); const self = await membership(db, groupId, identity.email); if (!self || !editorRoles.has(self.role)) return rpcError(payload.id, "Editor membership required"); const messageId = text(args.messageId); const replyBody = text(args.body).slice(0, 2000); if (!replyBody) return rpcError(payload.id, "body is required"); const [target] = await db.select().from(assistantMessages).where(and(eq(assistantMessages.id, messageId), eq(assistantMessages.groupId, groupId), eq(assistantMessages.senderType, "member"))).limit(1); if (!target) return rpcError(payload.id, "Assistant message not found"); const replyId = crypto.randomUUID(); await db.batch([db.update(assistantMessages).set({ status: "processed", claimedAt: null, claimExpiresAt: null, claimId: null }).where(eq(assistantMessages.id, target.id)), db.insert(assistantMessages).values({ id: replyId, groupId, memberEmail: target.memberEmail, senderType: "assistant", senderEmail: identity.email, body: replyBody, status: "processed" })]); await recordAudit({ groupId, userEmail: identity.email, action: "assistant.reply", entityType: "assistantMessage", entityId: replyId, summary: `MCPでKINBANアシスタントとして返信: ${target.memberEmail}`, details: { source: "mcp", replyToMessageId: target.id } }); return rpc(payload.id, { ok: true, replyId, replyToMessageId: target.id, memberEmail: target.memberEmail }); }

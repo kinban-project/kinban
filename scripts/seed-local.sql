@@ -8,6 +8,7 @@ DELETE FROM work_records;
 DELETE FROM mcp_confirmations;
 DELETE FROM assistant_contexts;
 DELETE FROM assistant_message_executions;
+DELETE FROM assistant_announcement_drafts;
 DELETE FROM assistant_messages;
 DELETE FROM group_assistants;
 DELETE FROM audit_logs;
