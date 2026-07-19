@@ -86,6 +86,18 @@ export const assistantMessages = sqliteTable("assistant_messages", {
     .default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const assistantContexts = sqliteTable("assistant_contexts", {
+  id: text("id").primaryKey(),
+  tokenHash: text("token_hash").notNull().unique(),
+  groupId: text("group_id").notNull(),
+  mode: text("mode", { enum: ["member", "operations"] }).notNull(),
+  memberEmail: text("member_email"),
+  messageId: text("message_id"),
+  issuedBy: text("issued_by").notNull(),
+  expiresAt: text("expires_at").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const groupPreferences = sqliteTable("group_preferences", {
   id: text("id").primaryKey(),
   groupId: text("group_id").notNull(),

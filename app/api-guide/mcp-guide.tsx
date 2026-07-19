@@ -48,6 +48,12 @@ export default function McpGuide() {
         </p>
       </div>
       <div className="guide-warning">
+        <strong>Execution context is required for assistant group reads</strong>
+        <p>
+          Member chat responses include a short-lived <code>contextToken</code> bound to that member and message. Manager operations must first request <code>POST /api/groups/&lt;groupId&gt;/assistant/contexts</code>. MCP rejects group member, work record, announcement, dashboard, and assistant-message reads without a valid context. Member contexts cannot select another member and work records are returned without manager-only fields.
+        </p>
+      </div>
+      <div className="guide-warning">
         <strong>運営支援AIは専用キーを使用してください</strong>
         <p>
           グループ管理者は <code>POST /api/groups/&lt;groupId&gt;/assistant/access</code> から、対象グループだけに制限された運営支援AIキーを発行できます。
