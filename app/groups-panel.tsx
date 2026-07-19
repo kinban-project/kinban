@@ -15,7 +15,16 @@ type Group = {
 type MemberPreference = { minDays: number; maxDays: number; minHours: number; maxHours: number; freeComment?: string | null };
 type Availability = { dayOfWeek: number; status: string; startTime: string; endTime: string };
 type Member = { userEmail: string; displayName?: string | null; adminNote?: string | null; role: string; status: "active" | "inactive"; showInPersonal: boolean; preference?: MemberPreference | null; availability?: Availability[] };
-type Assistant = { displayName: string; role: "editor"; status: "active" | "inactive" };
+type Assistant = {
+  displayName: string;
+  role: "editor";
+  status: "active" | "inactive";
+  canCreateShifts: boolean;
+  canPublishShifts: boolean;
+  canReviewDailyWork: boolean;
+  canReviewMonthlyWork: boolean;
+  canCreateAnnouncements: boolean;
+};
 type GroupDetail = { currentEmail: string; group: Group; membership: { role: string; showInPersonal: boolean }; members: Member[]; requests: Array<{ id: string; userEmail: string; status: string }>; assistant: Assistant | null };
 
 const weekdayLabels = ["日", "月", "火", "水", "木", "金", "土"];
@@ -83,6 +92,14 @@ export default function GroupsPanel({ onChanged, initialGroupId }: { onChanged: 
     setNotice(response.ok ? `KINBANアシスタントを${inactive ? "停止" : "再開"}しました` : "KINBANアシスタントの状態を変更できませんでした");
     if (response.ok) await openGroup(selected.group);
   }
+  async function updateAssistantPermissions(patch: Partial<Pick<Assistant, "canCreateShifts" | "canPublishShifts" | "canReviewDailyWork" | "canReviewMonthlyWork" | "canCreateAnnouncements">>) {
+    if (!selected?.assistant) return;
+    const response = await localApiFetch(`/api/groups/${selected.group.id}/assistant`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ permissions: patch }) });
+    const data = await response.json().catch(() => ({})) as { assistant?: Assistant; error?: string };
+    if (!response.ok || !data.assistant) { setNotice(data.error ?? "AIアシスタントの権限を変更できませんでした"); return; }
+    setSelected((current) => current ? { ...current, assistant: data.assistant } : current);
+    setNotice("AIアシスタントの実行権限を更新しました");
+  }
   async function removeMember(member: Member) {
     if (!window.confirm(`「${member.displayName?.trim() || member.userEmail}」をメンバーから完全に削除しますか？\n基本設定・勤務希望も削除され、元に戻せません。`)) return;
     if (!selected) return;
@@ -128,7 +145,14 @@ export default function GroupsPanel({ onChanged, initialGroupId }: { onChanged: 
       </article>)}</div>
       {selected.assistant && <><h4>運営支援AI</h4><article className={`member-card assistant-member-card ${selected.assistant.status === "inactive" ? "is-inactive" : ""}`}>
         <div className="member-card-head"><div><strong>{selected.assistant.displayName}</strong><small>システムメンバー・シフト割当対象外</small></div><div className="member-card-badges"><span className="member-role-badge">管理者</span>{selected.assistant.status === "inactive" && <span className="member-status-badge inactive">利用停止</span>}</div></div>
-        <p className="assistant-member-description">メンバーからのシフト・勤怠相談を受け付けます。AIが接続されていない間もメッセージは保持されます。</p>
+        <p className="assistant-member-description">メンバーからのシフト・勤怠相談を受け付けます。管理者が送った指示だけ、下で有効にした操作を実行できます。</p>
+        {isAdmin && <fieldset className="assistant-permissions"><legend>管理者メッセージから実行できる操作</legend>{([
+          ["canCreateShifts", "シフト作成（割当下書きを含む）"],
+          ["canPublishShifts", "シフト公開"],
+          ["canReviewDailyWork", "勤怠承認／差戻し（日次）"],
+          ["canReviewMonthlyWork", "勤怠承認／差戻し（月次）"],
+          ["canCreateAnnouncements", "お知らせ配信"],
+        ] as const).map(([key, label]) => <label key={key}><input type="checkbox" checked={selected.assistant[key]} onChange={(event) => void updateAssistantPermissions({ [key]: event.target.checked })} />{label}</label>)}</fieldset>}
         {isAdmin && <div className="member-admin-actions"><button className="small-action" onClick={() => void changeAssistantStatus()}>{selected.assistant.status === "inactive" ? "再開" : "利用停止"}</button></div>}
       </article></>}
       {selected.assistant && isAdmin && <AssistantAccessPanel groupId={selected.group.id} />}

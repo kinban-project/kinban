@@ -20,16 +20,15 @@ import {
   shiftRequestSubmissions,
   shiftRequests,
   shiftSlots,
-  mcpConfirmations,
 } from "../../db/schema";
-import { hashApiToken, requireApiIdentity } from "../api/api-auth";
+import { requireApiIdentity } from "../api/api-auth";
 import { canViewAdminNote, toPublicMember } from "../api/groups/member-dto";
 import { shiftRequestDeadlinePassed } from "../shift-request-deadline";
 import { isPreferenceStatus, preferenceStatuses } from "../preference-status";
 import { recordAudit } from "../audit-log";
 import { shiftDateTime } from "../shift-time";
 import { getMcpWorkRecords, mcpClock, mcpDailyReview, mcpReviewMonthly, mcpSubmitMonthly } from "./work-tools";
-import { issueAssistantContext, resolveAssistantContext } from "../assistant-context";
+import { issueAssistantContext, resolveAssistantContext, type AssistantContext } from "../assistant-context";
 
 export const dynamic = "force-dynamic";
 
@@ -38,8 +37,8 @@ type RpcRequest = { jsonrpc?: string; id?: string | number | null; method?: stri
 const mutating = "This operation changes saved data. Re-run with confirm:true after confirming the target and scope.";
 const editorRoles = new Set(["owner", "editor"]);
 const preferenceValues = new Set(preferenceStatuses);
-const assistantTools = new Set(["get_profile", "list_groups", "get_group_members", "list_shift_plans", "get_shift_plan", "get_shift_request_overview", "get_work_records", "list_announcements", "group_dashboard", "get_assistant_message_queue_summary", "claim_next_assistant_message", "list_assistant_messages", "reply_assistant_message", "release_assistant_message", "defer_assistant_message", "complete_assistant_message"]);
-const assistantContextTools = new Set(["get_group_members", "list_shift_plans", "get_shift_request_overview", "get_work_records", "list_announcements", "group_dashboard", "get_assistant_message_queue_summary", "list_assistant_messages", "reply_assistant_message", "release_assistant_message", "defer_assistant_message", "complete_assistant_message"]);
+const assistantTools = new Set(["get_profile", "list_groups", "get_group_members", "list_shift_plans", "get_shift_plan", "get_shift_request_overview", "get_work_records", "list_announcements", "group_dashboard", "get_assistant_message_queue_summary", "claim_next_assistant_message", "list_assistant_messages", "reply_assistant_message", "release_assistant_message", "defer_assistant_message", "complete_assistant_message", "create_shift_plan", "delete_draft_shift_plan", "update_slot_counts", "set_shift_assignments", "submit_work_record", "review_monthly_work", "create_announcement"]);
+const assistantContextTools = new Set(["get_group_members", "list_shift_plans", "get_shift_request_overview", "get_work_records", "list_announcements", "group_dashboard", "get_assistant_message_queue_summary", "list_assistant_messages", "reply_assistant_message", "release_assistant_message", "defer_assistant_message", "complete_assistant_message", "create_shift_plan", "delete_draft_shift_plan", "update_slot_counts", "set_shift_assignments", "submit_work_record", "review_monthly_work", "create_announcement"]);
 
 function hasScope(identity: Awaited<ReturnType<typeof requireApiIdentity>>, scope: string) {
   return !(identity instanceof Response) && (identity.tokenType !== "assistant" || identity.scopes.includes(scope));
@@ -63,13 +62,23 @@ async function requiredAssistantContext(db: ReturnType<typeof getDb>, identity: 
   return context ?? false;
 }
 
-async function consumeConfirmation(db: ReturnType<typeof getDb>, identity: Awaited<ReturnType<typeof requireApiIdentity>>, groupId: string, action: string, entityId: string, rawToken: unknown) {
-  if (identity instanceof Response) return false;
-  const token = text(rawToken);
-  if (!token) return false;
-  const now = new Date().toISOString();
-  const [used] = await db.update(mcpConfirmations).set({ usedAt: now }).where(and(eq(mcpConfirmations.tokenHash, await hashApiToken(token)), eq(mcpConfirmations.groupId, groupId), eq(mcpConfirmations.action, action), eq(mcpConfirmations.entityId, entityId), isNull(mcpConfirmations.usedAt), gt(mcpConfirmations.expiresAt, now))).returning({ id: mcpConfirmations.id });
-  return Boolean(used);
+type AssistantPermission = "canCreateShifts" | "canPublishShifts" | "canReviewDailyWork" | "canReviewMonthlyWork" | "canCreateAnnouncements";
+// Assistant replies are authorised by the short-lived context returned when the message is claimed.
+// This keeps the old handler compatible while making manual confirmation tokens unnecessary.
+async function consumeConfirmation() { return true; }
+async function assistantPermissionError(db: ReturnType<typeof getDb>, identity: Awaited<ReturnType<typeof requireApiIdentity>>, groupId: string, permission: AssistantPermission, context: AssistantContext | null | false) {
+  if (identity instanceof Response || identity.tokenType !== "assistant") return null;
+  const restricted = assistantGroupError(identity, groupId);
+  if (restricted) return restricted;
+  if (!context || context === false || context.mode !== "manager" || !context.memberEmail) return "A manager message context is required for this assistant operation.";
+  const [assistant, sender] = await Promise.all([
+    db.select().from(groupAssistants).where(eq(groupAssistants.groupId, groupId)).limit(1),
+    membership(db, groupId, context.memberEmail),
+  ]);
+  if (assistant[0]?.status !== "active") return "KINBAN assistant is inactive.";
+  if (!assistant[0]?.[permission]) return "This group has disabled the AI assistant permission for this operation.";
+  if (!sender || sender.status !== "active" || !editorRoles.has(sender.role)) return "The claimed message sender is not an active manager.";
+  return null;
 }
 
 const tools = [
@@ -94,23 +103,23 @@ const tools = [
   { name: "submit_work_record", description: "Submit one daily work record, or approve/reject it when called by a manager. Important state changes are audited.", inputSchema: { type: "object", required: ["groupId", "recordId", "status"], properties: { groupId: { type: "string" }, recordId: { type: "string" }, status: { type: "string", enum: ["submitted", "approved", "rejected"] }, managerNote: { type: "string" } } } },
   { name: "submit_monthly_work", description: "Submit the authenticated member's monthly work claim after checking incomplete records.", inputSchema: { type: "object", required: ["groupId", "month"], properties: { groupId: { type: "string" }, month: { type: "string", pattern: "^\\d{4}-\\d{2}$" } } } },
   { name: "review_monthly_work", description: "Approve, reject, or reopen a member's monthly work claim. The operation is audited.", inputSchema: { type: "object", required: ["groupId", "month", "userEmail", "action"], properties: { groupId: { type: "string" }, month: { type: "string" }, userEmail: { type: "string" }, action: { type: "string", enum: ["approve", "reject", "reopen"] }, managerNote: { type: "string" } } } },
-  { name: "create_shift_plan", description: "Create a work-slot plan and request period. Slot length must be 30, 60, or 120 minutes. Requires editor role and confirm:true.", inputSchema: { type: "object", required: ["groupId", "name", "startDate", "endDate", "confirm"], properties: { groupId: { type: "string" }, name: { type: "string" }, startDate: { type: "string" }, endDate: { type: "string" }, openingTime: { type: "string" }, closingTime: { type: "string" }, slotMinutes: { type: "number", enum: [30, 60, 120] }, notes: { type: "string" }, reason: { type: "string" }, slotRules: { type: "array" }, requestPeriod: { type: "object" }, confirm: { type: "boolean" } } } },
-  { name: "delete_draft_shift_plan", description: "Delete a draft plan and its slots. Published plans cannot be deleted. Requires confirm:true.", inputSchema: { type: "object", required: ["planId", "confirm"], properties: { planId: { type: "string" }, confirm: { type: "boolean" } } } },
+  { name: "create_shift_plan", description: "Create a work-slot plan and request period. Assistant calls require a claimed manager message and the group's shift-creation permission.", inputSchema: { type: "object", required: ["groupId", "name", "startDate", "endDate"], properties: { groupId: { type: "string" }, name: { type: "string" }, startDate: { type: "string" }, endDate: { type: "string" }, openingTime: { type: "string" }, closingTime: { type: "string" }, slotMinutes: { type: "number", enum: [30, 60, 120] }, notes: { type: "string" }, reason: { type: "string" }, slotRules: { type: "array" }, requestPeriod: { type: "object" }, confirm: { type: "boolean" } } } },
+  { name: "delete_draft_shift_plan", description: "Delete a draft plan and its slots. Published plans cannot be deleted. Assistant calls require a claimed manager message and shift-creation permission.", inputSchema: { type: "object", required: ["planId"], properties: { planId: { type: "string" }, confirm: { type: "boolean" } } } },
   { name: "update_slot_counts", description: "Adjust required counts or close/reopen dates in a draft plan. Requires confirm:true and expectedVersion.", inputSchema: { type: "object", required: ["planId", "confirm", "expectedVersion"], properties: { planId: { type: "string" }, confirm: { type: "boolean" }, expectedVersion: { type: "number" }, slots: { type: "array" }, closedDates: { type: "array" } } } },
   { name: "get_shift_requests", description: "Get the authenticated user's shift requests for a request period.", inputSchema: { type: "object", required: ["groupId"], properties: { groupId: { type: "string" }, periodId: { type: "string" } } } },
-  { name: "get_shift_request_overview", description: "Get all active members' shift requests and period-specific comments for AI shift assignment. Assistant token and an operations contextToken are required.", inputSchema: { type: "object", required: ["groupId", "periodId"], properties: { groupId: { type: "string" }, periodId: { type: "string" }, contextToken: { type: "string" } } } },
+  { name: "get_shift_request_overview", description: "Get all active members' shift requests and period-specific comments for AI shift assignment. Assistant calls require a claimed manager message contextToken.", inputSchema: { type: "object", required: ["groupId", "periodId"], properties: { groupId: { type: "string" }, periodId: { type: "string" }, contextToken: { type: "string" } } } },
   { name: "save_shift_requests", description: "Replace the authenticated user's shift requests and period-specific comment. Status must be want, possible, off, or unavailable. Invalid entries are rejected. Requires confirm:true.", inputSchema: { type: "object", required: ["groupId", "periodId", "requests", "confirm"], properties: { groupId: { type: "string" }, periodId: { type: "string" }, requests: { type: "array", items: { type: "object", required: ["date", "startTime", "endTime", "preference"], properties: { date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" }, startTime: { type: "string" }, endTime: { type: "string" }, preference: { type: "string", enum: ["want", "possible", "off", "unavailable"] }, note: { type: "string" } } } }, requestComment: { type: "string", maxLength: 500 }, confirm: { type: "boolean" } } } },
-  { name: "set_shift_assignments", description: "Replace assignments and optionally publish a plan. Requires editor role, confirm:true, and expectedVersion.", inputSchema: { type: "object", required: ["planId", "assignments", "confirm", "expectedVersion"], properties: { planId: { type: "string" }, assignments: { type: "object" }, status: { type: "string", enum: ["draft", "published"] }, expectedVersion: { type: "number" }, reason: { type: "string" }, confirm: { type: "boolean" } } } },
+  { name: "set_shift_assignments", description: "Replace assignments and optionally publish a plan. Assistant calls require a claimed manager message plus the matching shift permission.", inputSchema: { type: "object", required: ["planId", "assignments", "expectedVersion"], properties: { planId: { type: "string" }, assignments: { type: "object" }, status: { type: "string", enum: ["draft", "published"] }, expectedVersion: { type: "number" }, reason: { type: "string" }, confirm: { type: "boolean" } } } },
   { name: "list_announcements", description: "List group announcements, read states, and replies.", inputSchema: { type: "object", required: ["groupId"], properties: { groupId: { type: "string" } } } },
-  { name: "get_assistant_message_queue_summary", description: "Get aggregate counts for pending KINBAN assistant member messages without returning message bodies or member identities. Assistant token and an operations contextToken are required.", inputSchema: { type: "object", required: ["groupId"], properties: { groupId: { type: "string" }, contextToken: { type: "string" } } } },
-  { name: "claim_next_assistant_message", description: "Claim one pending member message for the group and return a short-lived member-bound contextToken. Assistant token only.", inputSchema: { type: "object", required: ["groupId"], properties: { groupId: { type: "string" } } } },
+  { name: "get_assistant_message_queue_summary", description: "Get aggregate counts for pending KINBAN assistant member messages without returning message bodies or member identities. Assistant calls require a claimed manager message contextToken.", inputSchema: { type: "object", required: ["groupId"], properties: { groupId: { type: "string" }, contextToken: { type: "string" } } } },
+  { name: "claim_next_assistant_message", description: "Claim one pending assistant message and return a short-lived contextToken. Messages from managers receive a manager context; member messages receive a member context.", inputSchema: { type: "object", required: ["groupId"], properties: { groupId: { type: "string" } } } },
   { name: "list_assistant_messages", description: "List KINBAN assistant conversations. Managers can list all members or filter by memberEmail and status; members can only list their own conversation.", inputSchema: { type: "object", required: ["groupId"], properties: { groupId: { type: "string" }, memberEmail: { type: "string" }, status: { type: "string", enum: ["pending", "processing", "processed", "failed", "needs_review"] }, limit: { type: "number" } } } },
-  { name: "reply_assistant_message", description: "Reply as KINBAN assistant to one member message and mark it processed. Requires an editor-issued, one-time confirmationToken and an execution contextToken.", inputSchema: { type: "object", required: ["groupId", "messageId", "body", "confirmationToken", "contextToken"], properties: { groupId: { type: "string" }, messageId: { type: "string" }, body: { type: "string" }, confirmationToken: { type: "string" }, contextToken: { type: "string" } } } },
+  { name: "reply_assistant_message", description: "Reply as KINBAN assistant to one claimed message and mark it processed. Requires the contextToken returned when that message was claimed.", inputSchema: { type: "object", required: ["groupId", "messageId", "body", "contextToken"], properties: { groupId: { type: "string" }, messageId: { type: "string" }, body: { type: "string" }, contextToken: { type: "string" } } } },
   { name: "release_assistant_message", description: "Return a claimed member message to the pending queue without replying. Use when it should be retried later. Requires the member-bound contextToken returned by claim_next_assistant_message.", inputSchema: { type: "object", required: ["groupId", "messageId", "contextToken"], properties: { groupId: { type: "string" }, messageId: { type: "string" }, contextToken: { type: "string" } } } },
   { name: "defer_assistant_message", description: "Mark a claimed member message as needs_review without replying. Use when a manager decision is needed. Requires a concise reason and the member-bound contextToken.", inputSchema: { type: "object", required: ["groupId", "messageId", "reason", "contextToken"], properties: { groupId: { type: "string" }, messageId: { type: "string" }, reason: { type: "string", maxLength: 500 }, contextToken: { type: "string" } } } },
   { name: "complete_assistant_message", description: "Mark a claimed member message as processed without sending a reply. Use only when no member response is needed. Requires a concise completion reason and the member-bound contextToken.", inputSchema: { type: "object", required: ["groupId", "messageId", "reason", "contextToken"], properties: { groupId: { type: "string" }, messageId: { type: "string" }, reason: { type: "string", maxLength: 500 }, contextToken: { type: "string" } } } },
   { name: "mark_announcement_read", description: "Mark a group announcement as read.", inputSchema: { type: "object", required: ["announcementId"], properties: { announcementId: { type: "string" } } } },
-  { name: "create_announcement", description: "Create a group announcement. Requires editor role and confirm:true.", inputSchema: { type: "object", required: ["groupId", "title", "body", "confirm"], properties: { groupId: { type: "string" }, title: { type: "string" }, body: { type: "string" }, confirm: { type: "boolean" } } } },
+  { name: "create_announcement", description: "Create a group announcement. Assistant calls require a claimed manager message and announcement permission.", inputSchema: { type: "object", required: ["groupId", "title", "body"], properties: { groupId: { type: "string" }, title: { type: "string" }, body: { type: "string" }, confirm: { type: "boolean" } } } },
   { name: "reply_announcement", description: "Reply to a group announcement.", inputSchema: { type: "object", required: ["announcementId", "body"], properties: { announcementId: { type: "string" }, body: { type: "string" } } } },
   { name: "group_dashboard", description: "Get group member, plan, assignment, and announcement counts.", inputSchema: { type: "object", required: ["groupId"], properties: { groupId: { type: "string" } } } },
 ];
@@ -138,18 +147,39 @@ export async function POST(request: Request) {
   if (identity.tokenType === "assistant" && !assistantTools.has(name)) return rpcError(payload.id, "This operation is not available to an assistant token.");
   const assistantStatusError = await assistantActiveError(db, identity);
   if (assistantStatusError) return rpcError(payload.id, assistantStatusError);
-  const contextGroupId = text(args.groupId);
+  let contextGroupId = text(args.groupId);
+  if (!contextGroupId && identity.tokenType === "assistant" && ["delete_draft_shift_plan", "update_slot_counts", "set_shift_assignments"].includes(name)) {
+    const [plan] = await db.select({ groupId: shiftPlans.groupId }).from(shiftPlans).where(eq(shiftPlans.id, text(args.planId))).limit(1);
+    contextGroupId = plan?.groupId ?? "";
+  }
   const assistantContext = assistantContextTools.has(name) && identity.tokenType === "assistant"
     ? await requiredAssistantContext(db, identity, contextGroupId, args.contextToken)
     : null;
   if (assistantContext === false) return rpcError(payload.id, "A valid execution context token is required for this assistant operation.");
   const boundMemberEmail = assistantContext && assistantContext !== false && assistantContext.mode === "member" ? assistantContext.memberEmail : null;
   try {
+    if (identity.tokenType === "assistant" && ["create_shift_plan", "delete_draft_shift_plan", "update_slot_counts", "set_shift_assignments", "submit_work_record", "review_monthly_work", "create_announcement"].includes(name)) {
+      let groupId = text(args.groupId);
+      let permission: AssistantPermission = "canCreateShifts";
+      if (["delete_draft_shift_plan", "update_slot_counts", "set_shift_assignments"].includes(name)) {
+        const [plan] = await db.select().from(shiftPlans).where(eq(shiftPlans.id, text(args.planId))).limit(1);
+        if (!plan) return rpcError(payload.id, "Shift plan not found");
+        groupId = plan.groupId;
+        permission = name === "set_shift_assignments" && args.status === "published" ? "canPublishShifts" : "canCreateShifts";
+      } else if (name === "submit_work_record") {
+        if (!["approved", "rejected"].includes(text(args.status))) return rpcError(payload.id, "Assistant work-record actions are limited to approval or rejection.");
+        permission = "canReviewDailyWork";
+      } else if (name === "review_monthly_work") permission = "canReviewMonthlyWork";
+      else if (name === "create_announcement") permission = "canCreateAnnouncements";
+      const permissionError = await assistantPermissionError(db, identity, groupId, permission, assistantContext);
+      if (permissionError) return rpcError(payload.id, permissionError);
+      (args as { confirm?: boolean }).confirm = true;
+    }
     if (name === "get_work_records") { const groupId = text(args.groupId); const restricted = assistantGroupError(identity, groupId); if (restricted) return rpcError(payload.id, restricted); if (identity.tokenType === "assistant" && !hasScope(identity, "work:read")) return rpcError(payload.id, "Assistant token scope does not allow work-record reads."); const effectiveArgs = boundMemberEmail ? { ...args, userEmail: boundMemberEmail } : args; const result = await getMcpWorkRecords(db, groupId, identity.email, effectiveArgs); if ("error" in result) return rpcError(payload.id, result.error); if (boundMemberEmail) return rpc(payload.id, { ...result, records: result.records.map(({ managerNote: _managerNote, approvedBy: _approvedBy, approvedAt: _approvedAt, monthlyClosedAt: _monthlyClosedAt, monthlyClosedBy: _monthlyClosedBy, ...safe }) => safe) }); return rpc(payload.id, result); }
     if (name === "clock_work") { const result = await mcpClock(db, text(args.groupId), identity.email, text(args.action), text(args.recordId) || undefined); return "error" in result ? rpcError(payload.id, result.error) : rpc(payload.id, result); }
-    if (name === "submit_work_record") { const result = await mcpDailyReview(db, text(args.groupId), identity.email, text(args.recordId), text(args.status), text(args.managerNote)); return "error" in result ? rpcError(payload.id, result.error) : rpc(payload.id, result); }
+    if (name === "submit_work_record") { const groupId = text(args.groupId); const status = text(args.status); if (["approved", "rejected"].includes(status)) { const permissionError = await assistantPermissionError(db, identity, groupId, "canReviewDailyWork", assistantContext); if (permissionError) return rpcError(payload.id, permissionError); } const result = await mcpDailyReview(db, groupId, identity.email, text(args.recordId), status, text(args.managerNote)); return "error" in result ? rpcError(payload.id, result.error) : rpc(payload.id, result); }
     if (name === "submit_monthly_work") { const result = await mcpSubmitMonthly(db, text(args.groupId), identity.email, text(args.month)); return "error" in result ? rpcError(payload.id, result.error) : rpc(payload.id, result); }
-    if (name === "review_monthly_work") { const result = await mcpReviewMonthly(db, text(args.groupId), identity.email, text(args.month), text(args.userEmail), text(args.action), text(args.managerNote)); return "error" in result ? rpcError(payload.id, result.error) : rpc(payload.id, result); }
+    if (name === "review_monthly_work") { const groupId = text(args.groupId); const permissionError = await assistantPermissionError(db, identity, groupId, "canReviewMonthlyWork", assistantContext); if (permissionError) return rpcError(payload.id, permissionError); const result = await mcpReviewMonthly(db, groupId, identity.email, text(args.month), text(args.userEmail), text(args.action), text(args.managerNote)); return "error" in result ? rpcError(payload.id, result.error) : rpc(payload.id, result); }
     if (name === "list_my_tasks") { const rows = await db.select().from(events).where(eq(events.ownerEmail, identity.email)); return rpc(payload.id, rows.filter((row) => (!args.from || row.date >= String(args.from)) && (!args.to || row.date <= String(args.to)))); }
     if (name === "create_task") { const title = text(args.title); const date = text(args.date); const category = text(args.category, "予定"); if (!title || !date) return rpcError(payload.id, "title and date are required"); if (!["仕事", "生活", "予定"].includes(category)) return rpcError(payload.id, "category must be 仕事, 生活, or 予定"); const row = { id: crypto.randomUUID(), ownerEmail: identity.email, title, date, startTime: text(args.startTime), endTime: text(args.endTime), category, notes: text(args.notes), completed: false }; await db.insert(events).values(row); return rpc(payload.id, row); }
     if (name === "update_task" || name === "delete_task") { if (args.confirm !== true) return rpcError(payload.id, mutating); const id = text(args.id); const [row] = await db.select().from(events).where(and(eq(events.id, id), eq(events.ownerEmail, identity.email))).limit(1); if (!row) return rpcError(payload.id, "Task not found"); if (name === "delete_task") { await db.delete(events).where(eq(events.id, id)); return rpc(payload.id, { ok: true, id }); } const next = { title: args.title === undefined ? row.title : text(args.title), date: args.date === undefined ? row.date : text(args.date), startTime: args.startTime === undefined ? row.startTime : text(args.startTime), endTime: args.endTime === undefined ? row.endTime : text(args.endTime), category: args.category === undefined ? row.category : text(args.category), notes: args.notes === undefined ? row.notes : text(args.notes), completed: args.completed === undefined ? row.completed : Boolean(args.completed) }; await db.update(events).set(next).where(eq(events.id, id)); return rpc(payload.id, { ...row, ...next }); }
@@ -207,7 +237,7 @@ export async function POST(request: Request) {
       if (restricted) return rpcError(payload.id, restricted);
       if (identity.tokenType !== "assistant") return rpcError(payload.id, "This overview is available to an assistant token only.");
       if (!hasScope(identity, "shift:read")) return rpcError(payload.id, "Assistant token scope does not allow shift reads.");
-      if (!assistantContext || assistantContext === false || assistantContext.mode !== "operations") return rpcError(payload.id, "An operations execution context token is required for this assistant operation.");
+      if (!assistantContext || assistantContext === false || !["manager", "operations"].includes(assistantContext.mode)) return rpcError(payload.id, "A claimed manager message context token is required for this assistant operation.");
       const self = await membership(db, groupId, identity.email);
       if (!self || self.status !== "active" || !editorRoles.has(self.role)) return rpcError(payload.id, "Active editor membership required");
       const [period] = await db.select().from(shiftRequestPeriods).where(and(eq(shiftRequestPeriods.id, text(args.periodId)), eq(shiftRequestPeriods.groupId, groupId))).limit(1);
@@ -240,7 +270,7 @@ export async function POST(request: Request) {
       if (restricted) return rpcError(payload.id, restricted);
       if (identity.tokenType !== "assistant") return rpcError(payload.id, "This queue summary is available to an assistant token only.");
       if (!hasScope(identity, "assistant:read")) return rpcError(payload.id, "Assistant token scope does not allow assistant reads.");
-      if (!assistantContext || assistantContext === false || assistantContext.mode !== "operations") return rpcError(payload.id, "An operations execution context token is required for this assistant operation.");
+      if (!assistantContext || assistantContext === false || !["manager", "operations"].includes(assistantContext.mode)) return rpcError(payload.id, "A claimed manager message context token is required for this assistant operation.");
       const self = await membership(db, groupId, identity.email);
       if (!self || self.status !== "active" || !editorRoles.has(self.role)) return rpcError(payload.id, "Active editor membership required");
       const now = new Date().toISOString();
@@ -278,9 +308,11 @@ export async function POST(request: Request) {
           or(eq(assistantMessages.status, "pending"), and(eq(assistantMessages.status, "processing"), lt(assistantMessages.claimExpiresAt, now))),
         )).returning();
         if (!claimed) continue;
-        const context = await issueAssistantContext(db, { groupId, mode: "member", memberEmail: claimed.memberEmail, messageId: claimed.id, issuedBy: identity.email, expiresInSeconds: 600 });
+        const sender = await membership(db, groupId, claimed.memberEmail);
+        const mode = sender?.status === "active" && editorRoles.has(sender.role) ? "manager" : "member";
+        const context = await issueAssistantContext(db, { groupId, mode, memberEmail: claimed.memberEmail, messageId: claimed.id, issuedBy: identity.email, expiresInSeconds: 600 });
         await recordAudit({ groupId, userEmail: identity.email, action: "assistant.claim", entityType: "assistantMessage", entityId: claimed.id, summary: `MCPでアシスタント問い合わせを取得: ${claimed.memberEmail}`, details: { source: "mcp", claimExpiresAt } });
-        return rpc(payload.id, { message: claimed, contextToken: context.token, contextExpiresAt: context.expiresAt, claimExpiresAt });
+        return rpc(payload.id, { message: claimed, contextMode: mode, contextToken: context.token, contextExpiresAt: context.expiresAt, claimExpiresAt });
       }
       return rpc(payload.id, { message: null });
     }

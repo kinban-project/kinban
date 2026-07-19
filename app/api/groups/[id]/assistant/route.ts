@@ -57,10 +57,29 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const membership = await getMembership(id, user.email);
   if (!membership) return Response.json({ error: "このグループのメンバーではありません" }, { status: 403 });
   if (!isManager(membership.role)) return Response.json({ error: "管理者権限が必要です" }, { status: 403 });
-  const body = await request.json() as { status?: "active" | "inactive" };
-  if (body.status !== "active" && body.status !== "inactive") return Response.json({ error: "statusが不正です" }, { status: 400 });
+  const body = await request.json() as {
+    status?: "active" | "inactive";
+    permissions?: {
+      canCreateShifts?: boolean;
+      canPublishShifts?: boolean;
+      canReviewDailyWork?: boolean;
+      canReviewMonthlyWork?: boolean;
+      canCreateAnnouncements?: boolean;
+    };
+  };
+  const statusChanged = body.status === "active" || body.status === "inactive";
+  const permissions = body.permissions && typeof body.permissions === "object" ? body.permissions : null;
+  if (!statusChanged && !permissions) return Response.json({ error: "変更内容がありません" }, { status: 400 });
   const db = getDb();
-  await db.update(groupAssistants).set({ status: body.status }).where(eq(groupAssistants.groupId, id));
-  await recordAudit({ groupId: id, userEmail: user.email, action: "assistant.status", entityType: "groupAssistant", entityId: id, summary: `KINBANアシスタントを${body.status === "active" ? "再開" : "停止"}しました` });
-  return Response.json({ ok: true });
+  const values = {
+    ...(statusChanged ? { status: body.status } : {}),
+    ...(permissions && typeof permissions.canCreateShifts === "boolean" ? { canCreateShifts: permissions.canCreateShifts } : {}),
+    ...(permissions && typeof permissions.canPublishShifts === "boolean" ? { canPublishShifts: permissions.canPublishShifts } : {}),
+    ...(permissions && typeof permissions.canReviewDailyWork === "boolean" ? { canReviewDailyWork: permissions.canReviewDailyWork } : {}),
+    ...(permissions && typeof permissions.canReviewMonthlyWork === "boolean" ? { canReviewMonthlyWork: permissions.canReviewMonthlyWork } : {}),
+    ...(permissions && typeof permissions.canCreateAnnouncements === "boolean" ? { canCreateAnnouncements: permissions.canCreateAnnouncements } : {}),
+  };
+  const [assistant] = await db.update(groupAssistants).set(values).where(eq(groupAssistants.groupId, id)).returning();
+  await recordAudit({ groupId: id, userEmail: user.email, action: statusChanged ? "assistant.status" : "assistant.permissions", entityType: "groupAssistant", entityId: id, summary: statusChanged ? `KINBANアシスタントを${body.status === "active" ? "再開" : "停止"}しました` : "KINBANアシスタントの実行権限を変更しました", details: permissions ?? {} });
+  return Response.json({ ok: true, assistant });
 }

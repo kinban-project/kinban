@@ -64,6 +64,21 @@ export const groupAssistants = sqliteTable("group_assistants", {
   status: text("status", { enum: ["active", "inactive"] })
     .notNull()
     .default("active"),
+  canCreateShifts: integer("can_create_shifts", { mode: "boolean" })
+    .notNull()
+    .default(true),
+  canPublishShifts: integer("can_publish_shifts", { mode: "boolean" })
+    .notNull()
+    .default(true),
+  canReviewDailyWork: integer("can_review_daily_work", { mode: "boolean" })
+    .notNull()
+    .default(true),
+  canReviewMonthlyWork: integer("can_review_monthly_work", { mode: "boolean" })
+    .notNull()
+    .default(false),
+  canCreateAnnouncements: integer("can_create_announcements", { mode: "boolean" })
+    .notNull()
+    .default(true),
   createdAt: text("created_at")
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),

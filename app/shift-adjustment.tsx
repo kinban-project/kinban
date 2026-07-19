@@ -447,7 +447,19 @@ export default function ShiftAdjustment({
               )}
             </div>
           )}
-          {viewMode === "preview" ? (
+          {viewMode === "preview" && (
+            <div className="assignment-preview-wrap">
+              <table className="assignment-preview-table">
+                <thead><tr><th>日付</th>{timeColumns.map((time) => <th key={`${time.startTime}|${time.endTime}`}>{displayShiftTime(time.startTime)}<small>{displayShiftTime(time.endTime)}</small></th>)}</tr></thead>
+                <tbody>{dates.map((date) => <tr key={date}><th>{date}</th>{timeColumns.map((time) => <td key={`${date}|${time.startTime}|${time.endTime}`}>{detail.slots.filter((slot) => slot.date === date && slot.startTime === time.startTime && slot.endTime === time.endTime).map((slot) => {
+                  const names = [...new Set(assignments[slot.id] ?? [])].map((email) => detail.members.find((member) => member.userEmail === email)?.displayName || email.split("@")[0]);
+                  const assignedCount = names.length;
+                  return <div className={`assignment-preview-slot ${assignedCount < slot.requiredCount ? "is-shortage" : ""} ${assignedCount > slot.requiredCount ? "is-excess" : ""}`} key={slot.id}><div><strong>{slot.role || "共通"}</strong><span>{assignedCount}/{slot.requiredCount}人</span></div><p>{names.length ? names.join("、") : "未割当"}</p></div>;
+                })}</td>)}</tr>)}</tbody>
+              </table>
+            </div>
+          )}
+          {viewMode === ("legacy-preview" as unknown as typeof viewMode) ? (
             <div className="assignment-preview-wrap">
               <table className="assignment-preview-table">
                 <thead>

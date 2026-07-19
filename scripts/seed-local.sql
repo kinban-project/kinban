@@ -46,8 +46,8 @@ INSERT INTO groups (id, name, description, owner_email) VALUES
 
 -- Local seed only. The raw key is documented in kinban-manager-agent/.env.example.
 -- Do not use this key outside the local development database.
-INSERT INTO group_assistants (group_id, display_name, role, status) VALUES
-  ('seed-group-store', 'KINBANアシスタント', 'editor', 'active');
+INSERT INTO group_assistants (group_id, display_name, role, status, can_create_shifts, can_publish_shifts, can_review_daily_work, can_review_monthly_work, can_create_announcements) VALUES
+  ('seed-group-store', 'KINBANアシスタント', 'editor', 'active', true, true, true, false, true);
 
 INSERT INTO api_tokens (id, owner_email, name, token_type, group_id, scopes, token_hash, token_prefix) VALUES
   ('seed-token-assistant-local', 'tanaka@local.test', 'ローカルシード用 運営支援AIキー', 'assistant', 'seed-group-store',

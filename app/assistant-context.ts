@@ -11,7 +11,7 @@ export async function issueAssistantContext(
   db: Db,
   input: {
     groupId: string;
-    mode: "member" | "operations";
+    mode: "member" | "manager" | "operations";
     memberEmail?: string;
     messageId?: string;
     issuedBy: string;
