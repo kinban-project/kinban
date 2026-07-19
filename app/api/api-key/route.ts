@@ -19,7 +19,7 @@ export async function POST(request: Request) {
   if (!user) return unauthorized();
   const payload = await request.json().catch(() => ({})) as { name?: string };
   const raw = `md_${crypto.randomUUID().replaceAll("-", "")}${crypto.randomUUID().replaceAll("-", "")}`;
-  const token = { id: crypto.randomUUID(), ownerEmail: user.email, name: payload.name?.trim() || "My Day API key", tokenHash: await hashApiToken(raw), tokenPrefix: raw.slice(0, 11) };
+  const token = { id: crypto.randomUUID(), ownerEmail: user.email, name: payload.name?.trim() || "KINBAN API key", tokenHash: await hashApiToken(raw), tokenPrefix: raw.slice(0, 11) };
   await getDb().insert(apiTokens).values(token);
   return Response.json({ key: raw, id: token.id, name: token.name, tokenPrefix: token.tokenPrefix }, { status: 201 });
 }

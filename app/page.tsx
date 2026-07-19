@@ -391,9 +391,9 @@ export default function Home() {
       )}
       <header className="topbar">
         <div className="brand">
-          <span className="brand-mark">◒</span>
-          <span>My Day</span>
-          <span className="brand-pill">PRIVATE CALENDAR</span>
+          <img className="brand-mark" src="/kinban-mark.png" alt="" />
+          <span>勤番 <small className="brand-latin">KINBAN</small></span>
+          <span className="brand-pill">シフト、勤怠管理をひとつに。</span>
         </div>
         <div className="top-actions">
           <details className="demo-notice">
@@ -1055,7 +1055,7 @@ export default function Home() {
             <div className="modal-head">
               <div>
                 <p className="eyebrow">ACCOUNT</p>
-                <h2>あなたのMy Day</h2>
+                <h2>あなたの勤番</h2>
               </div>
               <button
                 className="close-button"
