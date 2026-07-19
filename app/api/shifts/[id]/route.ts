@@ -75,6 +75,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const membership = await getMembership(plan.groupId, user.email);
   if (!membership || (membership.role !== "owner" && membership.role !== "editor")) return Response.json({ error: "シフト編集にはグループの編集権限が必要です" }, { status: 403 });
   const body = await request.json() as { action?: "start-requests"; requestCloseDate?: string; reason?: string; expectedVersion?: number; layout?: { notes?: string; slots?: Array<{ id?: string; date: string; startTime: string; endTime: string; requiredCount: number; role?: string }>; closedDates?: string[] }; assignments?: Record<string, string[]>; status?: "draft" | "published" };
+  if (plan.status === "published" && body.status === "draft")
+    return Response.json({ error: "公開済みのシフトを下書きへ戻すことはできません" }, { status: 409 });
   if (body.expectedVersion !== undefined && body.expectedVersion !== plan.version)
     return Response.json({ error: "このシフトは別の管理者によって更新されています。最新状態を読み直してから再度保存してください。", conflict: true, latestVersion: plan.version, latestPlan: plan }, { status: 409 });
   const expectedVersion = body.expectedVersion;

@@ -144,7 +144,7 @@ export async function POST(request: Request) {
         const [plan] = await db.select().from(shiftPlans).where(eq(shiftPlans.id, text(args.planId))).limit(1);
         if (!plan) return rpcError(payload.id, "Shift plan not found");
         groupId = plan.groupId;
-        permission = name === "set_shift_assignments" && args.status === "published" ? "canPublishShifts" : "canCreateShifts";
+        permission = name === "set_shift_assignments" && (plan.status === "published" || args.status === "published") ? "canPublishShifts" : "canCreateShifts";
       } else if (name === "submit_work_record") {
         if (!["approved", "rejected"].includes(text(args.status))) return rpcError(payload.id, "Assistant work-record actions are limited to approval or rejection.");
         permission = "canReviewDailyWork";
@@ -153,6 +153,13 @@ export async function POST(request: Request) {
       const permissionError = await assistantPermissionError(db, identity, groupId, permission, args.sourceMessageId);
       if (permissionError) return rpcError(payload.id, permissionError);
       (args as { confirm?: boolean }).confirm = true;
+    }
+    if (name === "set_shift_assignments") {
+      const [targetPlan] = await db.select().from(shiftPlans).where(eq(shiftPlans.id, text(args.planId))).limit(1);
+      if (targetPlan?.status === "published") {
+        if (args.status === "draft") return rpcError(payload.id, "Published shift plans cannot be returned to draft");
+        (args as { status?: string }).status = "published";
+      }
     }
     if (name === "get_work_records") { const groupId = text(args.groupId); const restricted = assistantGroupError(identity, groupId); if (restricted) return rpcError(payload.id, restricted); if (identity.tokenType === "assistant" && !hasScope(identity, "work:read")) return rpcError(payload.id, "Assistant token scope does not allow work-record reads."); const result = await getMcpWorkRecords(db, groupId, identity.email, args); return "error" in result ? rpcError(payload.id, result.error) : rpc(payload.id, result); }
     if (name === "clock_work") { const result = await mcpClock(db, text(args.groupId), identity.email, text(args.action), text(args.recordId) || undefined); return "error" in result ? rpcError(payload.id, result.error) : rpc(payload.id, result); }
