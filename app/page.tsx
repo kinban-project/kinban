@@ -170,6 +170,7 @@ export default function Home() {
   const [cursor, setCursor] = useState(
     new Date(today.getFullYear(), today.getMonth(), 1),
   );
+  const [homeView, setHomeView] = useState<"today" | "month">("today");
   const [selectedDate, setSelectedDate] = useState(todayKey);
   const [events, setEvents] = useState<EventItem[]>(demoEvents);
   const [groups, setGroups] = useState<GroupMembership[]>([]);
@@ -530,7 +531,27 @@ export default function Home() {
           ＋ 予定を追加
         </button>
       </section>
-      <section className="dashboard">
+      <div className="mobile-home-tabs" aria-label="ホーム表示">
+        <button
+          type="button"
+          className={homeView === "today" ? "active" : ""}
+          onClick={() => {
+            setHomeView("today");
+            setSelectedDate(todayKey);
+            setCursor(new Date(today.getFullYear(), today.getMonth(), 1));
+          }}
+        >
+          今日
+        </button>
+        <button
+          type="button"
+          className={homeView === "month" ? "active" : ""}
+          onClick={() => setHomeView("month")}
+        >
+          月
+        </button>
+      </div>
+      <section className={`dashboard mobile-home-${homeView}`}>
         <div className="calendar-card">
           <div className="calendar-head">
             <div>
