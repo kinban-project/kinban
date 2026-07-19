@@ -33,7 +33,7 @@ export default function AssistantAccessPanel({ groupId }: { groupId: string }) {
 
   return <div className="assistant-access-panel">
     <div className="assistant-access-head"><strong>運営支援AIキー</strong><button className="small-action" type="button" onClick={() => void issue()} disabled={busy}>{busy ? "発行中…" : "キーを発行"}</button></div>
-    <p>このキーはこのグループ専用です。読み取りと返信に限定され、承認・公開・権限変更は実行できません。</p>
+    <p>このキーはこのグループ専用です。運営情報を参照でき、変更操作は管理者メッセージと上の実行許可がそろう場合だけ実行されます。</p>
     {newKey && <div className="assistant-new-key" role="alert"><code>{newKey}</code><button type="button" onClick={() => void navigator.clipboard?.writeText(newKey)}>コピー</button></div>}
     {notice && <small>{notice}</small>}
     {keys.map((key) => <div className="assistant-key-row" key={key.id}><span>{key.name}（{key.tokenPrefix}…）</span><button className="small-action danger" type="button" onClick={() => void revoke(key.id)}>無効化</button></div>)}

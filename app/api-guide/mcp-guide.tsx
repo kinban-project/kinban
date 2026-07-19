@@ -48,19 +48,16 @@ export default function McpGuide() {
         </p>
       </div>
       <div className="guide-warning">
-        <strong>Manager message context controls assistant operations</strong>
+        <strong>Manager messages authorise assistant operations</strong>
         <p>
-          The assistant calls <code>claim_next_assistant_message</code> to receive one pending message and a short-lived <code>contextToken</code>. A message from an active manager produces a manager context; a member message produces a member-only context. Group settings decide whether manager instructions may create shifts, publish them, review daily or monthly work, or distribute announcements. No manually issued context token is needed.
+          The assistant uses its group-bound key for operational reads. A saved message ID from an active manager is supplied as <code>sourceMessageId</code> only when creating shifts, publishing, reviewing attendance, or distributing announcements. Group settings decide which of those manager instructions may be executed.
         </p>
       </div>
       <div className="guide-warning">
         <strong>運営支援AIは専用キーを使用してください</strong>
         <p>
           グループ管理者は <code>POST /api/groups/&lt;groupId&gt;/assistant/access</code> から、対象グループだけに制限された運営支援AIキーを発行できます。
-          このキーでは、メンバー情報・シフト・勤務記録などの限定された読み取りと、アシスタント返信だけが利用できます。権限変更、承認、シフト公開などの管理操作は実行できません。
-        </p>
-        <p>
-          アシスタント返信には、管理者が <code>POST /api/groups/&lt;groupId&gt;/assistant/confirmations</code> で発行した一回限りの <code>confirmationToken</code> が必要です。トークンは短時間で失効し、1回しか使用できません。
+          このキーでは、対象グループのメンバー情報・シフト・勤務記録などを運営支援のために参照できます。変更操作は、管理者メッセージの <code>sourceMessageId</code> とグループごとの実行許可の両方が必要です。
         </p>
       </div>
       <p className="guide-note">
