@@ -35,6 +35,7 @@ export default function GroupsPanel({ onChanged, initialGroupId }: { onChanged: 
   const [joinId, setJoinId] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [userId, setUserId] = useState(getLocalUserId());
+  const [memberQuery, setMemberQuery] = useState("");
 
   async function loadGroups() {
     const response = await localApiFetch("/api/groups");
@@ -90,6 +91,11 @@ export default function GroupsPanel({ onChanged, initialGroupId }: { onChanged: 
     setNotice(response.ok ? "グループを削除しました" : "グループを削除できませんでした"); setSelected(null); await loadGroups(); onChanged();
   }
   const isAdmin = selected?.membership.role === "owner" || selected?.membership.role === "editor";
+  const filteredMembers = selected?.members.filter((member) => {
+    const query = memberQuery.trim().toLocaleLowerCase();
+    if (!query) return true;
+    return [member.displayName ?? "", member.userEmail].some((value) => value.toLocaleLowerCase().includes(query));
+  }) ?? [];
 
   return <section className="groups-card">
     {!initialGroupId && <>
@@ -102,7 +108,8 @@ export default function GroupsPanel({ onChanged, initialGroupId }: { onChanged: 
     {selected && <div className="group-detail">
       <div className="modal-head"><div><p className="eyebrow">GROUP</p><h3>メンバー管理（{selected.group.name}）</h3><small>{selected.group.id}</small></div></div>
       {selected.membership.role === "owner" && selected.requests.filter((request) => request.status === "pending").length > 0 && <><h4>参加申請</h4>{selected.requests.filter((request) => request.status === "pending").map((request) => <div className="member-row" key={request.id}><span>{request.userEmail}</span><span><button className="small-action" onClick={() => void handleRequest(request.id, "approve")}>承認</button><button className="small-action danger" onClick={() => void handleRequest(request.id, "reject")}>却下</button></span></div>)}</>}
-      <h4>メンバー</h4><div className="member-cards">{selected.members.map((member) => <article className={`member-card ${member.status === "inactive" ? "is-inactive" : ""}`} key={member.userEmail}>
+      <div className="member-search"><input value={memberQuery} onChange={(event) => setMemberQuery(event.target.value)} placeholder="氏名・メールで検索" aria-label="メンバー検索" /><small>{filteredMembers.length}/{selected.members.length}人</small></div>
+      <h4>メンバー</h4><div className="member-cards">{filteredMembers.map((member) => <article className={`member-card ${member.status === "inactive" ? "is-inactive" : ""}`} key={member.userEmail}>
         <div className="member-card-head"><div><strong>{member.displayName?.trim() || member.userEmail.split("@")[0]}</strong><small>{member.userEmail}</small></div><div className="member-card-badges">{member.status === "inactive" && <span className="member-status-badge inactive">利用停止</span>}{isAdmin && member.userEmail !== selected.group.ownerEmail && member.userEmail !== selected.currentEmail && <select className="member-role-select" value={member.role} onChange={(event) => void updateMember({ userEmail: member.userEmail, role: event.target.value })} aria-label={`${member.displayName?.trim() || member.userEmail}の権限`}><option value="member">メンバー</option><option value="editor">管理者</option></select>}</div></div>
         <div className="member-preference"><div><b>希望日数</b><span>{member.preference ? `${member.preference.minDays}〜${member.preference.maxDays}日／週` : "未設定"}</span></div><div><b>希望時間</b><span>{member.preference ? `${member.preference.minHours}〜${member.preference.maxHours}時間／週` : "未設定"}</span></div></div>
         <div className="member-availability"><b>曜日別の希望</b><p>{formatAvailability(member)}</p></div>{member.preference?.freeComment && <div className="member-free-comment"><b>本人のフリーコメント</b><p>{member.preference.freeComment}</p></div>}

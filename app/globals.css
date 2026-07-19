@@ -317,3 +317,6 @@ button { cursor: pointer; }
 .rejection-reason-label textarea { width: 100%; min-height: 110px; box-sizing: border-box; border: 1px solid var(--line); border-radius: 8px; padding: 9px; background: #fff; color: var(--ink); resize: vertical; font: inherit; }
 @media (max-width: 980px) { .approval-toolbar { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 760px) { .approval-toolbar { grid-template-columns: repeat(2, minmax(0, 1fr)); }.approval-issue-filter { margin-left: 0; }.approval-detail-grid { grid-template-columns: 1fr; }.approval-detail-panel { padding: 18px; } }
+.member-search { display: flex; align-items: center; gap: 9px; margin: 10px 0; }
+.member-search input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; background: #fff; color: var(--ink); }
+.member-search small { color: var(--muted); white-space: nowrap; }
