@@ -211,6 +211,12 @@ button { cursor: pointer; }
 .roster-table td.roster-shortage { background: #fff0ee; box-shadow: inset 0 0 0 1px #e8a39b; }.roster-shortage-count { display: block; margin-top: 4px; color: #a44942; font-size: 9px; font-weight: 700; }.roster-legend-shortage { padding: 4px 7px; border-radius: 999px; color: #a44942; background: #fff0ee; }
 .assignment-row-shortage { background: #fff8f6; }.assignment-count { color: var(--muted); }.assignment-count.shortage { color: #a44942; font-weight: 800; }.assignment-calendar-slot.is-shortage { margin: -1px; padding: 5px; background: #fff0ee; box-shadow: inset 0 0 0 1px #e8a39b; }.assignment-calendar-slot.is-shortage > strong { color: #8f413b; }
 .assignment-members-cell.shortage { background: #fff0ee; box-shadow: inset 0 0 0 1px #e8a39b; }
+.assignment-preview-wrap { overflow: auto; max-height: 58vh; border: 1px solid var(--line); border-radius: 10px; }
+.assignment-preview-table { width: 100%; min-width: 720px; border-collapse: collapse; font-size: 11px; }
+.assignment-preview-table th { position: sticky; top: 0; z-index: 1; padding: 9px; background: #eef4ed; color: var(--muted); text-align: left; }
+.assignment-preview-table td { padding: 8px 9px; border-top: 1px solid var(--line); vertical-align: top; }
+.assignment-preview-table td:nth-child(4) { min-width: 220px; }
+.assignment-preview-issue { color: #a44942; font-weight: 800; }
 .dashboard-shortage-metric { display: block; margin-top: 5px; color: #a44942; font-size: 9px; font-weight: 700; }.dashboard-plan-shortage { color: #a44942 !important; }
 .audit-content { display: flex; align-items: center; gap: 10px; white-space: nowrap; }.audit-content > span { overflow: hidden; text-overflow: ellipsis; }.audit-detail { flex: 0 0 auto; font-size: 10px; }.audit-detail summary { color: var(--teal); cursor: pointer; }.audit-detail pre { max-width: 420px; max-height: 220px; overflow: auto; margin: 6px 0 0; padding: 8px; border-radius: 7px; background: #f6f8f5; color: #5f6962; font: 10px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; }
 .work-records-panel { padding: 4px; }

@@ -106,7 +106,7 @@ export default function ShiftAdjustment({
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [showAllWarnings, setShowAllWarnings] = useState(false);
-  const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
+  const [viewMode, setViewMode] = useState<"preview" | "list" | "calendar">("preview");
   const selectedGroupName = groups.find((group) => group.id === groupId)?.name;
   async function loadGroups() {
     const response = await localApiFetch("/api/groups");
@@ -377,6 +377,13 @@ export default function ShiftAdjustment({
           <div className="view-toggle">
             <button
               type="button"
+              className={viewMode === "preview" ? "active" : ""}
+              onClick={() => setViewMode("preview")}
+            >
+              プレビュー
+            </button>
+            <button
+              type="button"
               className={viewMode === "list" ? "active" : ""}
               onClick={() => setViewMode("list")}
             >
@@ -436,7 +443,42 @@ export default function ShiftAdjustment({
               )}
             </div>
           )}
-          {viewMode === "list" ? (
+          {viewMode === "preview" ? (
+            <div className="assignment-preview-wrap">
+              <table className="assignment-preview-table">
+                <thead>
+                  <tr>
+                    <th>日付</th>
+                    <th>時間</th>
+                    <th>担当</th>
+                    <th>配置</th>
+                    <th>状態</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detail.slots.map((slot) => {
+                    const names = [...new Set(assignments[slot.id] ?? [])].map(
+                      (email) => detail.members.find((member) => member.userEmail === email)?.displayName || email.split("@")[0],
+                    );
+                    const assignedCount = names.length;
+                    const shortage = assignedCount < slot.requiredCount;
+                    const excess = assignedCount > slot.requiredCount;
+                    return (
+                      <tr className={shortage ? "assignment-row-shortage" : ""} key={slot.id}>
+                        <td>{slot.date}</td>
+                        <td>{displayShiftTime(slot.startTime)}〜{displayShiftTime(slot.endTime)}</td>
+                        <td>{slot.role || "共通"}</td>
+                        <td>{names.length ? names.join("、") : "未割当"}</td>
+                        <td className={shortage || excess ? "assignment-preview-issue" : ""}>
+                          {assignedCount}/{slot.requiredCount}人{shortage ? " 不足" : excess ? " 過剰" : ""}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : viewMode === "list" ? (
             <div className="assignment-table-wrap">
               <table className="assignment-table">
                 <thead>
