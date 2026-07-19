@@ -302,7 +302,7 @@ export async function POST(request: Request) {
         or(eq(assistantMessages.status, "pending"), and(eq(assistantMessages.status, "processing"), lt(assistantMessages.claimExpiresAt, now))),
       )).orderBy(assistantMessages.createdAt).limit(10);
       for (const candidate of candidates) {
-        const claimExpiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+        const claimExpiresAt = new Date(Date.now() + 1 * 60 * 1000).toISOString();
         const [claimed] = await db.update(assistantMessages).set({ status: "processing", claimedAt: now, claimExpiresAt }).where(and(
           eq(assistantMessages.id, candidate.id),
           or(eq(assistantMessages.status, "pending"), and(eq(assistantMessages.status, "processing"), lt(assistantMessages.claimExpiresAt, now))),
@@ -310,7 +310,7 @@ export async function POST(request: Request) {
         if (!claimed) continue;
         const sender = await membership(db, groupId, claimed.memberEmail);
         const mode = sender?.status === "active" && editorRoles.has(sender.role) ? "manager" : "member";
-        const context = await issueAssistantContext(db, { groupId, mode, memberEmail: claimed.memberEmail, messageId: claimed.id, issuedBy: identity.email, expiresInSeconds: 600 });
+        const context = await issueAssistantContext(db, { groupId, mode, memberEmail: claimed.memberEmail, messageId: claimed.id, issuedBy: identity.email, expiresInSeconds: 60 });
         await recordAudit({ groupId, userEmail: identity.email, action: "assistant.claim", entityType: "assistantMessage", entityId: claimed.id, summary: `MCPでアシスタント問い合わせを取得: ${claimed.memberEmail}`, details: { source: "mcp", claimExpiresAt } });
         return rpc(payload.id, { message: claimed, contextMode: mode, contextToken: context.token, contextExpiresAt: context.expiresAt, claimExpiresAt });
       }

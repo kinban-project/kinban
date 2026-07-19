@@ -30,7 +30,7 @@ description: KINBANアシスタント宛のメンバー発メッセージを、�
 | 状態 | 意味 | 次の担当 |
 | --- | --- | --- |
 | `pending` | 未処理、または再試行待ち | 運営AI |
-| `processing` | 運営AIが10分間だけ取得中 | 取得した運営AI |
+| `processing` | 運営AIが1分間だけ取得中 | 取得した運営AI |
 | `needs_review` | 判断待ち。自動再取得しない | 管理者 |
 | `processed` | 返信済み、または返信不要として完了 | 完了 |
 
@@ -44,4 +44,4 @@ description: KINBANアシスタント宛のメンバー発メッセージを、�
 
 ## 失敗時
 
-claim後に処理できない場合は、可能なら `release_assistant_message` で即時にキューへ戻す。判断が必要なら `defer_assistant_message` を使う。どちらも実行できないときだけ、10分のリース期限後に再claimされることをレポートへ残す。
+claim後に処理できない場合は、可能なら `release_assistant_message` で即時にキューへ戻す。判断が必要なら `defer_assistant_message` を使う。どちらも実行できないときだけ、1分のリース期限後に再claimされることをレポートへ残す。

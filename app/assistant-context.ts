@@ -19,7 +19,7 @@ export async function issueAssistantContext(
   },
 ) {
   const raw = `mcp_context_${crypto.randomUUID().replaceAll("-", "")}`;
-  const expiresInSeconds = Math.min(Math.max(Number(input.expiresInSeconds) || 600, 60), 1800);
+  const expiresInSeconds = Math.min(Math.max(Number(input.expiresInSeconds) || 60, 60), 1800);
   const expiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString();
   await db.insert(assistantContexts).values({
     id: crypto.randomUUID(),
