@@ -63,6 +63,7 @@ export default function GroupPreferencesPanel({
     freeComment: "",
   });
   const [groupNickname, setGroupNickname] = useState("");
+  const [copySourceDay, setCopySourceDay] = useState(1);
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -124,6 +125,17 @@ export default function GroupPreferencesPanel({
         (_, rowIndex) => rowIndex !== index,
       ),
     }));
+  }
+  function copyDay(source: number, targets: number[]) {
+    setDays((current) => {
+      const sourceRows = rowsForState(current, source).map((row) => ({
+        ...row,
+      }));
+      const next = { ...current };
+      for (const target of targets)
+        next[target] = sourceRows.map((row) => ({ ...row, dayOfWeek: target }));
+      return next;
+    });
   }
   async function save() {
     setSaving(true);
@@ -242,6 +254,16 @@ export default function GroupPreferencesPanel({
           />
         </label>
       </div>
+      <div className="preference-copy-tools">
+        <label>
+          コピー元
+          <select value={copySourceDay} onChange={(event) => setCopySourceDay(Number(event.target.value))}>
+            {labels.map((label, day) => <option key={day} value={day}>{label}曜日</option>)}
+          </select>
+        </label>
+        <button type="button" className="small-action" onClick={() => copyDay(copySourceDay, [1, 2, 3, 4, 5].filter((day) => day !== copySourceDay))}>平日に適用</button>
+        <button type="button" className="small-action" onClick={() => copyDay(copySourceDay, labels.map((_, day) => day).filter((day) => day !== copySourceDay))}>他の曜日へコピー</button>
+      </div>
       <label className="preference-comment">
         固定休・授業・本業などのフリーコメント
         <textarea
@@ -332,6 +354,9 @@ export default function GroupPreferencesPanel({
       <p className="preference-help">
         時間帯を登録した曜日は、登録範囲外を「勤務不可」として扱います。
       </p>
+      <div className="mobile-preference-savebar">
+        <button className="primary-button" onClick={() => void save()} disabled={saving}>{saving ? "保存中…" : "基本設定を保存"}</button>
+      </div>
       {notice && (
         <p className="group-notice" role="status">
           {notice}
