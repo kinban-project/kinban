@@ -37,6 +37,11 @@ const mutating = "This operation changes saved data. Re-run with confirm:true af
 const editorRoles = new Set(["owner", "editor"]);
 const preferenceValues = new Set(preferenceStatuses);
 const assistantTools = new Set(["get_profile", "list_groups", "get_group_members", "list_shift_plans", "get_shift_plan", "get_shift_request_overview", "get_work_records", "list_announcements", "group_dashboard", "get_assistant_message_queue_summary", "claim_next_assistant_message", "list_assistant_messages", "reply_assistant_message", "release_assistant_message", "defer_assistant_message", "complete_assistant_message", "create_shift_plan", "delete_draft_shift_plan", "update_slot_counts", "set_shift_assignments", "submit_work_record", "review_monthly_work", "create_announcement"]);
+const chunk = <T,>(items: T[], size: number) => {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) chunks.push(items.slice(index, index + size));
+  return chunks;
+};
 
 function hasScope(identity: Awaited<ReturnType<typeof requireApiIdentity>>, scope: string) {
   return !(identity instanceof Response) && (identity.tokenType !== "assistant" || identity.scopes.includes(scope));
@@ -186,7 +191,12 @@ export async function POST(request: Request) {
       if (restricted) return rpcError(payload.id, restricted);
       if (identity.tokenType === "assistant" && !hasScope(identity, "shift:read")) return rpcError(payload.id, "Assistant token scope does not allow shift reads.");
       const slots = await db.select().from(shiftSlots).where(eq(shiftSlots.planId, found.plan.id));
-      const allAssignments = slots.length ? await db.select().from(shiftAssignments).where(inArray(shiftAssignments.slotId, slots.map((s) => s.id))) : [];
+      const assignmentChunks = await Promise.all(
+        chunk(slots.map((slot) => slot.id), 50).map((slotIds) =>
+          db.select().from(shiftAssignments).where(inArray(shiftAssignments.slotId, slotIds)),
+        ),
+      );
+      const allAssignments = assignmentChunks.flat();
       return rpc(payload.id, { plan: found.plan, slots, assignments: allAssignments });
     }
     if (name === "get_audit_logs") { const groupId = text(args.groupId); const self = await membership(db, groupId, identity.email); if (!self || !editorRoles.has(self.role)) return rpcError(payload.id, "Editor membership required"); const conditions = [eq(auditLogs.groupId, groupId)]; const action = text(args.action); const userEmail = text(args.userEmail); const search = text(args.search); const from = text(args.from); const to = text(args.to); if (action) conditions.push(eq(auditLogs.action, action)); if (userEmail) conditions.push(eq(auditLogs.userEmail, userEmail)); if (search) conditions.push(like(auditLogs.summary, `%${search}%`)); if (from) conditions.push(gte(auditLogs.createdAt, `${from}T00:00:00`)); if (to) conditions.push(lte(auditLogs.createdAt, `${to}T23:59:59`)); const limit = Math.min(300, Math.max(1, Number(args.limit ?? 100))); const logs = await db.select().from(auditLogs).where(and(...conditions)).orderBy(desc(auditLogs.createdAt)).limit(limit); return rpc(payload.id, { logs, limit }); }
