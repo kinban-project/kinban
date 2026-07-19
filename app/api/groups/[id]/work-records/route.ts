@@ -383,60 +383,16 @@ export async function POST(request: Request, context: Context) {
         "勤務中の記録が残っています。先に勤務終了を記録してください。",
         409,
       );
-    let scheduledDate = todayJst();
-    let scheduledStartTime = "";
-    let scheduledEndTime = "";
-    let planId: string | null = null;
-    let slotId: string | null = body.slotId ?? null;
-    if (slotId) {
-      const [slot] = await db
-        .select()
-        .from(shiftSlots)
-        .where(eq(shiftSlots.id, slotId))
-        .limit(1);
-      if (!slot) return error("Assigned shift slot not found.", 404);
-      const [plan] = await db
-        .select()
-        .from(shiftPlans)
-        .where(
-          and(
-            eq(shiftPlans.id, slot.planId),
-            eq(shiftPlans.groupId, groupId),
-            eq(shiftPlans.status, "published"),
-          ),
-        )
-        .limit(1);
-      const [assignment] = await db
-        .select()
-        .from(shiftAssignments)
-        .where(
-          and(
-            eq(shiftAssignments.slotId, slotId),
-            eq(shiftAssignments.userEmail, user.email),
-          ),
-        )
-        .limit(1);
-      if (!plan || !assignment)
-        return error("You are not assigned to this shift.", 403);
-      scheduledDate = slot.date;
-      scheduledStartTime = slot.startTime;
-      scheduledEndTime = slot.endTime;
-      planId = plan.id;
-    }
-    if (slotId) {
-      const existing = await db
-        .select()
-        .from(workRecords)
-        .where(
-          and(
-            eq(workRecords.slotId, slotId),
-            eq(workRecords.userEmail, user.email),
-          ),
-        )
-        .limit(1);
-      if (existing[0] && existing[0].status !== "rejected")
-        return error("A work record already exists for this shift.", 409);
-    }
+    if (body.slotId)
+      return error(
+        "通常の勤務開始ではシフトを指定できません。勤務申告のシフト通り操作を利用してください。",
+        400,
+      );
+    const scheduledDate = todayJst();
+    const scheduledStartTime = "";
+    const scheduledEndTime = "";
+    const planId: string | null = null;
+    const slotId: string | null = null;
     const row = {
       id: crypto.randomUUID(),
       groupId,

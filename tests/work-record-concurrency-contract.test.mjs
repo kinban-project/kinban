@@ -17,3 +17,9 @@ test("start clears expired active keys and handles the unique conflict", () => {
   assert.match(route, /activeKey: `\$\{groupId\}:\$\{user\.email\}`/);
   assert.match(route, /already active for this group and user/);
 });
+
+test("ordinary start cannot attach a caller-selected shift slot", () => {
+  assert.match(route, /if \(body\.slotId\)/);
+  assert.match(route, /通常の勤務開始ではシフトを指定できません/);
+  assert.match(route, /const scheduledDate = todayJst\(\)/);
+});
