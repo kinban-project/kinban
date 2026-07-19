@@ -38,6 +38,16 @@ test("manager can review, edit, publish, or reject the draft from one screen", (
     assistantRoute,
     /This draft was already processed\. Reload the assistant view\./,
   );
+  assert.match(
+    assistantRoute,
+    /inArray\(assistantAnnouncementDrafts\.status, \[/,
+  );
+  assert.match(assistantRoute, /"needs_review",\s*"rejected"/);
+  assert.match(assistantRoute, /const resumingPublish/);
+  assert.match(
+    assistantRoute,
+    /eventType: "shift_swap_announcement_published"/,
+  );
   assert.match(assistantRoute, /交代募集のお知らせを配信しました/);
   assert.match(chat, /承認して配信/);
   assert.match(chat, /差戻し/);

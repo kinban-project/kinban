@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { getChatGPTUser } from "../../../../chatgpt-auth";
 import { getDb } from "../../../../../db";
 import {
@@ -138,17 +138,15 @@ export async function POST(
       { status: 409 },
     );
   const messageId = crypto.randomUUID();
-  await db
-    .insert(assistantMessages)
-    .values({
-      id: messageId,
-      groupId: id,
-      memberEmail: user.email,
-      senderType: "member",
-      senderEmail: user.email,
-      body: text,
-      status: "pending",
-    });
+  await db.insert(assistantMessages).values({
+    id: messageId,
+    groupId: id,
+    memberEmail: user.email,
+    senderType: "member",
+    senderEmail: user.email,
+    body: text,
+    status: "pending",
+  });
   await recordAudit({
     groupId: id,
     userEmail: user.email,
@@ -229,7 +227,7 @@ export async function PATCH(
           { error: "タイトルと本文を入力してください" },
           { status: 400 },
         );
-      await db
+      const [updatedDraft] = await db
         .update(assistantAnnouncementDrafts)
         .set({
           title,
@@ -241,7 +239,26 @@ export async function PATCH(
           reviewedAt: null,
           updatedAt: now,
         })
-        .where(eq(assistantAnnouncementDrafts.id, draft.id));
+        .where(
+          and(
+            eq(assistantAnnouncementDrafts.id, draft.id),
+            eq(assistantAnnouncementDrafts.groupId, id),
+            isNull(assistantAnnouncementDrafts.announcementId),
+            inArray(assistantAnnouncementDrafts.status, [
+              "needs_review",
+              "rejected",
+            ]),
+          ),
+        )
+        .returning();
+      if (!updatedDraft)
+        return Response.json(
+          {
+            error:
+              "This draft was already published or changed. Reload the assistant view.",
+          },
+          { status: 409 },
+        );
       await recordAudit({
         groupId: id,
         userEmail: user.email,
@@ -264,7 +281,7 @@ export async function PATCH(
           { status: 409 },
         );
       const managerNote = body.managerNote?.trim().slice(0, 500) ?? "";
-      await db
+      const [rejectedDraft] = await db
         .update(assistantAnnouncementDrafts)
         .set({
           status: "rejected",
@@ -273,7 +290,23 @@ export async function PATCH(
           reviewedAt: now,
           updatedAt: now,
         })
-        .where(eq(assistantAnnouncementDrafts.id, draft.id));
+        .where(
+          and(
+            eq(assistantAnnouncementDrafts.id, draft.id),
+            eq(assistantAnnouncementDrafts.groupId, id),
+            eq(assistantAnnouncementDrafts.status, "needs_review"),
+            isNull(assistantAnnouncementDrafts.announcementId),
+          ),
+        )
+        .returning();
+      if (!rejectedDraft)
+        return Response.json(
+          {
+            error:
+              "This draft was already published or changed. Reload the assistant view.",
+          },
+          { status: 409 },
+        );
       await db
         .update(assistantMessages)
         .set({
@@ -299,40 +332,49 @@ export async function PATCH(
       return Response.json({ ok: true, status: "rejected" });
     }
 
-    if (draft.status !== "needs_review" || draft.announcementId)
+    const resumingPublish =
+      draft.status === "published" && Boolean(draft.announcementId);
+    if (
+      !resumingPublish &&
+      (draft.status !== "needs_review" || draft.announcementId)
+    )
       return Response.json(
         { error: "このお知らせ案は配信済み、または差戻し済みです" },
         { status: 409 },
       );
-    const announcementId = crypto.randomUUID();
+    const announcementId = draft.announcementId ?? crypto.randomUUID();
     const replyId = crypto.randomUUID();
-    const [claimedDraft] = await db
-      .update(assistantAnnouncementDrafts)
-      .set({
-        status: "published",
-        announcementId,
-        managerNote:
-          body.managerNote?.trim().slice(0, 500) ?? draft.managerNote,
-        reviewedBy: user.email,
-        reviewedAt: now,
-        updatedAt: now,
-      })
-      .where(
-        and(
-          eq(assistantAnnouncementDrafts.id, draft.id),
-          eq(assistantAnnouncementDrafts.groupId, id),
-          eq(assistantAnnouncementDrafts.status, "needs_review"),
-          isNull(assistantAnnouncementDrafts.announcementId),
-        ),
-      )
-      .returning();
-    if (!claimedDraft)
-      return Response.json(
-        {
-          error: "This draft was already processed. Reload the assistant view.",
-        },
-        { status: 409 },
-      );
+    const replyEventId = `assistant-reply:${announcementId}`;
+    if (!resumingPublish) {
+      const [claimedDraft] = await db
+        .update(assistantAnnouncementDrafts)
+        .set({
+          status: "published",
+          announcementId,
+          managerNote:
+            body.managerNote?.trim().slice(0, 500) ?? draft.managerNote,
+          reviewedBy: user.email,
+          reviewedAt: now,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(assistantAnnouncementDrafts.id, draft.id),
+            eq(assistantAnnouncementDrafts.groupId, id),
+            eq(assistantAnnouncementDrafts.status, "needs_review"),
+            isNull(assistantAnnouncementDrafts.announcementId),
+          ),
+        )
+        .returning();
+      if (!claimedDraft)
+        return Response.json(
+          {
+            error:
+              "This draft was already processed. Reload the assistant view.",
+          },
+          { status: 409 },
+        );
+    }
     await db.batch([
       db
         .insert(groupAnnouncements)
@@ -344,7 +386,8 @@ export async function PATCH(
           body: draft.body,
           notificationLevel: "urgent",
           category: "shift_replacement",
-        }),
+        })
+        .onConflictDoNothing(),
       db
         .update(assistantMessages)
         .set({
@@ -364,9 +407,12 @@ export async function PATCH(
           senderEmail: user.email,
           body: "交代募集のお知らせを配信しました。対応可能な方からの連絡をお待ちください。",
           status: "processed",
-        }),
+          eventType: "shift_swap_announcement_published",
+          eventId: replyEventId,
+        })
+        .onConflictDoNothing(),
     ]);
-    await recordAudit({
+    if (!resumingPublish) await recordAudit({
       groupId: id,
       userEmail: user.email,
       action: "assistant.announcement_draft.publish",
@@ -392,7 +438,7 @@ export async function PATCH(
       }),
       sendBusinessPush(db, {
         recipients: [draft.requesterEmail],
-        eventId: `assistant-reply:${replyId}`,
+        eventId: replyEventId,
         title: "KINBAN",
         body: "KINBANアシスタントから新しい連絡があります",
         url: `/?group=${encodeURIComponent(id)}&view=assistant`,
