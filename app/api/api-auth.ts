@@ -2,7 +2,14 @@ import { eq } from "drizzle-orm";
 import { getDb } from "../../db";
 import { apiTokens } from "../../db/schema";
 
-export type ApiIdentity = { email: string; tokenId: string };
+export type ApiTokenType = "personal" | "assistant";
+export type ApiIdentity = {
+  email: string;
+  tokenId: string;
+  tokenType: ApiTokenType;
+  groupId: string | null;
+  scopes: string[];
+};
 
 export async function hashApiToken(token: string): Promise<string> {
   const bytes = new TextEncoder().encode(token);
@@ -19,5 +26,18 @@ export async function requireApiIdentity(request: Request): Promise<ApiIdentity 
   const [token] = await db.select().from(apiTokens).where(eq(apiTokens.tokenHash, tokenHash)).limit(1);
   if (!token) return Response.json({ error: "Invalid API token." }, { status: 401 });
   await db.update(apiTokens).set({ lastUsedAt: new Date().toISOString() }).where(eq(apiTokens.id, token.id));
-  return { email: token.ownerEmail, tokenId: token.id };
+  let scopes: string[] = [];
+  try {
+    const parsed = JSON.parse(token.scopes || "[]");
+    if (Array.isArray(parsed)) scopes = parsed.filter((item): item is string => typeof item === "string");
+  } catch {
+    scopes = [];
+  }
+  return {
+    email: token.ownerEmail,
+    tokenId: token.id,
+    tokenType: token.tokenType,
+    groupId: token.groupId ?? null,
+    scopes,
+  };
 }

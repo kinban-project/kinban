@@ -47,6 +47,16 @@ export default function McpGuide() {
           が必要です。まず対象と変更内容を読み取り、利用者が確認してから同じ操作を実行する運用にしてください。
         </p>
       </div>
+      <div className="guide-warning">
+        <strong>運営支援AIは専用キーを使用してください</strong>
+        <p>
+          グループ管理者は <code>POST /api/groups/&lt;groupId&gt;/assistant/access</code> から、対象グループだけに制限された運営支援AIキーを発行できます。
+          このキーでは、メンバー情報・シフト・勤務記録などの限定された読み取りと、アシスタント返信だけが利用できます。権限変更、承認、シフト公開などの管理操作は実行できません。
+        </p>
+        <p>
+          アシスタント返信には、管理者が <code>POST /api/groups/&lt;groupId&gt;/assistant/confirmations</code> で発行した一回限りの <code>confirmationToken</code> が必要です。トークンは短時間で失効し、1回しか使用できません。
+        </p>
+      </div>
       <p className="guide-note">
         MCPの公開URL：<code>{MCP_BASE}</code>。ローカル開発時は{" "}
         <code>http://localhost:3001/mcp</code>（公開サイトは <code>/api/mcp</code>）{" "}

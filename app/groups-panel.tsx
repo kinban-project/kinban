@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getLocalUserId, localApiFetch, setLocalUserId } from "./local-api";
+import AssistantAccessPanel from "./assistant-access-panel";
 
 type Group = {
   id: string;
@@ -130,6 +131,7 @@ export default function GroupsPanel({ onChanged, initialGroupId }: { onChanged: 
         <p className="assistant-member-description">メンバーからのシフト・勤怠相談を受け付けます。AIが接続されていない間もメッセージは保持されます。</p>
         {isAdmin && <div className="member-admin-actions"><button className="small-action" onClick={() => void changeAssistantStatus()}>{selected.assistant.status === "inactive" ? "再開" : "利用停止"}</button></div>}
       </article></>}
+      {selected.assistant && isAdmin && <AssistantAccessPanel groupId={selected.group.id} />}
       {!isAdmin && <p className="member-privacy-note">他のメンバーの勤務希望は表示せず、本人の情報だけ確認できます。</p>}
       <div className="group-detail-actions">{selected.membership.role === "owner" && <button className="small-action danger" onClick={() => void deleteGroup()}>グループを削除</button>}</div>
     </div>}

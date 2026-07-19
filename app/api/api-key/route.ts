@@ -10,7 +10,7 @@ function unauthorized() { return Response.json({ error: "ChatGPT sign-in is requ
 export async function GET() {
   const user = await getChatGPTUser();
   if (!user) return unauthorized();
-  const rows = await getDb().select({ id: apiTokens.id, name: apiTokens.name, tokenPrefix: apiTokens.tokenPrefix, lastUsedAt: apiTokens.lastUsedAt, createdAt: apiTokens.createdAt }).from(apiTokens).where(eq(apiTokens.ownerEmail, user.email));
+  const rows = await getDb().select({ id: apiTokens.id, name: apiTokens.name, tokenType: apiTokens.tokenType, groupId: apiTokens.groupId, tokenPrefix: apiTokens.tokenPrefix, lastUsedAt: apiTokens.lastUsedAt, createdAt: apiTokens.createdAt }).from(apiTokens).where(eq(apiTokens.ownerEmail, user.email));
   return Response.json({ keys: rows });
 }
 

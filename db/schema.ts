@@ -319,9 +319,28 @@ export const apiTokens = sqliteTable("api_tokens", {
   id: text("id").primaryKey(),
   ownerEmail: text("owner_email").notNull(),
   name: text("name").notNull().default("My Day API key"),
+  tokenType: text("token_type", { enum: ["personal", "assistant"] })
+    .notNull()
+    .default("personal"),
+  groupId: text("group_id"),
+  scopes: text("scopes").notNull().default("[]"),
   tokenHash: text("token_hash").notNull().unique(),
   tokenPrefix: text("token_prefix").notNull(),
   lastUsedAt: text("last_used_at"),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const mcpConfirmations = sqliteTable("mcp_confirmations", {
+  id: text("id").primaryKey(),
+  tokenHash: text("token_hash").notNull().unique(),
+  groupId: text("group_id").notNull(),
+  action: text("action").notNull(),
+  entityId: text("entity_id").notNull().default(""),
+  issuedBy: text("issued_by").notNull(),
+  expiresAt: text("expires_at").notNull(),
+  usedAt: text("used_at"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
