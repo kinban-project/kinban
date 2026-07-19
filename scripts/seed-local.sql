@@ -5,6 +5,10 @@
 DELETE FROM work_breaks;
 DELETE FROM monthly_work_claims;
 DELETE FROM work_records;
+DELETE FROM mcp_confirmations;
+DELETE FROM assistant_contexts;
+DELETE FROM assistant_messages;
+DELETE FROM group_assistants;
 DELETE FROM audit_logs;
 DELETE FROM announcement_replies;
 DELETE FROM announcement_reads;
@@ -39,6 +43,16 @@ INSERT INTO account_profiles (user_email, nickname) VALUES
 
 INSERT INTO groups (id, name, description, owner_email) VALUES
   ('seed-group-store', 'サンプル店', '勤務枠・シフト・勤務申告のテスト用グループ', 'tanaka@local.test');
+
+-- Local seed only. The raw key is documented in kinban-manager-agent/.env.example.
+-- Do not use this key outside the local development database.
+INSERT INTO group_assistants (group_id, display_name, role, status) VALUES
+  ('seed-group-store', 'KINBANアシスタント', 'editor', 'active');
+
+INSERT INTO api_tokens (id, owner_email, name, token_type, group_id, scopes, token_hash, token_prefix) VALUES
+  ('seed-token-assistant-local', 'tanaka@local.test', 'ローカルシード用 運営支援AIキー', 'assistant', 'seed-group-store',
+   '["assistant:read","assistant:reply","shift:read","work:read","announcement:read"]',
+   '9a9bbd08d3ca4272e0cb36b76dab96b2484f7dc4b4e732795ee65bb9dcd81bc1', 'mcp_local_s');
 
 INSERT INTO group_members (id, group_id, user_email, display_name, admin_note, role, status, show_in_personal) VALUES
   ('seed-member-owner', 'seed-group-store', 'tanaka@local.test', '店長', '代表管理者。月次締めを実行できます。', 'owner', 'active', 1),
