@@ -18,7 +18,9 @@ description: KINBANの運営支援AIとして、日次の状況確認と要確�
 ## 手順
 
 1. `list_groups` で対象グループとAIキーのスコープを確認する。
-2. 運営コンテキストがある場合、`group_dashboard`、`list_shift_plans`、`get_work_records`、`list_assistant_messages` を必要最小限の期間で呼ぶ。
+2. 運営コンテキストがある場合、`group_dashboard`、`list_shift_plans`、`get_work_records`、`get_assistant_message_queue_summary` を必要最小限の期間で呼ぶ。
+   - 日次確認ではメッセージ本文や送信者を一覧取得しない。未処理件数だけを確認する。
+   - 本文の処理が必要な場合は、このSkillを終え、`assistant-messages` Skillで1件ずつclaimする。
 3. 次の3区分に整理する。
    - **確認のみで完了**: 異常なし、期限が近くない、未処理なし。
    - **管理者確認が必要**: シフト穴、希望未提出、未申告・未承認、差戻し候補、メンバーからの要判断メッセージ。

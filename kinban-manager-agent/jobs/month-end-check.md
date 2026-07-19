@@ -4,7 +4,7 @@
 
 - 対象月
 - 運営コンテキスト
-- `runbooks/attendance-review-policy.md`
+- `runbooks/defaults/attendance-review-policy.md` と `runbooks/local/`
 
 ## 実施内容
 

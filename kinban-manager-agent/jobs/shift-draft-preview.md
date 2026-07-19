@@ -4,7 +4,7 @@
 
 - 希望締切後の対象シフト
 - 運営コンテキスト
-- `runbooks/shift-allocation-policy.md`
+- `runbooks/defaults/shift-allocation-policy.md` と `runbooks/local/`
 
 ## 実施内容
 

@@ -44,6 +44,9 @@ cd D:\coconara\codexhelp\kinban-manager-agent
 
 MCP設定では、`.env` の `KINBAN_MCP_URL` をHTTP MCPサーバーURL、`KINBAN_ASSISTANT_API_KEY` を Bearer 認証のAI専用キーとして登録します。個人用APIキーは使用しません。
 
+- 公開KINBAN: `https://<your-site>/api/mcp`
+- ローカル開発: `http://localhost:3001/mcp`
+
 ## コンテキストの使い分け
 
 ### 運営コンテキスト
@@ -63,7 +66,7 @@ cd D:\coconara\codexhelp\kinban-manager-agent
 .\scripts\bootstrap.ps1 -Destination "D:\kinban-manager-agent\サンプル店" -Update
 ```
 
-`-Update` は `.env` と `workspace/` を保持します。更新前後の変更一覧が表示されるので、組織固有に編集したRunbookは必ず確認してください。
+`-Update` は `.env`、`workspace/`、`runbooks/local/` を保持します。更新時には、作成・更新・変更なしのファイル一覧が表示されます。組織固有の判断基準は `runbooks/local/` に置き、テンプレート側の `runbooks/defaults/` は直接編集しないでください。
 
 ## フォルダの役割
 
@@ -71,7 +74,8 @@ cd D:\coconara\codexhelp\kinban-manager-agent
 | --- | --- |
 | `AGENTS.md` | 常に守る役割・安全境界 |
 | `skills/` | 繰り返し実行する業務手順 |
-| `runbooks/` | 店舗・企業ごとの判断基準 |
+| `runbooks/defaults/` | テンプレート標準の判断基準。更新対象 |
+| `runbooks/local/` | 店舗・企業ごとの判断基準。更新時も保持 |
 | `jobs/` | 定期確認の入力・出力・失敗時の扱い |
 | `config/` | 秘密値を含まない設定例 |
 | `workspace/` | 実行結果、要確認事項、ローカル一時状態。Git管理外 |

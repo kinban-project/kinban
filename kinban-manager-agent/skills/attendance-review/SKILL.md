@@ -17,7 +17,7 @@ description: 日次・月次の勤怠に関する不足と矛盾を抽出し、�
    - 要確認: 差分、休憩矛盾、長時間、未打刻、終了漏れ、備考あり。
    - 未申告: 予定があるが申告がない、または勤務実績が疑われる。
 3. 月末前は、月次申告・月次承認を妨げる未処理をメンバー別に集計する。
-4. `runbooks/attendance-review-policy.md` の差分目安と組織固有のルールを適用する。
+4. `runbooks/defaults/attendance-review-policy.md` と `runbooks/local/` の組織固有ルールを適用する。
 
 ## 出力
 
