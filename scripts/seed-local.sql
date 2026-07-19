@@ -3,6 +3,8 @@
 -- 7/1-7/31: normal operation, approval, rejection, punch and gap fixtures
 
 DELETE FROM work_breaks;
+DELETE FROM push_deliveries;
+DELETE FROM push_subscriptions;
 DELETE FROM monthly_work_claims;
 DELETE FROM work_records;
 DELETE FROM mcp_confirmations;

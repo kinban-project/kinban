@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { localApiFetch } from "./local-api";
 import { displayShiftTime } from "./shift-time";
+import PushNotificationControl from "./push-notification-control";
 
 type PreferenceStatus = "want" | "possible" | "off" | "unavailable";
 type Day = {
@@ -163,6 +164,7 @@ export default function GroupPreferencesPanel({
           aria-label="このグループでのニックネーム"
         />
       </div>
+      <PushNotificationControl />
       <div className="section-title">
         <div>
           <h4>勤務の基本希望</h4>

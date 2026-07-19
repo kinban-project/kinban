@@ -25,6 +25,7 @@
 - 月次申告・月次承認・差し戻し
 - 予定・勤務記録の個人カレンダー表示
 - 外部アプリ向けAPIとAPIガイド
+- 標準Web Pushによる緊急連絡・確認通知（VAPID設定時）
 
 ## 技術構成
 
@@ -50,6 +51,16 @@ npm run dev -- --port 3003
 ```bash
 npm run build
 ```
+
+## Web Push
+
+通知を使う環境では、VAPID鍵を一度だけ生成し、公開鍵・秘密鍵ともGitへ入れずにデプロイ環境のシークレットへ設定します。
+
+```bash
+npm run push:generate-vapid
+```
+
+設定する値は `VAPID_SUBJECT`、`VAPID_PUBLIC_KEY`、`VAPID_PRIVATE_KEY` です。利用者はグループの基本設定から端末ごとに通知を有効化・テスト・解除できます。iPhoneではホーム画面へ追加したWebアプリから有効化します。
 
 ## ローカルモード
 

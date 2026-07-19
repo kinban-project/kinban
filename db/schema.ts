@@ -37,6 +37,32 @@ export const accountProfiles = sqliteTable("account_profiles", {
     .default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const pushSubscriptions = sqliteTable("push_subscriptions", {
+  id: text("id").primaryKey(),
+  userEmail: text("user_email").notNull(),
+  endpoint: text("endpoint").notNull().unique(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  userAgent: text("user_agent").notNull().default(""),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  lastSeenAt: text("last_seen_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const pushDeliveries = sqliteTable("push_deliveries", {
+  id: text("id").primaryKey(),
+  eventId: text("event_id").notNull(),
+  userEmail: text("user_email").notNull(),
+  subscriptionId: text("subscription_id").notNull(),
+  status: text("status", { enum: ["sent", "failed", "disabled"] }).notNull(),
+  httpStatus: integer("http_status"),
+  errorCode: text("error_code").notNull().default(""),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("push_delivery_event_subscription_unique_idx").on(table.eventId, table.subscriptionId),
+  index("push_delivery_user_created_idx").on(table.userEmail, table.createdAt),
+]);
+
 export const groupMembers = sqliteTable("group_members", {
   id: text("id").primaryKey(),
   groupId: text("group_id").notNull(),

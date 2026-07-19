@@ -8,6 +8,7 @@ export const metadata: Metadata = {
     icon: "/kinban-mark.png",
     shortcut: "/kinban-mark.png",
   },
+  manifest: "/manifest.webmanifest",
 };
 
 export default function RootLayout({

@@ -1,0 +1,9 @@
+{
+  "name": "KINBAN",
+  "short_name": "KINBAN",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8faf6",
+  "theme_color": "#1f786f",
+  "icons": [{ "src": "/kinban-mark.png", "sizes": "512x512", "type": "image/png" }]
+}
