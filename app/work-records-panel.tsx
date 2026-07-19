@@ -946,6 +946,9 @@ function ManagerView({
   review,
   reviewMany,
   monthAction,
+  page,
+  hasNext,
+  onPageChange,
 }: {
   records: RecordRow[];
   members: Member[];
