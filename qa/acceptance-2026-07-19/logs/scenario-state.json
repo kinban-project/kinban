@@ -1,0 +1,20 @@
+{
+  "baseUrl": "http://localhost:3000",
+  "owner": "qa-owner@local.test",
+  "editor": "qa-editor@local.test",
+  "memberA": "qa-member-a@local.test",
+  "memberB": "qa-member-b@local.test",
+  "outsider": "qa-outsider@local.test",
+  "groupId": "c42b4e1a-502d-45ec-8fa5-f89927465b2d",
+  "planId": "7921abfe-2a2a-4c68-a4f9-7ea27f214ca4",
+  "periodId": "4591745a-115a-4708-b07a-a3c79f0676bb",
+  "firstSlotId": "6c382ae0-6dcb-48b5-94f8-f9df6949c283",
+  "nightSlotId": "34eddc95-f7eb-4b4a-a232-b39bdd124c54",
+  "recordId": "a61c3fcc-0fd4-4268-a627-bf06e49f460a",
+  "findings": [
+    {
+      "id": "P-01-API",
+      "detail": "member本人のmembershipにadminNoteが含まれる"
+    }
+  ]
+}

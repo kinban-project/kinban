@@ -1,0 +1,47 @@
+{
+  "findings": [
+    {
+      "id": "S-06",
+      "severity": "High",
+      "detail": "締切日経過後も希望受付status=openのまま保存できる"
+    },
+    {
+      "id": "A-04",
+      "severity": "Pass",
+      "detail": "26:00が翌日ISO時刻に正規化された"
+    },
+    {
+      "id": "M-04",
+      "severity": "High",
+      "detail": "日次status=unsubmittedの勤務が残っていても月次提出・承認できる"
+    }
+  ],
+  "expiredPlanId": "7f2093ef-534d-48fb-b0cb-56254209cc60",
+  "nightRecordId": "d4d2814f-1452-4d09-983a-83b82a4fd131",
+  "futureStart": {
+    "user": "qa-member-b@local.test",
+    "method": "POST",
+    "path": "/api/groups/c42b4e1a-502d-45ec-8fa5-f89927465b2d/work-records",
+    "status": 201,
+    "ms": 188.8,
+    "data": {
+      "ok": true,
+      "record": {
+        "id": "d4d2814f-1452-4d09-983a-83b82a4fd131",
+        "groupId": "c42b4e1a-502d-45ec-8fa5-f89927465b2d",
+        "planId": "7921abfe-2a2a-4c68-a4f9-7ea27f214ca4",
+        "slotId": "34eddc95-f7eb-4b4a-a232-b39bdd124c54",
+        "userEmail": "qa-member-b@local.test",
+        "scheduledDate": "2026-08-03",
+        "scheduledStartTime": "23:00",
+        "scheduledEndTime": "25:00",
+        "claimedStartAt": "2026-08-03T14:00:00.000Z",
+        "claimedEndAt": "2026-08-03T16:00:00.000Z",
+        "status": "unsubmitted",
+        "employeeNote": "",
+        "createdAt": "2026-07-19T00:43:21.078Z",
+        "updatedAt": "2026-07-19T00:43:21.078Z"
+      }
+    }
+  }
+}

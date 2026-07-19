@@ -1,0 +1,12 @@
+{
+  "ok": false,
+  "leakedAdminNote": true,
+  "toolCount": 26,
+  "hasAttendanceTools": false,
+  "mcpDroppedUiPreference": true,
+  "accepts15MinuteSlots": true,
+  "mcpMissingSubmission": true,
+  "mcpMissingCalendarEvent": true,
+  "mcpMissingAudit": true,
+  "mcpPlanId": "2fdc5118-7684-4b52-a7a9-5fa79d31fbfd"
+}
