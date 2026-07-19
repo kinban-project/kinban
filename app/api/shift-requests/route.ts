@@ -4,6 +4,7 @@ import { getDb } from "../../../db";
 import { groupMembers, groupPreferences, groups, shiftAvailability, shiftPlans, shiftRequestPeriods, shiftRequestSubmissions, shiftRequests, shiftSlots } from "../../../db/schema";
 import { getMembership } from "../groups/group-access";
 import { recordAudit } from "../../audit-log";
+import { shiftRequestDeadlinePassed } from "../../shift-request-deadline";
 
 export const dynamic = "force-dynamic";
 const editable = (role: string) => role === "owner" || role === "editor";
@@ -20,7 +21,7 @@ export async function GET(request: Request) {
   const db = getDb();
   const [group] = await db.select().from(groups).where(eq(groups.id, groupId)).limit(1);
   const allPeriods = await db.select().from(shiftRequestPeriods).where(eq(shiftRequestPeriods.groupId, groupId));
-  const periods = editable(membership.role) ? allPeriods : allPeriods.filter((item) => item.status === "open");
+  const periods = editable(membership.role) ? allPeriods : allPeriods.filter((item) => item.status === "open" && !shiftRequestDeadlinePassed(item.closesOn));
   const plans = await db.select().from(shiftPlans).where(eq(shiftPlans.groupId, groupId));
   const members = await db.select().from(groupMembers).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.status, "active")));
   const availability = await db.select().from(shiftAvailability).where(and(eq(shiftAvailability.groupId, groupId), editable(membership.role) ? undefined : eq(shiftAvailability.userEmail, user.email)));
@@ -67,6 +68,10 @@ export async function POST(request: Request) {
     const [period] = await db.select().from(shiftRequestPeriods).where(and(eq(shiftRequestPeriods.id, body.periodId), eq(shiftRequestPeriods.groupId, groupId))).limit(1);
     if (!period) return Response.json({ error: "希望受付が見つかりません" }, { status: 404 });
     if (period.status !== "open") return Response.json({ error: "この受付期間は締め切られています" }, { status: 409 });
+    if (shiftRequestDeadlinePassed(period.closesOn)) {
+      await db.update(shiftRequestPeriods).set({ status: "closed" }).where(eq(shiftRequestPeriods.id, period.id));
+      return Response.json({ error: "シフト希望の締切日時を過ぎています。", status: "closed" }, { status: 409 });
+    }
     const slots = await db.select().from(shiftSlots).where(eq(shiftSlots.planId, period.planId));
     const valid = new Set(slots.map((slot) => `${slot.date}|${slot.startTime}|${slot.endTime}`));
     const rows = (body.requests ?? []).filter((item) => valid.has(`${item.date}|${item.startTime}|${item.endTime}`) && preferences.has(item.preference)).map((item) => ({ id: crypto.randomUUID(), periodId: period.id, userEmail: user.email, date: item.date, startTime: item.startTime, endTime: item.endTime, preference: item.preference, note: item.note?.trim() ?? "" }));

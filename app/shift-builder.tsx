@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { localApiFetch } from "./local-api";
 import { getShiftDisplayLabel, getShiftDisplayStatus } from "./shift-status";
 import { displayShiftTime } from "./shift-time";
+import { toDateTimeLocal } from "./shift-request-deadline";
 
 type Group = { id: string; name: string; membership: { role: string } };
 type Plan = {
@@ -74,7 +75,7 @@ const initial = {
   name: "7月後半シフト",
   startDate: "2026-07-16",
   endDate: "2026-07-31",
-  requestCloseDate: defaultRequestCloseDate("2026-07-16"),
+  requestCloseDate: `${defaultRequestCloseDate("2026-07-16")}T23:59`,
   openingTime: "09:00",
   closingTime: "18:00",
   slotMinutes: "60",
@@ -433,7 +434,7 @@ export default function ShiftBuilder({
             <label>
               シフト希望受付期限
               <input
-                type="date"
+                type="datetime-local"
                 required
                 value={form.requestCloseDate}
                 onChange={(event) =>
@@ -686,7 +687,7 @@ export default function ShiftBuilder({
                   受付期限
                   <input
                     type="date"
-                    value={detail.requestPeriod.closesOn}
+                  value={toDateTimeLocal(detail.requestPeriod.closesOn)}
                     onChange={(event) =>
                       setDetail({
                         ...detail,
