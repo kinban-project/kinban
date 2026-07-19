@@ -140,6 +140,10 @@ export const assistantMessageExecutions = sqliteTable("assistant_message_executi
   messageId: text("message_id").notNull(),
   operation: text("operation").notNull(),
   target: text("target").notNull(),
+  status: text("status", { enum: ["processing", "succeeded", "failed"] }).notNull().default("processing"),
+  errorCode: text("error_code").notNull().default(""),
+  attemptCount: integer("attempt_count").notNull().default(1),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [
   uniqueIndex("assistant_message_execution_unique_idx").on(table.messageId, table.operation, table.target),

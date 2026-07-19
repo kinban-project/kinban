@@ -1,4 +1,17 @@
-import { and, count, desc, eq, gt, gte, inArray, isNull, like, lt, lte, or } from "drizzle-orm";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  gt,
+  gte,
+  inArray,
+  isNull,
+  like,
+  lt,
+  lte,
+  or,
+} from "drizzle-orm";
 import { getDb } from "../../db";
 import {
   accountProfiles,
@@ -29,280 +42,2317 @@ import { shiftRequestDeadlinePassed } from "../shift-request-deadline";
 import { isPreferenceStatus, preferenceStatuses } from "../preference-status";
 import { recordAudit } from "../audit-log";
 import { shiftDateTime } from "../shift-time";
-import { getMcpWorkRecords, mcpClock, mcpDailyReview, mcpReviewMonthly, mcpSubmitMonthly } from "./work-tools";
-import { activeGroupEmails, createSystemMessagesAndPush, sendBusinessPush } from "../notification-events";
+import {
+  getMcpWorkRecords,
+  mcpClock,
+  mcpDailyReview,
+  mcpReviewMonthly,
+  mcpSubmitMonthly,
+} from "./work-tools";
+import {
+  activeGroupEmails,
+  createSystemMessagesAndPush,
+  sendBusinessPush,
+} from "../notification-events";
 
 export const dynamic = "force-dynamic";
 
 type Args = Record<string, unknown>;
-type RpcRequest = { jsonrpc?: string; id?: string | number | null; method?: string; params?: { name?: string; arguments?: Args } };
-const mutating = "This operation changes saved data. Re-run with confirm:true after confirming the target and scope.";
+type RpcRequest = {
+  jsonrpc?: string;
+  id?: string | number | null;
+  method?: string;
+  params?: { name?: string; arguments?: Args };
+};
+const mutating =
+  "This operation changes saved data. Re-run with confirm:true after confirming the target and scope.";
 const editorRoles = new Set(["owner", "editor"]);
 const preferenceValues = new Set(preferenceStatuses);
-const assistantTools = new Set(["get_profile", "list_groups", "get_group_members", "list_shift_plans", "get_shift_plan", "get_shift_request_overview", "get_work_records", "list_announcements", "group_dashboard", "get_assistant_message_queue_summary", "claim_next_assistant_message", "list_assistant_messages", "reply_assistant_message", "release_assistant_message", "defer_assistant_message", "complete_assistant_message", "create_shift_swap_announcement_draft", "create_shift_plan", "delete_draft_shift_plan", "update_slot_counts", "set_shift_assignments", "submit_work_record", "review_monthly_work", "create_announcement"]);
-const chunk = <T,>(items: T[], size: number) => {
+const assistantTools = new Set([
+  "get_profile",
+  "list_groups",
+  "get_group_members",
+  "list_shift_plans",
+  "get_shift_plan",
+  "get_shift_request_overview",
+  "get_work_records",
+  "list_announcements",
+  "group_dashboard",
+  "get_assistant_message_queue_summary",
+  "claim_next_assistant_message",
+  "list_assistant_messages",
+  "reply_assistant_message",
+  "release_assistant_message",
+  "defer_assistant_message",
+  "complete_assistant_message",
+  "create_shift_swap_announcement_draft",
+  "create_shift_plan",
+  "delete_draft_shift_plan",
+  "update_slot_counts",
+  "set_shift_assignments",
+  "submit_work_record",
+  "review_monthly_work",
+  "create_announcement",
+]);
+const chunk = <T>(items: T[], size: number) => {
   const chunks: T[][] = [];
-  for (let index = 0; index < items.length; index += size) chunks.push(items.slice(index, index + size));
+  for (let index = 0; index < items.length; index += size)
+    chunks.push(items.slice(index, index + size));
   return chunks;
 };
 
-function hasScope(identity: Awaited<ReturnType<typeof requireApiIdentity>>, scope: string) {
-  return !(identity instanceof Response) && (identity.tokenType !== "assistant" || identity.scopes.includes(scope));
+function hasScope(
+  identity: Awaited<ReturnType<typeof requireApiIdentity>>,
+  scope: string,
+) {
+  return (
+    !(identity instanceof Response) &&
+    (identity.tokenType !== "assistant" || identity.scopes.includes(scope))
+  );
 }
 
-function assistantGroupError(identity: Awaited<ReturnType<typeof requireApiIdentity>>, groupId: string) {
-  if (identity instanceof Response || identity.tokenType !== "assistant") return null;
-  if (identity.groupId !== groupId) return "This assistant token is restricted to its issued group.";
+function assistantGroupError(
+  identity: Awaited<ReturnType<typeof requireApiIdentity>>,
+  groupId: string,
+) {
+  if (identity instanceof Response || identity.tokenType !== "assistant")
+    return null;
+  if (identity.groupId !== groupId)
+    return "This assistant token is restricted to its issued group.";
   return null;
 }
 
-async function assistantActiveError(db: ReturnType<typeof getDb>, identity: Awaited<ReturnType<typeof requireApiIdentity>>) {
-  if (identity instanceof Response || identity.tokenType !== "assistant" || !identity.groupId) return null;
-  const [assistant] = await db.select({ status: groupAssistants.status }).from(groupAssistants).where(eq(groupAssistants.groupId, identity.groupId)).limit(1);
-  return assistant?.status === "active" ? null : "KINBAN assistant is inactive.";
+async function assistantActiveError(
+  db: ReturnType<typeof getDb>,
+  identity: Awaited<ReturnType<typeof requireApiIdentity>>,
+) {
+  if (
+    identity instanceof Response ||
+    identity.tokenType !== "assistant" ||
+    !identity.groupId
+  )
+    return null;
+  const [assistant] = await db
+    .select({ status: groupAssistants.status })
+    .from(groupAssistants)
+    .where(eq(groupAssistants.groupId, identity.groupId))
+    .limit(1);
+  return assistant?.status === "active"
+    ? null
+    : "KINBAN assistant is inactive.";
 }
 
-type AssistantPermission = "canCreateShifts" | "canPublishShifts" | "canReviewDailyWork" | "canReviewMonthlyWork" | "canCreateAnnouncements";
-const assistantManagementTools = new Set(["create_shift_plan", "delete_draft_shift_plan", "update_slot_counts", "set_shift_assignments", "submit_work_record", "review_monthly_work", "create_announcement"]);
+type AssistantPermission =
+  | "canCreateShifts"
+  | "canPublishShifts"
+  | "canReviewDailyWork"
+  | "canReviewMonthlyWork"
+  | "canCreateAnnouncements";
+const assistantManagementTools = new Set([
+  "create_shift_plan",
+  "delete_draft_shift_plan",
+  "update_slot_counts",
+  "set_shift_assignments",
+  "submit_work_record",
+  "review_monthly_work",
+  "create_announcement",
+]);
 function assistantExecutionTarget(name: string, args: Args) {
-  if (name === "create_shift_plan") return `${text(args.name)}|${text(args.startDate)}|${text(args.endDate)}`;
-  if (name === "review_monthly_work") return `${text(args.userEmail)}|${text(args.month)}|${text(args.action)}`;
-  if (name === "submit_work_record") return `${text(args.recordId)}|${text(args.status)}`;
-  if (name === "create_announcement") return `${text(args.title)}|${text(args.body)}`;
+  if (name === "create_shift_plan")
+    return `${text(args.name)}|${text(args.startDate)}|${text(args.endDate)}`;
+  if (name === "review_monthly_work")
+    return `${text(args.userEmail)}|${text(args.month)}|${text(args.action)}`;
+  if (name === "submit_work_record")
+    return `${text(args.recordId)}|${text(args.status)}`;
+  if (name === "create_announcement")
+    return `${text(args.title)}|${text(args.body)}`;
   return text(args.planId);
 }
-async function assistantPermissionError(db: ReturnType<typeof getDb>, identity: Awaited<ReturnType<typeof requireApiIdentity>>, groupId: string, permission: AssistantPermission, sourceMessageId: unknown, claimId: unknown) {
-  if (identity instanceof Response || identity.tokenType !== "assistant") return null;
+async function assistantPermissionError(
+  db: ReturnType<typeof getDb>,
+  identity: Awaited<ReturnType<typeof requireApiIdentity>>,
+  groupId: string,
+  permission: AssistantPermission,
+  sourceMessageId: unknown,
+  claimId: unknown,
+) {
+  if (identity instanceof Response || identity.tokenType !== "assistant")
+    return null;
   const restricted = assistantGroupError(identity, groupId);
   if (restricted) return restricted;
   const messageId = text(sourceMessageId);
-  if (!messageId) return "sourceMessageId from an active manager is required for this assistant operation.";
+  if (!messageId)
+    return "sourceMessageId from an active manager is required for this assistant operation.";
   const activeClaimId = text(claimId);
-  if (!activeClaimId) return "claimId from the current message claim is required for this assistant operation.";
+  if (!activeClaimId)
+    return "claimId from the current message claim is required for this assistant operation.";
   const now = new Date().toISOString();
   const [assistant, source] = await Promise.all([
-    db.select().from(groupAssistants).where(eq(groupAssistants.groupId, groupId)).limit(1),
-    db.select().from(assistantMessages).where(and(eq(assistantMessages.id, messageId), eq(assistantMessages.groupId, groupId), eq(assistantMessages.senderType, "member"), eq(assistantMessages.status, "processing"), eq(assistantMessages.claimId, activeClaimId), gt(assistantMessages.claimExpiresAt, now))).limit(1),
+    db
+      .select()
+      .from(groupAssistants)
+      .where(eq(groupAssistants.groupId, groupId))
+      .limit(1),
+    db
+      .select()
+      .from(assistantMessages)
+      .where(
+        and(
+          eq(assistantMessages.id, messageId),
+          eq(assistantMessages.groupId, groupId),
+          eq(assistantMessages.senderType, "member"),
+          eq(assistantMessages.status, "processing"),
+          eq(assistantMessages.claimId, activeClaimId),
+          gt(assistantMessages.claimExpiresAt, now),
+        ),
+      )
+      .limit(1),
   ]);
   if (assistant[0]?.status !== "active") return "KINBAN assistant is inactive.";
-  if (!assistant[0]?.[permission]) return "This group has disabled the AI assistant permission for this operation.";
-  if (!source[0]) return "sourceMessageId must identify a currently claimed human manager message in this group.";
+  if (!assistant[0]?.[permission])
+    return "This group has disabled the AI assistant permission for this operation.";
+  if (!source[0])
+    return "sourceMessageId must identify a currently claimed human manager message in this group.";
   const sender = await membership(db, groupId, source[0].memberEmail);
-  if (!sender || sender.status !== "active" || !editorRoles.has(sender.role)) return "The claimed message sender is not an active manager.";
+  if (!sender || sender.status !== "active" || !editorRoles.has(sender.role))
+    return "The claimed message sender is not an active manager.";
   return null;
 }
 
 const tools = [
-  { name: "list_my_tasks", description: "List the authenticated user's personal tasks.", inputSchema: { type: "object", properties: { from: { type: "string" }, to: { type: "string" } } } },
-  { name: "create_task", description: "Create a personal task.", inputSchema: { type: "object", required: ["title", "date"], properties: { title: { type: "string" }, date: { type: "string" }, startTime: { type: "string" }, endTime: { type: "string" }, category: { type: "string", enum: ["仕事", "生活", "予定"] }, notes: { type: "string" } } } },
-  { name: "update_task", description: "Update a personal task. Requires confirm:true.", inputSchema: { type: "object", required: ["id", "confirm"], properties: { id: { type: "string" }, confirm: { type: "boolean" }, title: { type: "string" }, date: { type: "string" }, startTime: { type: "string" }, endTime: { type: "string" }, category: { type: "string" }, notes: { type: "string" }, completed: { type: "boolean" } } } },
-  { name: "delete_task", description: "Delete a personal task. Requires confirm:true.", inputSchema: { type: "object", required: ["id", "confirm"], properties: { id: { type: "string" }, confirm: { type: "boolean" } } } },
-  { name: "list_groups", description: "List groups where the authenticated user is a member.", inputSchema: { type: "object", properties: {} } },
-  { name: "get_profile", description: "Get the authenticated account nickname.", inputSchema: { type: "object", properties: {} } },
-  { name: "set_profile_nickname", description: "Change the authenticated account nickname. Requires confirm:true.", inputSchema: { type: "object", required: ["nickname", "confirm"], properties: { nickname: { type: "string" }, confirm: { type: "boolean" } } } },
-  { name: "get_group_members", description: "List members and group-local nicknames.", inputSchema: { type: "object", required: ["groupId"], properties: { groupId: { type: "string" } } } },
-  { name: "update_group_member", description: "Change a group-local nickname, visibility, or role. Requires confirm:true.", inputSchema: { type: "object", required: ["groupId", "userEmail", "confirm"], properties: { groupId: { type: "string" }, userEmail: { type: "string" }, displayName: { type: "string" }, showInPersonal: { type: "boolean" }, role: { type: "string", enum: ["owner", "editor", "member"] }, confirm: { type: "boolean" } } } },
-  { name: "list_join_requests", description: "List pending and past join requests. Owner only.", inputSchema: { type: "object", required: ["groupId"], properties: { groupId: { type: "string" } } } },
-  { name: "decide_join_request", description: "Approve or reject a join request. Requires owner role and confirm:true.", inputSchema: { type: "object", required: ["groupId", "requestId", "action", "confirm"], properties: { groupId: { type: "string" }, requestId: { type: "string" }, action: { type: "string", enum: ["approve", "reject"] }, confirm: { type: "boolean" } } } },
-  { name: "get_group_preferences", description: "Get the authenticated member's basic work preferences and weekly availability.", inputSchema: { type: "object", required: ["groupId"], properties: { groupId: { type: "string" } } } },
-  { name: "save_group_preferences", description: "Save basic work preferences and weekly availability. Status must be want, possible, off, or unavailable. Requires confirm:true.", inputSchema: { type: "object", required: ["groupId", "confirm"], properties: { groupId: { type: "string" }, confirm: { type: "boolean" }, minDays: { type: "number" }, maxDays: { type: "number" }, minHours: { type: "number" }, maxHours: { type: "number" }, weekendPolicy: { type: "string" }, freeComment: { type: "string" }, availability: { type: "array", items: { type: "object", required: ["dayOfWeek", "status"], properties: { dayOfWeek: { type: "integer", minimum: 0, maximum: 6 }, status: { type: "string", enum: ["want", "possible", "off", "unavailable"] }, startTime: { type: "string" }, endTime: { type: "string" }, note: { type: "string" } } } } } } },
-  { name: "list_shift_plans", description: "List work-slot plans for a group.", inputSchema: { type: "object", required: ["groupId"], properties: { groupId: { type: "string" } } } },
-  { name: "get_shift_plan", description: "Get a plan, its slots, and assignments.", inputSchema: { type: "object", required: ["planId"], properties: { planId: { type: "string" } } } },
-  { name: "get_audit_logs", description: "List audited group operations for an editor or owner. Supports action, userEmail, search, date range, and limit.", inputSchema: { type: "object", required: ["groupId"], properties: { groupId: { type: "string" }, action: { type: "string" }, userEmail: { type: "string" }, search: { type: "string" }, from: { type: "string" }, to: { type: "string" }, limit: { type: "number" } } } },
-  { name: "get_work_records", description: "List work records and breaks for the authenticated member, or one member for a manager. Supports from, to, status, and userEmail filters.", inputSchema: { type: "object", required: ["groupId"], properties: { groupId: { type: "string" }, from: { type: "string" }, to: { type: "string" }, status: { type: "string" }, userEmail: { type: "string" } } } },
-  { name: "clock_work", description: "Record start, end, break-start, or break-end for the authenticated member. The operation is audited.", inputSchema: { type: "object", required: ["groupId", "action"], properties: { groupId: { type: "string" }, action: { type: "string", enum: ["start", "end", "break-start", "break-end"] }, recordId: { type: "string" } } } },
-  { name: "submit_work_record", description: "Submit one daily work record, or approve/reject it when called by a manager. Assistant approval/rejection requires sourceMessageId and claimId from the currently claimed manager instruction.", inputSchema: { type: "object", required: ["groupId", "recordId", "status"], properties: { groupId: { type: "string" }, recordId: { type: "string" }, status: { type: "string", enum: ["submitted", "approved", "rejected"] }, managerNote: { type: "string" }, sourceMessageId: { type: "string" }, claimId: { type: "string" } } } },
-  { name: "submit_monthly_work", description: "Submit the authenticated member's monthly work claim after checking incomplete records.", inputSchema: { type: "object", required: ["groupId", "month"], properties: { groupId: { type: "string" }, month: { type: "string", pattern: "^\\d{4}-\\d{2}$" } } } },
-  { name: "review_monthly_work", description: "Approve, reject, or reopen a member's monthly work claim. Assistant calls require sourceMessageId and claimId from the currently claimed manager instruction.", inputSchema: { type: "object", required: ["groupId", "month", "userEmail", "action"], properties: { groupId: { type: "string" }, month: { type: "string" }, userEmail: { type: "string" }, action: { type: "string", enum: ["approve", "reject", "reopen"] }, managerNote: { type: "string" }, sourceMessageId: { type: "string" }, claimId: { type: "string" } } } },
-  { name: "create_shift_plan", description: "Create a work-slot plan and request period. Assistant calls require sourceMessageId and claimId from a currently claimed manager message plus the group's shift-creation permission.", inputSchema: { type: "object", required: ["groupId", "name", "startDate", "endDate"], properties: { groupId: { type: "string" }, name: { type: "string" }, startDate: { type: "string" }, endDate: { type: "string" }, openingTime: { type: "string" }, closingTime: { type: "string" }, slotMinutes: { type: "number", enum: [30, 60, 120] }, notes: { type: "string" }, reason: { type: "string" }, slotRules: { type: "array" }, requestPeriod: { type: "object" }, confirm: { type: "boolean" }, sourceMessageId: { type: "string" }, claimId: { type: "string" } } } },
-  { name: "delete_draft_shift_plan", description: "Delete a draft plan and its slots. Published plans cannot be deleted. Assistant calls require sourceMessageId and claimId from a currently claimed manager message.", inputSchema: { type: "object", required: ["planId"], properties: { planId: { type: "string" }, confirm: { type: "boolean" }, sourceMessageId: { type: "string" }, claimId: { type: "string" } } } },
-  { name: "update_slot_counts", description: "Adjust required counts or close/reopen dates in a draft plan. Assistant calls require sourceMessageId and claimId from a currently claimed manager message.", inputSchema: { type: "object", required: ["planId", "confirm", "expectedVersion"], properties: { planId: { type: "string" }, confirm: { type: "boolean" }, expectedVersion: { type: "number" }, slots: { type: "array" }, closedDates: { type: "array" }, sourceMessageId: { type: "string" }, claimId: { type: "string" } } } },
-  { name: "get_shift_requests", description: "Get the authenticated user's shift requests for a request period.", inputSchema: { type: "object", required: ["groupId"], properties: { groupId: { type: "string" }, periodId: { type: "string" } } } },
-  { name: "get_shift_request_overview", description: "Get all active members' shift requests and period-specific comments for AI shift assignment.", inputSchema: { type: "object", required: ["groupId", "periodId"], properties: { groupId: { type: "string" }, periodId: { type: "string" } } } },
-  { name: "save_shift_requests", description: "Replace the authenticated user's shift requests and period-specific comment. Status must be want, possible, off, or unavailable. Invalid entries are rejected. Requires confirm:true.", inputSchema: { type: "object", required: ["groupId", "periodId", "requests", "confirm"], properties: { groupId: { type: "string" }, periodId: { type: "string" }, requests: { type: "array", items: { type: "object", required: ["date", "startTime", "endTime", "preference"], properties: { date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" }, startTime: { type: "string" }, endTime: { type: "string" }, preference: { type: "string", enum: ["want", "possible", "off", "unavailable"] }, note: { type: "string" } } } }, requestComment: { type: "string", maxLength: 500 }, confirm: { type: "boolean" } } } },
-  { name: "set_shift_assignments", description: "Replace assignments and optionally publish a plan. Assistant calls require sourceMessageId and claimId from a currently claimed manager message plus the matching shift permission.", inputSchema: { type: "object", required: ["planId", "assignments", "expectedVersion"], properties: { planId: { type: "string" }, assignments: { type: "object" }, status: { type: "string", enum: ["draft", "published"] }, expectedVersion: { type: "number" }, reason: { type: "string" }, confirm: { type: "boolean" }, sourceMessageId: { type: "string" }, claimId: { type: "string" } } } },
-  { name: "list_announcements", description: "List group announcements, read states, and replies.", inputSchema: { type: "object", required: ["groupId"], properties: { groupId: { type: "string" } } } },
-  { name: "get_assistant_message_queue_summary", description: "Get aggregate counts for pending KINBAN assistant member messages without returning message bodies or member identities.", inputSchema: { type: "object", required: ["groupId"], properties: { groupId: { type: "string" } } } },
-  { name: "claim_next_assistant_message", description: "Claim one pending assistant message. Use the returned message.id and claimId together for replies, state changes, and permitted manager operations.", inputSchema: { type: "object", required: ["groupId"], properties: { groupId: { type: "string" } } } },
-  { name: "list_assistant_messages", description: "List KINBAN assistant conversations. Managers can list all members or filter by memberEmail and status; members can only list their own conversation.", inputSchema: { type: "object", required: ["groupId"], properties: { groupId: { type: "string" }, memberEmail: { type: "string" }, status: { type: "string", enum: ["pending", "processing", "processed", "failed", "needs_review"] }, limit: { type: "number" } } } },
-  { name: "reply_assistant_message", description: "Reply as KINBAN assistant to one currently claimed message and mark it processed. Pass the claimId returned when the message was claimed.", inputSchema: { type: "object", required: ["groupId", "messageId", "claimId", "body"], properties: { groupId: { type: "string" }, messageId: { type: "string" }, claimId: { type: "string" }, body: { type: "string" } } } },
-  { name: "release_assistant_message", description: "Return a currently claimed member message to the pending queue without replying. Use when it should be retried later.", inputSchema: { type: "object", required: ["groupId", "messageId", "claimId"], properties: { groupId: { type: "string" }, messageId: { type: "string" }, claimId: { type: "string" } } } },
-  { name: "defer_assistant_message", description: "Mark a currently claimed member message as needs_review without replying. Use when a manager decision is needed.", inputSchema: { type: "object", required: ["groupId", "messageId", "claimId", "reason"], properties: { groupId: { type: "string" }, messageId: { type: "string" }, claimId: { type: "string" }, reason: { type: "string", maxLength: 500 } } } },
-  { name: "complete_assistant_message", description: "Mark a currently claimed member message as processed without sending a reply. Use only when no member response is needed.", inputSchema: { type: "object", required: ["groupId", "messageId", "claimId", "reason"], properties: { groupId: { type: "string" }, messageId: { type: "string" }, claimId: { type: "string" }, reason: { type: "string", maxLength: 500 } } } },
-  { name: "create_shift_swap_announcement_draft", description: "For a currently claimed member request, create a manager-reviewable shift-swap announcement draft from exactly one of that member's published assignments. This never distributes an announcement. Supply slotId when the member has multiple eligible published assignments.", inputSchema: { type: "object", required: ["groupId", "messageId", "claimId"], properties: { groupId: { type: "string" }, messageId: { type: "string" }, claimId: { type: "string" }, slotId: { type: "string" } } } },
-  { name: "mark_announcement_read", description: "Mark a group announcement as read.", inputSchema: { type: "object", required: ["announcementId"], properties: { announcementId: { type: "string" } } } },
-  { name: "create_announcement", description: "Create a group announcement. Assistant calls require sourceMessageId and claimId from a currently claimed manager message plus announcement permission.", inputSchema: { type: "object", required: ["groupId", "title", "body"], properties: { groupId: { type: "string" }, title: { type: "string" }, body: { type: "string" }, confirm: { type: "boolean" }, sourceMessageId: { type: "string" }, claimId: { type: "string" } } } },
-  { name: "reply_announcement", description: "Reply to a group announcement.", inputSchema: { type: "object", required: ["announcementId", "body"], properties: { announcementId: { type: "string" }, body: { type: "string" } } } },
-  { name: "group_dashboard", description: "Get group member, plan, assignment, and announcement counts.", inputSchema: { type: "object", required: ["groupId"], properties: { groupId: { type: "string" } } } },
+  {
+    name: "list_my_tasks",
+    description: "List the authenticated user's personal tasks.",
+    inputSchema: {
+      type: "object",
+      properties: { from: { type: "string" }, to: { type: "string" } },
+    },
+  },
+  {
+    name: "create_task",
+    description: "Create a personal task.",
+    inputSchema: {
+      type: "object",
+      required: ["title", "date"],
+      properties: {
+        title: { type: "string" },
+        date: { type: "string" },
+        startTime: { type: "string" },
+        endTime: { type: "string" },
+        category: { type: "string", enum: ["仕事", "生活", "予定"] },
+        notes: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "update_task",
+    description: "Update a personal task. Requires confirm:true.",
+    inputSchema: {
+      type: "object",
+      required: ["id", "confirm"],
+      properties: {
+        id: { type: "string" },
+        confirm: { type: "boolean" },
+        title: { type: "string" },
+        date: { type: "string" },
+        startTime: { type: "string" },
+        endTime: { type: "string" },
+        category: { type: "string" },
+        notes: { type: "string" },
+        completed: { type: "boolean" },
+      },
+    },
+  },
+  {
+    name: "delete_task",
+    description: "Delete a personal task. Requires confirm:true.",
+    inputSchema: {
+      type: "object",
+      required: ["id", "confirm"],
+      properties: { id: { type: "string" }, confirm: { type: "boolean" } },
+    },
+  },
+  {
+    name: "list_groups",
+    description: "List groups where the authenticated user is a member.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "get_profile",
+    description: "Get the authenticated account nickname.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "set_profile_nickname",
+    description:
+      "Change the authenticated account nickname. Requires confirm:true.",
+    inputSchema: {
+      type: "object",
+      required: ["nickname", "confirm"],
+      properties: {
+        nickname: { type: "string" },
+        confirm: { type: "boolean" },
+      },
+    },
+  },
+  {
+    name: "get_group_members",
+    description: "List members and group-local nicknames.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId"],
+      properties: { groupId: { type: "string" } },
+    },
+  },
+  {
+    name: "update_group_member",
+    description:
+      "Change a group-local nickname, visibility, or role. Requires confirm:true.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId", "userEmail", "confirm"],
+      properties: {
+        groupId: { type: "string" },
+        userEmail: { type: "string" },
+        displayName: { type: "string" },
+        showInPersonal: { type: "boolean" },
+        role: { type: "string", enum: ["owner", "editor", "member"] },
+        confirm: { type: "boolean" },
+      },
+    },
+  },
+  {
+    name: "list_join_requests",
+    description: "List pending and past join requests. Owner only.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId"],
+      properties: { groupId: { type: "string" } },
+    },
+  },
+  {
+    name: "decide_join_request",
+    description:
+      "Approve or reject a join request. Requires owner role and confirm:true.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId", "requestId", "action", "confirm"],
+      properties: {
+        groupId: { type: "string" },
+        requestId: { type: "string" },
+        action: { type: "string", enum: ["approve", "reject"] },
+        confirm: { type: "boolean" },
+      },
+    },
+  },
+  {
+    name: "get_group_preferences",
+    description:
+      "Get the authenticated member's basic work preferences and weekly availability.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId"],
+      properties: { groupId: { type: "string" } },
+    },
+  },
+  {
+    name: "save_group_preferences",
+    description:
+      "Save basic work preferences and weekly availability. Status must be want, possible, off, or unavailable. Requires confirm:true.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId", "confirm"],
+      properties: {
+        groupId: { type: "string" },
+        confirm: { type: "boolean" },
+        minDays: { type: "number" },
+        maxDays: { type: "number" },
+        minHours: { type: "number" },
+        maxHours: { type: "number" },
+        weekendPolicy: { type: "string" },
+        freeComment: { type: "string" },
+        availability: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["dayOfWeek", "status"],
+            properties: {
+              dayOfWeek: { type: "integer", minimum: 0, maximum: 6 },
+              status: {
+                type: "string",
+                enum: ["want", "possible", "off", "unavailable"],
+              },
+              startTime: { type: "string" },
+              endTime: { type: "string" },
+              note: { type: "string" },
+            },
+          },
+        },
+      },
+    },
+  },
+  {
+    name: "list_shift_plans",
+    description: "List work-slot plans for a group.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId"],
+      properties: { groupId: { type: "string" } },
+    },
+  },
+  {
+    name: "get_shift_plan",
+    description: "Get a plan, its slots, and assignments.",
+    inputSchema: {
+      type: "object",
+      required: ["planId"],
+      properties: { planId: { type: "string" } },
+    },
+  },
+  {
+    name: "get_audit_logs",
+    description:
+      "List audited group operations for an editor or owner. Supports action, userEmail, search, date range, and limit.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId"],
+      properties: {
+        groupId: { type: "string" },
+        action: { type: "string" },
+        userEmail: { type: "string" },
+        search: { type: "string" },
+        from: { type: "string" },
+        to: { type: "string" },
+        limit: { type: "number" },
+      },
+    },
+  },
+  {
+    name: "get_work_records",
+    description:
+      "List work records and breaks for the authenticated member, or one member for a manager. Supports from, to, status, and userEmail filters.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId"],
+      properties: {
+        groupId: { type: "string" },
+        from: { type: "string" },
+        to: { type: "string" },
+        status: { type: "string" },
+        userEmail: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "clock_work",
+    description:
+      "Record start, end, break-start, or break-end for the authenticated member. The operation is audited.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId", "action"],
+      properties: {
+        groupId: { type: "string" },
+        action: {
+          type: "string",
+          enum: ["start", "end", "break-start", "break-end"],
+        },
+        recordId: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "submit_work_record",
+    description:
+      "Submit one daily work record, or approve/reject it when called by a manager. Assistant approval/rejection requires sourceMessageId and claimId from the currently claimed manager instruction.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId", "recordId", "status"],
+      properties: {
+        groupId: { type: "string" },
+        recordId: { type: "string" },
+        status: { type: "string", enum: ["submitted", "approved", "rejected"] },
+        managerNote: { type: "string" },
+        sourceMessageId: { type: "string" },
+        claimId: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "submit_monthly_work",
+    description:
+      "Submit the authenticated member's monthly work claim after checking incomplete records.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId", "month"],
+      properties: {
+        groupId: { type: "string" },
+        month: { type: "string", pattern: "^\\d{4}-\\d{2}$" },
+      },
+    },
+  },
+  {
+    name: "review_monthly_work",
+    description:
+      "Approve, reject, or reopen a member's monthly work claim. Assistant calls require sourceMessageId and claimId from the currently claimed manager instruction.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId", "month", "userEmail", "action"],
+      properties: {
+        groupId: { type: "string" },
+        month: { type: "string" },
+        userEmail: { type: "string" },
+        action: { type: "string", enum: ["approve", "reject", "reopen"] },
+        managerNote: { type: "string" },
+        sourceMessageId: { type: "string" },
+        claimId: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "create_shift_plan",
+    description:
+      "Create a work-slot plan and request period. Assistant calls require sourceMessageId and claimId from a currently claimed manager message plus the group's shift-creation permission.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId", "name", "startDate", "endDate"],
+      properties: {
+        groupId: { type: "string" },
+        name: { type: "string" },
+        startDate: { type: "string" },
+        endDate: { type: "string" },
+        openingTime: { type: "string" },
+        closingTime: { type: "string" },
+        slotMinutes: { type: "number", enum: [30, 60, 120] },
+        notes: { type: "string" },
+        reason: { type: "string" },
+        slotRules: { type: "array" },
+        requestPeriod: { type: "object" },
+        confirm: { type: "boolean" },
+        sourceMessageId: { type: "string" },
+        claimId: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "delete_draft_shift_plan",
+    description:
+      "Delete a draft plan and its slots. Published plans cannot be deleted. Assistant calls require sourceMessageId and claimId from a currently claimed manager message.",
+    inputSchema: {
+      type: "object",
+      required: ["planId"],
+      properties: {
+        planId: { type: "string" },
+        confirm: { type: "boolean" },
+        sourceMessageId: { type: "string" },
+        claimId: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "update_slot_counts",
+    description:
+      "Adjust required counts or close/reopen dates in a draft plan. Assistant calls require sourceMessageId and claimId from a currently claimed manager message.",
+    inputSchema: {
+      type: "object",
+      required: ["planId", "confirm", "expectedVersion"],
+      properties: {
+        planId: { type: "string" },
+        confirm: { type: "boolean" },
+        expectedVersion: { type: "number" },
+        slots: { type: "array" },
+        closedDates: { type: "array" },
+        sourceMessageId: { type: "string" },
+        claimId: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "get_shift_requests",
+    description:
+      "Get the authenticated user's shift requests for a request period.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId"],
+      properties: { groupId: { type: "string" }, periodId: { type: "string" } },
+    },
+  },
+  {
+    name: "get_shift_request_overview",
+    description:
+      "Get all active members' shift requests and period-specific comments for AI shift assignment.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId", "periodId"],
+      properties: { groupId: { type: "string" }, periodId: { type: "string" } },
+    },
+  },
+  {
+    name: "save_shift_requests",
+    description:
+      "Replace the authenticated user's shift requests and period-specific comment. Status must be want, possible, off, or unavailable. Invalid entries are rejected. Requires confirm:true.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId", "periodId", "requests", "confirm"],
+      properties: {
+        groupId: { type: "string" },
+        periodId: { type: "string" },
+        requests: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["date", "startTime", "endTime", "preference"],
+            properties: {
+              date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+              startTime: { type: "string" },
+              endTime: { type: "string" },
+              preference: {
+                type: "string",
+                enum: ["want", "possible", "off", "unavailable"],
+              },
+              note: { type: "string" },
+            },
+          },
+        },
+        requestComment: { type: "string", maxLength: 500 },
+        confirm: { type: "boolean" },
+      },
+    },
+  },
+  {
+    name: "set_shift_assignments",
+    description:
+      "Replace assignments and optionally publish a plan. Assistant calls require sourceMessageId and claimId from a currently claimed manager message plus the matching shift permission.",
+    inputSchema: {
+      type: "object",
+      required: ["planId", "assignments", "expectedVersion"],
+      properties: {
+        planId: { type: "string" },
+        assignments: { type: "object" },
+        status: { type: "string", enum: ["draft", "published"] },
+        expectedVersion: { type: "number" },
+        reason: { type: "string" },
+        confirm: { type: "boolean" },
+        sourceMessageId: { type: "string" },
+        claimId: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "list_announcements",
+    description: "List group announcements, read states, and replies.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId"],
+      properties: { groupId: { type: "string" } },
+    },
+  },
+  {
+    name: "get_assistant_message_queue_summary",
+    description:
+      "Get aggregate counts for pending KINBAN assistant member messages without returning message bodies or member identities.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId"],
+      properties: { groupId: { type: "string" } },
+    },
+  },
+  {
+    name: "claim_next_assistant_message",
+    description:
+      "Claim one pending assistant message. Use the returned message.id and claimId together for replies, state changes, and permitted manager operations.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId"],
+      properties: { groupId: { type: "string" } },
+    },
+  },
+  {
+    name: "list_assistant_messages",
+    description:
+      "List KINBAN assistant conversations. Managers can list all members or filter by memberEmail and status; members can only list their own conversation.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId"],
+      properties: {
+        groupId: { type: "string" },
+        memberEmail: { type: "string" },
+        status: {
+          type: "string",
+          enum: [
+            "pending",
+            "processing",
+            "processed",
+            "failed",
+            "needs_review",
+          ],
+        },
+        limit: { type: "number" },
+      },
+    },
+  },
+  {
+    name: "reply_assistant_message",
+    description:
+      "Reply as KINBAN assistant to one currently claimed message and mark it processed. Pass the claimId returned when the message was claimed.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId", "messageId", "claimId", "body"],
+      properties: {
+        groupId: { type: "string" },
+        messageId: { type: "string" },
+        claimId: { type: "string" },
+        body: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "release_assistant_message",
+    description:
+      "Return a currently claimed member message to the pending queue without replying. Use when it should be retried later.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId", "messageId", "claimId"],
+      properties: {
+        groupId: { type: "string" },
+        messageId: { type: "string" },
+        claimId: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "defer_assistant_message",
+    description:
+      "Mark a currently claimed member message as needs_review without replying. Use when a manager decision is needed.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId", "messageId", "claimId", "reason"],
+      properties: {
+        groupId: { type: "string" },
+        messageId: { type: "string" },
+        claimId: { type: "string" },
+        reason: { type: "string", maxLength: 500 },
+      },
+    },
+  },
+  {
+    name: "complete_assistant_message",
+    description:
+      "Mark a currently claimed member message as processed without sending a reply. Use only when no member response is needed.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId", "messageId", "claimId", "reason"],
+      properties: {
+        groupId: { type: "string" },
+        messageId: { type: "string" },
+        claimId: { type: "string" },
+        reason: { type: "string", maxLength: 500 },
+      },
+    },
+  },
+  {
+    name: "create_shift_swap_announcement_draft",
+    description:
+      "For a currently claimed member request, create a manager-reviewable shift-swap announcement draft from exactly one of that member's published assignments. This never distributes an announcement. Supply slotId when the member has multiple eligible published assignments.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId", "messageId", "claimId"],
+      properties: {
+        groupId: { type: "string" },
+        messageId: { type: "string" },
+        claimId: { type: "string" },
+        slotId: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "mark_announcement_read",
+    description: "Mark a group announcement as read.",
+    inputSchema: {
+      type: "object",
+      required: ["announcementId"],
+      properties: { announcementId: { type: "string" } },
+    },
+  },
+  {
+    name: "create_announcement",
+    description:
+      "Create a group announcement. Assistant calls require sourceMessageId and claimId from a currently claimed manager message plus announcement permission.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId", "title", "body"],
+      properties: {
+        groupId: { type: "string" },
+        title: { type: "string" },
+        body: { type: "string" },
+        confirm: { type: "boolean" },
+        sourceMessageId: { type: "string" },
+        claimId: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "reply_announcement",
+    description: "Reply to a group announcement.",
+    inputSchema: {
+      type: "object",
+      required: ["announcementId", "body"],
+      properties: {
+        announcementId: { type: "string" },
+        body: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "group_dashboard",
+    description: "Get group member, plan, assignment, and announcement counts.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId"],
+      properties: { groupId: { type: "string" } },
+    },
+  },
 ];
 
-function text(value: unknown, fallback = "") { return typeof value === "string" ? value.trim() : fallback; }
-function rpc(id: RpcRequest["id"], value: unknown) { return Response.json({ jsonrpc: "2.0", id, result: { content: [{ type: "text", text: JSON.stringify(value, null, 2) }] } }); }
-function rpcError(id: RpcRequest["id"], message: string) { return Response.json({ jsonrpc: "2.0", id, result: { isError: true, content: [{ type: "text", text: message }] } }); }
-async function membership(db: ReturnType<typeof getDb>, groupId: string, email: string) { const [row] = await db.select().from(groupMembers).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userEmail, email))).limit(1); return row; }
-async function planFor(db: ReturnType<typeof getDb>, planId: string, email: string) { const [plan] = await db.select().from(shiftPlans).where(eq(shiftPlans.id, planId)).limit(1); if (!plan) return { error: "Shift plan not found" as const }; const member = await membership(db, plan.groupId, email); if (!member) return { error: "Group membership required" as const }; return { plan, member };
+function text(value: unknown, fallback = "") {
+  return typeof value === "string" ? value.trim() : fallback;
+}
+function rpc(id: RpcRequest["id"], value: unknown) {
+  return Response.json({
+    jsonrpc: "2.0",
+    id,
+    result: {
+      content: [{ type: "text", text: JSON.stringify(value, null, 2) }],
+    },
+  });
+}
+function rpcError(id: RpcRequest["id"], message: string) {
+  return Response.json({
+    jsonrpc: "2.0",
+    id,
+    result: { isError: true, content: [{ type: "text", text: message }] },
+  });
+}
+async function membership(
+  db: ReturnType<typeof getDb>,
+  groupId: string,
+  email: string,
+) {
+  const [row] = await db
+    .select()
+    .from(groupMembers)
+    .where(
+      and(eq(groupMembers.groupId, groupId), eq(groupMembers.userEmail, email)),
+    )
+    .limit(1);
+  return row;
+}
+async function planFor(
+  db: ReturnType<typeof getDb>,
+  planId: string,
+  email: string,
+) {
+  const [plan] = await db
+    .select()
+    .from(shiftPlans)
+    .where(eq(shiftPlans.id, planId))
+    .limit(1);
+  if (!plan) return { error: "Shift plan not found" as const };
+  const member = await membership(db, plan.groupId, email);
+  if (!member) return { error: "Group membership required" as const };
+  return { plan, member };
 }
 
 export async function POST(request: Request) {
-  const identity = await requireApiIdentity(request); if (identity instanceof Response) return identity;
-  const payload = await request.json().catch(() => ({})) as RpcRequest;
-  if (payload.method === "initialize") return Response.json({ jsonrpc: "2.0", id: payload.id, result: { protocolVersion: "2025-03-26", capabilities: { tools: {} }, serverInfo: { name: "my-day", version: "1.1.0" } } });
-  if (payload.method === "notifications/initialized") return new Response(null, { status: 202 });
-  if (payload.method === "tools/list") return Response.json({ jsonrpc: "2.0", id: payload.id, result: { tools } });
-  if (payload.method !== "tools/call" || !payload.params?.name) return Response.json({ jsonrpc: "2.0", id: payload.id, error: { code: -32601, message: "Unsupported MCP method" } }, { status: 400 });
-  const name = payload.params.name; const args = payload.params.arguments ?? {}; const db = getDb();
-  if (identity.tokenType === "assistant" && !assistantTools.has(name)) return rpcError(payload.id, "This operation is not available to an assistant token.");
+  const identity = await requireApiIdentity(request);
+  if (identity instanceof Response) return identity;
+  const payload = (await request.json().catch(() => ({}))) as RpcRequest;
+  if (payload.method === "initialize")
+    return Response.json({
+      jsonrpc: "2.0",
+      id: payload.id,
+      result: {
+        protocolVersion: "2025-03-26",
+        capabilities: { tools: {} },
+        serverInfo: { name: "my-day", version: "1.1.0" },
+      },
+    });
+  if (payload.method === "notifications/initialized")
+    return new Response(null, { status: 202 });
+  if (payload.method === "tools/list")
+    return Response.json({ jsonrpc: "2.0", id: payload.id, result: { tools } });
+  if (payload.method !== "tools/call" || !payload.params?.name)
+    return Response.json(
+      {
+        jsonrpc: "2.0",
+        id: payload.id,
+        error: { code: -32601, message: "Unsupported MCP method" },
+      },
+      { status: 400 },
+    );
+  const name = payload.params.name;
+  const args = payload.params.arguments ?? {};
+  const db = getDb();
+  let activeExecution: { id: string; groupId: string } | null = null;
+  async function completeManagedExecution(value: unknown) {
+    if (activeExecution) {
+      await db
+        .update(assistantMessageExecutions)
+        .set({
+          status: "succeeded",
+          errorCode: "",
+          updatedAt: new Date().toISOString(),
+        })
+        .where(
+          and(
+            eq(assistantMessageExecutions.id, activeExecution.id),
+            eq(assistantMessageExecutions.status, "processing"),
+          ),
+        );
+      activeExecution = null;
+    }
+    return rpc(payload.id, value);
+  }
+  if (identity.tokenType === "assistant" && !assistantTools.has(name))
+    return rpcError(
+      payload.id,
+      "This operation is not available to an assistant token.",
+    );
   const assistantStatusError = await assistantActiveError(db, identity);
   if (assistantStatusError) return rpcError(payload.id, assistantStatusError);
   try {
-    if (identity.tokenType === "assistant" && assistantManagementTools.has(name)) {
+    if (
+      identity.tokenType === "assistant" &&
+      assistantManagementTools.has(name)
+    ) {
       let groupId = text(args.groupId);
       let permission: AssistantPermission = "canCreateShifts";
-      if (["delete_draft_shift_plan", "update_slot_counts", "set_shift_assignments"].includes(name)) {
-        const [plan] = await db.select().from(shiftPlans).where(eq(shiftPlans.id, text(args.planId))).limit(1);
+      if (
+        [
+          "delete_draft_shift_plan",
+          "update_slot_counts",
+          "set_shift_assignments",
+        ].includes(name)
+      ) {
+        const [plan] = await db
+          .select()
+          .from(shiftPlans)
+          .where(eq(shiftPlans.id, text(args.planId)))
+          .limit(1);
         if (!plan) return rpcError(payload.id, "Shift plan not found");
         groupId = plan.groupId;
-        permission = name === "set_shift_assignments" && (plan.status === "published" || args.status === "published") ? "canPublishShifts" : "canCreateShifts";
+        permission =
+          name === "set_shift_assignments" &&
+          (plan.status === "published" || args.status === "published")
+            ? "canPublishShifts"
+            : "canCreateShifts";
       } else if (name === "submit_work_record") {
-        if (!["approved", "rejected"].includes(text(args.status))) return rpcError(payload.id, "Assistant work-record actions are limited to approval or rejection.");
+        if (!["approved", "rejected"].includes(text(args.status)))
+          return rpcError(
+            payload.id,
+            "Assistant work-record actions are limited to approval or rejection.",
+          );
         permission = "canReviewDailyWork";
-      } else if (name === "review_monthly_work") permission = "canReviewMonthlyWork";
-      else if (name === "create_announcement") permission = "canCreateAnnouncements";
-      const permissionError = await assistantPermissionError(db, identity, groupId, permission, args.sourceMessageId, args.claimId);
+      } else if (name === "review_monthly_work")
+        permission = "canReviewMonthlyWork";
+      else if (name === "create_announcement")
+        permission = "canCreateAnnouncements";
+      const permissionError = await assistantPermissionError(
+        db,
+        identity,
+        groupId,
+        permission,
+        args.sourceMessageId,
+        args.claimId,
+      );
       if (permissionError) return rpcError(payload.id, permissionError);
       const messageId = text(args.sourceMessageId);
       const target = assistantExecutionTarget(name, args);
       const executionId = crypto.randomUUID();
-      await db.insert(assistantMessageExecutions).values({ id: executionId, groupId, messageId, operation: name, target }).onConflictDoNothing();
-      const [execution] = await db.select().from(assistantMessageExecutions).where(and(eq(assistantMessageExecutions.messageId, messageId), eq(assistantMessageExecutions.operation, name), eq(assistantMessageExecutions.target, target))).limit(1);
-      if (!execution || execution.id !== executionId)
-        return rpc(payload.id, { ok: true, duplicate: true, message: "This manager instruction has already been executed for the same operation and target." });
-      await recordAudit({ groupId, userEmail: identity.email, action: "assistant.execute", entityType: "assistantMessage", entityId: messageId, summary: `MCPで管理者指示を実行: ${name}`, details: { source: "mcp", sourceMessageId: messageId, operation: name, target } });
+      await db
+        .insert(assistantMessageExecutions)
+        .values({
+          id: executionId,
+          groupId,
+          messageId,
+          operation: name,
+          target,
+          status: "processing",
+          errorCode: "",
+          attemptCount: 1,
+          updatedAt: new Date().toISOString(),
+        })
+        .onConflictDoNothing();
+      const [execution] = await db
+        .select()
+        .from(assistantMessageExecutions)
+        .where(
+          and(
+            eq(assistantMessageExecutions.messageId, messageId),
+            eq(assistantMessageExecutions.operation, name),
+            eq(assistantMessageExecutions.target, target),
+          ),
+        )
+        .limit(1);
+      if (!execution)
+        return rpcError(
+          payload.id,
+          "Could not reserve this manager instruction. Retry the operation.",
+        );
+      if (execution.id !== executionId) {
+        if (execution?.status === "succeeded")
+          return rpc(payload.id, {
+            ok: true,
+            duplicate: true,
+            message:
+              "This manager instruction has already been executed for the same operation and target.",
+          });
+        if (execution?.status === "processing")
+          return rpcError(
+            payload.id,
+            "This manager instruction is already being processed. Retry after it completes.",
+          );
+        const [retried] = await db
+          .update(assistantMessageExecutions)
+          .set({
+            status: "processing",
+            errorCode: "",
+            attemptCount: execution.attemptCount + 1,
+            updatedAt: new Date().toISOString(),
+          })
+          .where(
+            and(
+              eq(assistantMessageExecutions.id, execution.id),
+              eq(assistantMessageExecutions.status, "failed"),
+            ),
+          )
+          .returning();
+        if (!retried)
+          return rpcError(
+            payload.id,
+            "This manager instruction is already being processed. Retry after it completes.",
+          );
+        activeExecution = { id: retried.id, groupId };
+      } else {
+        activeExecution = { id: executionId, groupId };
+      }
+      await recordAudit({
+        groupId,
+        userEmail: identity.email,
+        action: "assistant.execute",
+        entityType: "assistantMessage",
+        entityId: messageId,
+        summary: `MCPで管理者指示を実行: ${name}`,
+        details: {
+          source: "mcp",
+          sourceMessageId: messageId,
+          operation: name,
+          target,
+        },
+      });
       (args as { confirm?: boolean }).confirm = true;
     }
     if (name === "set_shift_assignments") {
-      const [targetPlan] = await db.select().from(shiftPlans).where(eq(shiftPlans.id, text(args.planId))).limit(1);
+      const [targetPlan] = await db
+        .select()
+        .from(shiftPlans)
+        .where(eq(shiftPlans.id, text(args.planId)))
+        .limit(1);
       if (targetPlan?.status === "published") {
-        if (args.status === "draft") return rpcError(payload.id, "Published shift plans cannot be returned to draft");
+        if (args.status === "draft")
+          return rpcError(
+            payload.id,
+            "Published shift plans cannot be returned to draft",
+          );
         (args as { status?: string }).status = "published";
       }
     }
-    if (identity.tokenType === "assistant" && ["reply_assistant_message", "release_assistant_message", "defer_assistant_message", "complete_assistant_message", "create_shift_swap_announcement_draft"].includes(name)) {
+    if (
+      identity.tokenType === "assistant" &&
+      [
+        "reply_assistant_message",
+        "release_assistant_message",
+        "defer_assistant_message",
+        "complete_assistant_message",
+        "create_shift_swap_announcement_draft",
+      ].includes(name)
+    ) {
       const now = new Date().toISOString();
-      const [claimed] = await db.select({ id: assistantMessages.id }).from(assistantMessages).where(and(
-        eq(assistantMessages.id, text(args.messageId)),
-        eq(assistantMessages.groupId, text(args.groupId)),
-        eq(assistantMessages.senderType, "member"),
-        eq(assistantMessages.status, "processing"),
-        eq(assistantMessages.claimId, text(args.claimId)),
-        gt(assistantMessages.claimExpiresAt, now),
-      )).limit(1);
-      if (!claimed) return rpcError(payload.id, "A current claimId is required for this message operation.");
+      const [claimed] = await db
+        .select({ id: assistantMessages.id })
+        .from(assistantMessages)
+        .where(
+          and(
+            eq(assistantMessages.id, text(args.messageId)),
+            eq(assistantMessages.groupId, text(args.groupId)),
+            eq(assistantMessages.senderType, "member"),
+            eq(assistantMessages.status, "processing"),
+            eq(assistantMessages.claimId, text(args.claimId)),
+            gt(assistantMessages.claimExpiresAt, now),
+          ),
+        )
+        .limit(1);
+      if (!claimed)
+        return rpcError(
+          payload.id,
+          "A current claimId is required for this message operation.",
+        );
     }
-    if (name === "get_work_records") { const groupId = text(args.groupId); const restricted = assistantGroupError(identity, groupId); if (restricted) return rpcError(payload.id, restricted); if (identity.tokenType === "assistant" && !hasScope(identity, "work:read")) return rpcError(payload.id, "Assistant token scope does not allow work-record reads."); const result = await getMcpWorkRecords(db, groupId, identity.email, args); return "error" in result ? rpcError(payload.id, result.error) : rpc(payload.id, result); }
-    if (name === "clock_work") { const result = await mcpClock(db, text(args.groupId), identity.email, text(args.action), text(args.recordId) || undefined); return "error" in result ? rpcError(payload.id, result.error) : rpc(payload.id, result); }
-    if (name === "submit_work_record") { const groupId = text(args.groupId); const status = text(args.status); const result = await mcpDailyReview(db, groupId, identity.email, text(args.recordId), status, text(args.managerNote)); return "error" in result ? rpcError(payload.id, result.error) : rpc(payload.id, result); }
-    if (name === "submit_monthly_work") { const result = await mcpSubmitMonthly(db, text(args.groupId), identity.email, text(args.month)); return "error" in result ? rpcError(payload.id, result.error) : rpc(payload.id, result); }
-    if (name === "review_monthly_work") { const groupId = text(args.groupId); const result = await mcpReviewMonthly(db, groupId, identity.email, text(args.month), text(args.userEmail), text(args.action), text(args.managerNote)); return "error" in result ? rpcError(payload.id, result.error) : rpc(payload.id, result); }
-    if (name === "list_my_tasks") { const rows = await db.select().from(events).where(eq(events.ownerEmail, identity.email)); return rpc(payload.id, rows.filter((row) => (!args.from || row.date >= String(args.from)) && (!args.to || row.date <= String(args.to)))); }
-    if (name === "create_task") { const title = text(args.title); const date = text(args.date); const category = text(args.category, "予定"); if (!title || !date) return rpcError(payload.id, "title and date are required"); if (!["仕事", "生活", "予定"].includes(category)) return rpcError(payload.id, "category must be 仕事, 生活, or 予定"); const row = { id: crypto.randomUUID(), ownerEmail: identity.email, title, date, startTime: text(args.startTime), endTime: text(args.endTime), category, notes: text(args.notes), completed: false }; await db.insert(events).values(row); return rpc(payload.id, row); }
-    if (name === "update_task" || name === "delete_task") { if (args.confirm !== true) return rpcError(payload.id, mutating); const id = text(args.id); const [row] = await db.select().from(events).where(and(eq(events.id, id), eq(events.ownerEmail, identity.email))).limit(1); if (!row) return rpcError(payload.id, "Task not found"); if (name === "delete_task") { await db.delete(events).where(eq(events.id, id)); return rpc(payload.id, { ok: true, id }); } const next = { title: args.title === undefined ? row.title : text(args.title), date: args.date === undefined ? row.date : text(args.date), startTime: args.startTime === undefined ? row.startTime : text(args.startTime), endTime: args.endTime === undefined ? row.endTime : text(args.endTime), category: args.category === undefined ? row.category : text(args.category), notes: args.notes === undefined ? row.notes : text(args.notes), completed: args.completed === undefined ? row.completed : Boolean(args.completed) }; await db.update(events).set(next).where(eq(events.id, id)); return rpc(payload.id, { ...row, ...next }); }
-    if (name === "list_groups") { const ms = await db.select().from(groupMembers).where(and(eq(groupMembers.userEmail, identity.email), eq(groupMembers.status, "active"))); const visible = identity.tokenType === "assistant" && identity.groupId ? ms.filter((m) => m.groupId === identity.groupId) : ms; const gs = visible.length ? await db.select().from(groups).where(inArray(groups.id, visible.map((m) => m.groupId))) : []; return rpc(payload.id, gs.map((g) => ({ ...g, role: visible.find((m) => m.groupId === g.id)?.role, tokenType: identity.tokenType }))); }
-    if (name === "get_profile") { const [profile] = await db.select().from(accountProfiles).where(eq(accountProfiles.userEmail, identity.email)).limit(1); return rpc(payload.id, { email: identity.email, nickname: profile?.nickname ?? "" }); }
-    if (name === "set_profile_nickname") { if (args.confirm !== true) return rpcError(payload.id, mutating); const nickname = text(args.nickname); if (nickname.length > 40) return rpcError(payload.id, "nickname must be 40 characters or fewer"); const [profile] = await db.select().from(accountProfiles).where(eq(accountProfiles.userEmail, identity.email)).limit(1); if (profile) await db.update(accountProfiles).set({ nickname }).where(eq(accountProfiles.userEmail, identity.email)); else await db.insert(accountProfiles).values({ userEmail: identity.email, nickname }); const memberships = await db.select().from(groupMembers).where(and(eq(groupMembers.userEmail, identity.email), eq(groupMembers.status, "active"))); for (const member of memberships) await recordAudit({ groupId: member.groupId, userEmail: identity.email, action: "account.profile", entityType: "accountProfile", entityId: identity.email, summary: "アカウントニックネームを変更", details: { source: "mcp" } }); return rpc(payload.id, { ok: true, nickname }); }
-    if (name === "get_group_members") { const groupId = text(args.groupId); const restricted = assistantGroupError(identity, groupId); if (restricted) return rpcError(payload.id, restricted); if (identity.tokenType === "assistant" && !hasScope(identity, "assistant:read")) return rpcError(payload.id, "Assistant token scope does not allow member reads."); const self = await membership(db, groupId, identity.email); if (!self) return rpcError(payload.id, "Group membership required"); const ms = await db.select().from(groupMembers).where(eq(groupMembers.groupId, groupId)); const profiles = ms.length ? await db.select().from(accountProfiles).where(inArray(accountProfiles.userEmail, ms.map((m) => m.userEmail))) : []; return rpc(payload.id, ms.map((m) => ({ ...toPublicMember(m, identity.tokenType !== "assistant" && canViewAdminNote(self.role)), accountNickname: profiles.find((p) => p.userEmail === m.userEmail)?.nickname ?? "" }))); }
-    if (name === "update_group_member") { if (args.confirm !== true) return rpcError(payload.id, mutating); const groupId = text(args.groupId); const self = await membership(db, groupId, identity.email); const targetEmail = text(args.userEmail); const target = await membership(db, groupId, targetEmail); if (!self || !target) return rpcError(payload.id, "Group member not found"); if (self.role !== "owner" && targetEmail !== identity.email) return rpcError(payload.id, "Owner permission required"); if (args.displayName !== undefined && targetEmail !== identity.email) return rpcError(payload.id, "Group nickname can only be changed by the member"); if (args.role !== undefined && self.role !== "owner") return rpcError(payload.id, "Only the owner can change permissions"); if (args.role === "owner" && targetEmail !== identity.email) return rpcError(payload.id, "Owner transfer requires a dedicated operation"); if (args.role !== undefined && args.role !== "editor" && args.role !== "member") return rpcError(payload.id, "Invalid group role"); await db.update(groupMembers).set({ ...(args.displayName !== undefined ? { displayName: text(args.displayName).slice(0, 40) } : {}), ...(typeof args.showInPersonal === "boolean" ? { showInPersonal: args.showInPersonal } : {}), ...(typeof args.role === "string" ? { role: args.role as "owner" | "editor" | "member" } : {}) }).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userEmail, targetEmail))); await recordAudit({ groupId, userEmail: identity.email, action: "group.member", entityType: "groupMember", entityId: targetEmail, summary: `MCPでメンバー情報を変更: ${targetEmail}`, details: { source: "mcp", role: args.role, displayName: args.displayName !== undefined, showInPersonal: args.showInPersonal } }); return rpc(payload.id, { ok: true }); }
-    if (name === "list_join_requests") { const groupId = text(args.groupId); const group = await db.select().from(groups).where(eq(groups.id, groupId)).limit(1); if (!group[0] || group[0].ownerEmail !== identity.email) return rpcError(payload.id, "Owner permission required"); return rpc(payload.id, await db.select().from(groupJoinRequests).where(eq(groupJoinRequests.groupId, groupId))); }
-    if (name === "decide_join_request") { if (args.confirm !== true) return rpcError(payload.id, mutating); const groupId = text(args.groupId); const group = await db.select().from(groups).where(eq(groups.id, groupId)).limit(1); if (!group[0] || group[0].ownerEmail !== identity.email) return rpcError(payload.id, "Owner permission required"); const requestId = text(args.requestId); const [joinRequest] = await db.select().from(groupJoinRequests).where(and(eq(groupJoinRequests.id, requestId), eq(groupJoinRequests.groupId, groupId))).limit(1); if (!joinRequest) return rpcError(payload.id, "Join request not found"); const status = args.action === "approve" ? "approved" : "rejected"; const statements = [db.update(groupJoinRequests).set({ status }).where(eq(groupJoinRequests.id, requestId))]; if (status === "approved") statements.push(db.insert(groupMembers).values({ id: crypto.randomUUID(), groupId, userEmail: joinRequest.userEmail, role: "member", showInPersonal: true })); await db.batch(statements); await recordAudit({ groupId, userEmail: identity.email, action: "group.join_request", entityType: "groupJoinRequest", entityId: requestId, summary: `MCPで参加申請を${status === "approved" ? "承認" : "却下"}`, details: { source: "mcp", targetEmail: joinRequest.userEmail, status } }); return rpc(payload.id, { ok: true, status }); }
-    if (name === "get_group_preferences") { const groupId = text(args.groupId); if (!await membership(db, groupId, identity.email)) return rpcError(payload.id, "Group membership required"); const [preferences] = await db.select().from(groupPreferences).where(and(eq(groupPreferences.groupId, groupId), eq(groupPreferences.userEmail, identity.email))).limit(1); const availability = await db.select().from(shiftAvailability).where(and(eq(shiftAvailability.groupId, groupId), eq(shiftAvailability.userEmail, identity.email))); return rpc(payload.id, { preferences: preferences ?? null, availability }); }
-    if (name === "save_group_preferences") { if (args.confirm !== true) return rpcError(payload.id, mutating); const groupId = text(args.groupId); if (!await membership(db, groupId, identity.email)) return rpcError(payload.id, "Group membership required"); const entries = Array.isArray(args.availability) ? args.availability as Array<Record<string, unknown>> : []; const invalidIndex = entries.findIndex((e) => !Number.isInteger(e.dayOfWeek) || Number(e.dayOfWeek) < 0 || Number(e.dayOfWeek) > 6 || !isPreferenceStatus(e.status)); if (invalidIndex >= 0) return rpcError(payload.id, `availability[${invalidIndex}] has an invalid preference status or dayOfWeek`); const values = { minDays: Number(args.minDays ?? 0), maxDays: Number(args.maxDays ?? 7), minHours: Number(args.minHours ?? 0), maxHours: Number(args.maxHours ?? 40), weekendPolicy: text(args.weekendPolicy, "any"), freeComment: text(args.freeComment).slice(0, 2000) }; const [old] = await db.select().from(groupPreferences).where(and(eq(groupPreferences.groupId, groupId), eq(groupPreferences.userEmail, identity.email))).limit(1); if (old) await db.update(groupPreferences).set(values).where(eq(groupPreferences.id, old.id)); else await db.insert(groupPreferences).values({ id: crypto.randomUUID(), groupId, userEmail: identity.email, ...values }); await db.batch([db.delete(shiftAvailability).where(and(eq(shiftAvailability.groupId, groupId), eq(shiftAvailability.userEmail, identity.email))), ...entries.map((e) => db.insert(shiftAvailability).values({ id: crypto.randomUUID(), groupId, userEmail: identity.email, dayOfWeek: Number(e.dayOfWeek), status: text(e.status), startTime: text(e.startTime), endTime: text(e.endTime), note: text(e.note) }))]); await recordAudit({ groupId, userEmail: identity.email, action: "group.preferences", entityType: "groupPreference", entityId: identity.email, summary: "MCPで基本勤務希望を保存", details: { source: "mcp", availabilityCount: entries.length } }); return rpc(payload.id, { ok: true, availabilityCount: entries.length }); }
-    if (name === "list_shift_plans") { const groupId = text(args.groupId); const restricted = assistantGroupError(identity, groupId); if (restricted) return rpcError(payload.id, restricted); if (identity.tokenType === "assistant" && !hasScope(identity, "shift:read")) return rpcError(payload.id, "Assistant token scope does not allow shift reads."); if (!await membership(db, groupId, identity.email)) return rpcError(payload.id, "Group membership required"); return rpc(payload.id, await db.select().from(shiftPlans).where(eq(shiftPlans.groupId, groupId)).orderBy(desc(shiftPlans.startDate))); }
+    if (name === "get_work_records") {
+      const groupId = text(args.groupId);
+      const restricted = assistantGroupError(identity, groupId);
+      if (restricted) return rpcError(payload.id, restricted);
+      if (
+        identity.tokenType === "assistant" &&
+        !hasScope(identity, "work:read")
+      )
+        return rpcError(
+          payload.id,
+          "Assistant token scope does not allow work-record reads.",
+        );
+      const result = await getMcpWorkRecords(db, groupId, identity.email, args);
+      return "error" in result
+        ? rpcError(payload.id, result.error)
+        : completeManagedExecution(result);
+    }
+    if (name === "clock_work") {
+      const result = await mcpClock(
+        db,
+        text(args.groupId),
+        identity.email,
+        text(args.action),
+        text(args.recordId) || undefined,
+      );
+      return "error" in result
+        ? rpcError(payload.id, result.error)
+        : completeManagedExecution(result);
+    }
+    if (name === "submit_work_record") {
+      const groupId = text(args.groupId);
+      const status = text(args.status);
+      const result = await mcpDailyReview(
+        db,
+        groupId,
+        identity.email,
+        text(args.recordId),
+        status,
+        text(args.managerNote),
+      );
+      return "error" in result
+        ? rpcError(payload.id, result.error)
+        : completeManagedExecution(result);
+    }
+    if (name === "submit_monthly_work") {
+      const result = await mcpSubmitMonthly(
+        db,
+        text(args.groupId),
+        identity.email,
+        text(args.month),
+      );
+      return "error" in result
+        ? rpcError(payload.id, result.error)
+        : rpc(payload.id, result);
+    }
+    if (name === "review_monthly_work") {
+      const groupId = text(args.groupId);
+      const result = await mcpReviewMonthly(
+        db,
+        groupId,
+        identity.email,
+        text(args.month),
+        text(args.userEmail),
+        text(args.action),
+        text(args.managerNote),
+      );
+      return "error" in result
+        ? rpcError(payload.id, result.error)
+        : completeManagedExecution(result);
+    }
+    if (name === "list_my_tasks") {
+      const rows = await db
+        .select()
+        .from(events)
+        .where(eq(events.ownerEmail, identity.email));
+      return rpc(
+        payload.id,
+        rows.filter(
+          (row) =>
+            (!args.from || row.date >= String(args.from)) &&
+            (!args.to || row.date <= String(args.to)),
+        ),
+      );
+    }
+    if (name === "create_task") {
+      const title = text(args.title);
+      const date = text(args.date);
+      const category = text(args.category, "予定");
+      if (!title || !date)
+        return rpcError(payload.id, "title and date are required");
+      if (!["仕事", "生活", "予定"].includes(category))
+        return rpcError(payload.id, "category must be 仕事, 生活, or 予定");
+      const row = {
+        id: crypto.randomUUID(),
+        ownerEmail: identity.email,
+        title,
+        date,
+        startTime: text(args.startTime),
+        endTime: text(args.endTime),
+        category,
+        notes: text(args.notes),
+        completed: false,
+      };
+      await db.insert(events).values(row);
+      return rpc(payload.id, row);
+    }
+    if (name === "update_task" || name === "delete_task") {
+      if (args.confirm !== true) return rpcError(payload.id, mutating);
+      const id = text(args.id);
+      const [row] = await db
+        .select()
+        .from(events)
+        .where(and(eq(events.id, id), eq(events.ownerEmail, identity.email)))
+        .limit(1);
+      if (!row) return rpcError(payload.id, "Task not found");
+      if (name === "delete_task") {
+        await db.delete(events).where(eq(events.id, id));
+        return rpc(payload.id, { ok: true, id });
+      }
+      const next = {
+        title: args.title === undefined ? row.title : text(args.title),
+        date: args.date === undefined ? row.date : text(args.date),
+        startTime:
+          args.startTime === undefined ? row.startTime : text(args.startTime),
+        endTime: args.endTime === undefined ? row.endTime : text(args.endTime),
+        category:
+          args.category === undefined ? row.category : text(args.category),
+        notes: args.notes === undefined ? row.notes : text(args.notes),
+        completed:
+          args.completed === undefined
+            ? row.completed
+            : Boolean(args.completed),
+      };
+      await db.update(events).set(next).where(eq(events.id, id));
+      return rpc(payload.id, { ...row, ...next });
+    }
+    if (name === "list_groups") {
+      const ms = await db
+        .select()
+        .from(groupMembers)
+        .where(
+          and(
+            eq(groupMembers.userEmail, identity.email),
+            eq(groupMembers.status, "active"),
+          ),
+        );
+      const visible =
+        identity.tokenType === "assistant" && identity.groupId
+          ? ms.filter((m) => m.groupId === identity.groupId)
+          : ms;
+      const gs = visible.length
+        ? await db
+            .select()
+            .from(groups)
+            .where(
+              inArray(
+                groups.id,
+                visible.map((m) => m.groupId),
+              ),
+            )
+        : [];
+      return rpc(
+        payload.id,
+        gs.map((g) => ({
+          ...g,
+          role: visible.find((m) => m.groupId === g.id)?.role,
+          tokenType: identity.tokenType,
+        })),
+      );
+    }
+    if (name === "get_profile") {
+      const [profile] = await db
+        .select()
+        .from(accountProfiles)
+        .where(eq(accountProfiles.userEmail, identity.email))
+        .limit(1);
+      return rpc(payload.id, {
+        email: identity.email,
+        nickname: profile?.nickname ?? "",
+      });
+    }
+    if (name === "set_profile_nickname") {
+      if (args.confirm !== true) return rpcError(payload.id, mutating);
+      const nickname = text(args.nickname);
+      if (nickname.length > 40)
+        return rpcError(payload.id, "nickname must be 40 characters or fewer");
+      const [profile] = await db
+        .select()
+        .from(accountProfiles)
+        .where(eq(accountProfiles.userEmail, identity.email))
+        .limit(1);
+      if (profile)
+        await db
+          .update(accountProfiles)
+          .set({ nickname })
+          .where(eq(accountProfiles.userEmail, identity.email));
+      else
+        await db
+          .insert(accountProfiles)
+          .values({ userEmail: identity.email, nickname });
+      const memberships = await db
+        .select()
+        .from(groupMembers)
+        .where(
+          and(
+            eq(groupMembers.userEmail, identity.email),
+            eq(groupMembers.status, "active"),
+          ),
+        );
+      for (const member of memberships)
+        await recordAudit({
+          groupId: member.groupId,
+          userEmail: identity.email,
+          action: "account.profile",
+          entityType: "accountProfile",
+          entityId: identity.email,
+          summary: "アカウントニックネームを変更",
+          details: { source: "mcp" },
+        });
+      return rpc(payload.id, { ok: true, nickname });
+    }
+    if (name === "get_group_members") {
+      const groupId = text(args.groupId);
+      const restricted = assistantGroupError(identity, groupId);
+      if (restricted) return rpcError(payload.id, restricted);
+      if (
+        identity.tokenType === "assistant" &&
+        !hasScope(identity, "assistant:read")
+      )
+        return rpcError(
+          payload.id,
+          "Assistant token scope does not allow member reads.",
+        );
+      const self = await membership(db, groupId, identity.email);
+      if (!self) return rpcError(payload.id, "Group membership required");
+      const ms = await db
+        .select()
+        .from(groupMembers)
+        .where(eq(groupMembers.groupId, groupId));
+      const profiles = ms.length
+        ? await db
+            .select()
+            .from(accountProfiles)
+            .where(
+              inArray(
+                accountProfiles.userEmail,
+                ms.map((m) => m.userEmail),
+              ),
+            )
+        : [];
+      return rpc(
+        payload.id,
+        ms.map((m) => ({
+          ...toPublicMember(
+            m,
+            identity.tokenType !== "assistant" && canViewAdminNote(self.role),
+          ),
+          accountNickname:
+            profiles.find((p) => p.userEmail === m.userEmail)?.nickname ?? "",
+        })),
+      );
+    }
+    if (name === "update_group_member") {
+      if (args.confirm !== true) return rpcError(payload.id, mutating);
+      const groupId = text(args.groupId);
+      const self = await membership(db, groupId, identity.email);
+      const targetEmail = text(args.userEmail);
+      const target = await membership(db, groupId, targetEmail);
+      if (!self || !target)
+        return rpcError(payload.id, "Group member not found");
+      if (self.role !== "owner" && targetEmail !== identity.email)
+        return rpcError(payload.id, "Owner permission required");
+      if (args.displayName !== undefined && targetEmail !== identity.email)
+        return rpcError(
+          payload.id,
+          "Group nickname can only be changed by the member",
+        );
+      if (args.role !== undefined && self.role !== "owner")
+        return rpcError(payload.id, "Only the owner can change permissions");
+      if (args.role === "owner" && targetEmail !== identity.email)
+        return rpcError(
+          payload.id,
+          "Owner transfer requires a dedicated operation",
+        );
+      if (
+        args.role !== undefined &&
+        args.role !== "editor" &&
+        args.role !== "member"
+      )
+        return rpcError(payload.id, "Invalid group role");
+      await db
+        .update(groupMembers)
+        .set({
+          ...(args.displayName !== undefined
+            ? { displayName: text(args.displayName).slice(0, 40) }
+            : {}),
+          ...(typeof args.showInPersonal === "boolean"
+            ? { showInPersonal: args.showInPersonal }
+            : {}),
+          ...(typeof args.role === "string"
+            ? { role: args.role as "owner" | "editor" | "member" }
+            : {}),
+        })
+        .where(
+          and(
+            eq(groupMembers.groupId, groupId),
+            eq(groupMembers.userEmail, targetEmail),
+          ),
+        );
+      await recordAudit({
+        groupId,
+        userEmail: identity.email,
+        action: "group.member",
+        entityType: "groupMember",
+        entityId: targetEmail,
+        summary: `MCPでメンバー情報を変更: ${targetEmail}`,
+        details: {
+          source: "mcp",
+          role: args.role,
+          displayName: args.displayName !== undefined,
+          showInPersonal: args.showInPersonal,
+        },
+      });
+      return rpc(payload.id, { ok: true });
+    }
+    if (name === "list_join_requests") {
+      const groupId = text(args.groupId);
+      const group = await db
+        .select()
+        .from(groups)
+        .where(eq(groups.id, groupId))
+        .limit(1);
+      if (!group[0] || group[0].ownerEmail !== identity.email)
+        return rpcError(payload.id, "Owner permission required");
+      return rpc(
+        payload.id,
+        await db
+          .select()
+          .from(groupJoinRequests)
+          .where(eq(groupJoinRequests.groupId, groupId)),
+      );
+    }
+    if (name === "decide_join_request") {
+      if (args.confirm !== true) return rpcError(payload.id, mutating);
+      const groupId = text(args.groupId);
+      const group = await db
+        .select()
+        .from(groups)
+        .where(eq(groups.id, groupId))
+        .limit(1);
+      if (!group[0] || group[0].ownerEmail !== identity.email)
+        return rpcError(payload.id, "Owner permission required");
+      const requestId = text(args.requestId);
+      const [joinRequest] = await db
+        .select()
+        .from(groupJoinRequests)
+        .where(
+          and(
+            eq(groupJoinRequests.id, requestId),
+            eq(groupJoinRequests.groupId, groupId),
+          ),
+        )
+        .limit(1);
+      if (!joinRequest) return rpcError(payload.id, "Join request not found");
+      const status = args.action === "approve" ? "approved" : "rejected";
+      const statements = [
+        db
+          .update(groupJoinRequests)
+          .set({ status })
+          .where(eq(groupJoinRequests.id, requestId)),
+      ];
+      if (status === "approved")
+        statements.push(
+          db.insert(groupMembers).values({
+            id: crypto.randomUUID(),
+            groupId,
+            userEmail: joinRequest.userEmail,
+            role: "member",
+            showInPersonal: true,
+          }),
+        );
+      await db.batch(statements);
+      await recordAudit({
+        groupId,
+        userEmail: identity.email,
+        action: "group.join_request",
+        entityType: "groupJoinRequest",
+        entityId: requestId,
+        summary: `MCPで参加申請を${status === "approved" ? "承認" : "却下"}`,
+        details: { source: "mcp", targetEmail: joinRequest.userEmail, status },
+      });
+      return rpc(payload.id, { ok: true, status });
+    }
+    if (name === "get_group_preferences") {
+      const groupId = text(args.groupId);
+      if (!(await membership(db, groupId, identity.email)))
+        return rpcError(payload.id, "Group membership required");
+      const [preferences] = await db
+        .select()
+        .from(groupPreferences)
+        .where(
+          and(
+            eq(groupPreferences.groupId, groupId),
+            eq(groupPreferences.userEmail, identity.email),
+          ),
+        )
+        .limit(1);
+      const availability = await db
+        .select()
+        .from(shiftAvailability)
+        .where(
+          and(
+            eq(shiftAvailability.groupId, groupId),
+            eq(shiftAvailability.userEmail, identity.email),
+          ),
+        );
+      return rpc(payload.id, {
+        preferences: preferences ?? null,
+        availability,
+      });
+    }
+    if (name === "save_group_preferences") {
+      if (args.confirm !== true) return rpcError(payload.id, mutating);
+      const groupId = text(args.groupId);
+      if (!(await membership(db, groupId, identity.email)))
+        return rpcError(payload.id, "Group membership required");
+      const entries = Array.isArray(args.availability)
+        ? (args.availability as Array<Record<string, unknown>>)
+        : [];
+      const invalidIndex = entries.findIndex(
+        (e) =>
+          !Number.isInteger(e.dayOfWeek) ||
+          Number(e.dayOfWeek) < 0 ||
+          Number(e.dayOfWeek) > 6 ||
+          !isPreferenceStatus(e.status),
+      );
+      if (invalidIndex >= 0)
+        return rpcError(
+          payload.id,
+          `availability[${invalidIndex}] has an invalid preference status or dayOfWeek`,
+        );
+      const values = {
+        minDays: Number(args.minDays ?? 0),
+        maxDays: Number(args.maxDays ?? 7),
+        minHours: Number(args.minHours ?? 0),
+        maxHours: Number(args.maxHours ?? 40),
+        weekendPolicy: text(args.weekendPolicy, "any"),
+        freeComment: text(args.freeComment).slice(0, 2000),
+      };
+      const [old] = await db
+        .select()
+        .from(groupPreferences)
+        .where(
+          and(
+            eq(groupPreferences.groupId, groupId),
+            eq(groupPreferences.userEmail, identity.email),
+          ),
+        )
+        .limit(1);
+      if (old)
+        await db
+          .update(groupPreferences)
+          .set(values)
+          .where(eq(groupPreferences.id, old.id));
+      else
+        await db.insert(groupPreferences).values({
+          id: crypto.randomUUID(),
+          groupId,
+          userEmail: identity.email,
+          ...values,
+        });
+      await db.batch([
+        db
+          .delete(shiftAvailability)
+          .where(
+            and(
+              eq(shiftAvailability.groupId, groupId),
+              eq(shiftAvailability.userEmail, identity.email),
+            ),
+          ),
+        ...entries.map((e) =>
+          db.insert(shiftAvailability).values({
+            id: crypto.randomUUID(),
+            groupId,
+            userEmail: identity.email,
+            dayOfWeek: Number(e.dayOfWeek),
+            status: text(e.status),
+            startTime: text(e.startTime),
+            endTime: text(e.endTime),
+            note: text(e.note),
+          }),
+        ),
+      ]);
+      await recordAudit({
+        groupId,
+        userEmail: identity.email,
+        action: "group.preferences",
+        entityType: "groupPreference",
+        entityId: identity.email,
+        summary: "MCPで基本勤務希望を保存",
+        details: { source: "mcp", availabilityCount: entries.length },
+      });
+      return rpc(payload.id, { ok: true, availabilityCount: entries.length });
+    }
+    if (name === "list_shift_plans") {
+      const groupId = text(args.groupId);
+      const restricted = assistantGroupError(identity, groupId);
+      if (restricted) return rpcError(payload.id, restricted);
+      if (
+        identity.tokenType === "assistant" &&
+        !hasScope(identity, "shift:read")
+      )
+        return rpcError(
+          payload.id,
+          "Assistant token scope does not allow shift reads.",
+        );
+      if (!(await membership(db, groupId, identity.email)))
+        return rpcError(payload.id, "Group membership required");
+      return rpc(
+        payload.id,
+        await db
+          .select()
+          .from(shiftPlans)
+          .where(eq(shiftPlans.groupId, groupId))
+          .orderBy(desc(shiftPlans.startDate)),
+      );
+    }
     if (name === "get_shift_plan") {
       const found = await planFor(db, text(args.planId), identity.email);
       if ("error" in found) return rpcError(payload.id, found.error);
       const restricted = assistantGroupError(identity, found.plan.groupId);
       if (restricted) return rpcError(payload.id, restricted);
-      if (identity.tokenType === "assistant" && !hasScope(identity, "shift:read")) return rpcError(payload.id, "Assistant token scope does not allow shift reads.");
-      const slots = await db.select().from(shiftSlots).where(eq(shiftSlots.planId, found.plan.id));
+      if (
+        identity.tokenType === "assistant" &&
+        !hasScope(identity, "shift:read")
+      )
+        return rpcError(
+          payload.id,
+          "Assistant token scope does not allow shift reads.",
+        );
+      const slots = await db
+        .select()
+        .from(shiftSlots)
+        .where(eq(shiftSlots.planId, found.plan.id));
       const assignmentChunks = await Promise.all(
-        chunk(slots.map((slot) => slot.id), 50).map((slotIds) =>
-          db.select().from(shiftAssignments).where(inArray(shiftAssignments.slotId, slotIds)),
+        chunk(
+          slots.map((slot) => slot.id),
+          50,
+        ).map((slotIds) =>
+          db
+            .select()
+            .from(shiftAssignments)
+            .where(inArray(shiftAssignments.slotId, slotIds)),
         ),
       );
       const allAssignments = assignmentChunks.flat();
-      return rpc(payload.id, { plan: found.plan, slots, assignments: allAssignments });
+      return rpc(payload.id, {
+        plan: found.plan,
+        slots,
+        assignments: allAssignments,
+      });
     }
-    if (name === "get_audit_logs") { const groupId = text(args.groupId); const self = await membership(db, groupId, identity.email); if (!self || !editorRoles.has(self.role)) return rpcError(payload.id, "Editor membership required"); const conditions = [eq(auditLogs.groupId, groupId)]; const action = text(args.action); const userEmail = text(args.userEmail); const search = text(args.search); const from = text(args.from); const to = text(args.to); if (action) conditions.push(eq(auditLogs.action, action)); if (userEmail) conditions.push(eq(auditLogs.userEmail, userEmail)); if (search) conditions.push(like(auditLogs.summary, `%${search}%`)); if (from) conditions.push(gte(auditLogs.createdAt, `${from}T00:00:00`)); if (to) conditions.push(lte(auditLogs.createdAt, `${to}T23:59:59`)); const limit = Math.min(300, Math.max(1, Number(args.limit ?? 100))); const logs = await db.select().from(auditLogs).where(and(...conditions)).orderBy(desc(auditLogs.createdAt)).limit(limit); return rpc(payload.id, { logs, limit }); }
-    if (name === "create_shift_plan") { if (args.confirm !== true) return rpcError(payload.id, mutating); const groupId = text(args.groupId); const member = await membership(db, groupId, identity.email); if (!member || !editorRoles.has(member.role)) return rpcError(payload.id, "Editor membership required"); const startDate = text(args.startDate); const endDate = text(args.endDate); const openingTime = text(args.openingTime, "09:00"); const closingTime = text(args.closingTime, "18:00"); const slotMinutes = Number(args.slotMinutes ?? 60); const rules = (Array.isArray(args.slotRules) ? args.slotRules : [{ role: "", requiredCount: 1 }]) as Array<Record<string, unknown>>; if (!text(args.name) || !startDate || !endDate || startDate > endDate || ![30, 60, 120].includes(slotMinutes)) return rpcError(payload.id, "Invalid plan fields"); const parse = (v: string) => { const [h, m] = v.split(":").map(Number); return h * 60 + m; }; if (parse(closingTime) <= parse(openingTime)) return rpcError(payload.id, "closingTime must be after openingTime"); const planId = crypto.randomUUID(); const dates: string[] = []; const cursor = new Date(`${startDate}T00:00:00Z`); const last = new Date(`${endDate}T00:00:00Z`); while (cursor <= last) { dates.push(cursor.toISOString().slice(0, 10)); cursor.setUTCDate(cursor.getUTCDate() + 1); } const rows: Array<typeof shiftSlots.$inferInsert> = []; for (const date of dates) for (let t = parse(openingTime); t + slotMinutes <= parse(closingTime); t += slotMinutes) for (const rule of rules) rows.push({ id: crypto.randomUUID(), planId, date, startTime: `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`, endTime: `${String(Math.floor((t + slotMinutes) / 60)).padStart(2, "0")}:${String((t + slotMinutes) % 60).padStart(2, "0")}`, role: text(rule.role), requiredCount: Math.max(1, Number(rule.requiredCount ?? 1)) }); await db.batch([db.insert(shiftPlans).values({ id: planId, groupId, name: text(args.name), startDate, endDate, openingTime, closingTime, slotMinutes, defaultRequiredCount: Number(rules[0]?.requiredCount ?? 1), notes: text(args.notes).slice(0, 2000), status: "draft", createdBy: identity.email }), ...Array.from({ length: Math.ceil(rows.length / 8) }, (_, i) => db.insert(shiftSlots).values(rows.slice(i * 8, i * 8 + 8)))]); const period = args.requestPeriod as Record<string, unknown> | undefined; if (period && text(period.opensOn) && text(period.closesOn)) await db.insert(shiftRequestPeriods).values({ id: crypto.randomUUID(), groupId, planId, name: text(period.name, text(args.name)), opensOn: text(period.opensOn), closesOn: text(period.closesOn), status: "open", createdBy: identity.email }); await recordAudit({ groupId, userEmail: identity.email, action: "shift.create", entityType: "shiftPlan", entityId: planId, summary: `MCPでシフトを作成: ${text(args.name)}`, details: { source: "mcp", slotCount: rows.length } }); return rpc(payload.id, { planId, slotCount: rows.length }); }
-    if (name === "delete_draft_shift_plan") { if (args.confirm !== true) return rpcError(payload.id, mutating); const found = await planFor(db, text(args.planId), identity.email); if ("error" in found || !editorRoles.has(found.member.role)) return rpcError(payload.id, "Editor membership required"); if (found.plan.status !== "draft") return rpcError(payload.id, "Only draft plans can be deleted"); const slots = await db.select().from(shiftSlots).where(eq(shiftSlots.planId, found.plan.id)); const slotIds = slots.map((s) => s.id); await db.batch([...(slotIds.length ? [db.delete(shiftAssignments).where(inArray(shiftAssignments.slotId, slotIds))] : []), db.delete(shiftSlots).where(eq(shiftSlots.planId, found.plan.id)), db.delete(shiftRequestPeriods).where(eq(shiftRequestPeriods.planId, found.plan.id)), db.delete(shiftPlans).where(eq(shiftPlans.id, found.plan.id))]); await recordAudit({ groupId: found.plan.groupId, userEmail: identity.email, action: "shift.delete", entityType: "shiftPlan", entityId: found.plan.id, summary: "MCPで下書きシフトを削除", details: { source: "mcp" } }); return rpc(payload.id, { ok: true, planId: found.plan.id }); }
+    if (name === "get_audit_logs") {
+      const groupId = text(args.groupId);
+      const self = await membership(db, groupId, identity.email);
+      if (!self || !editorRoles.has(self.role))
+        return rpcError(payload.id, "Editor membership required");
+      const conditions = [eq(auditLogs.groupId, groupId)];
+      const action = text(args.action);
+      const userEmail = text(args.userEmail);
+      const search = text(args.search);
+      const from = text(args.from);
+      const to = text(args.to);
+      if (action) conditions.push(eq(auditLogs.action, action));
+      if (userEmail) conditions.push(eq(auditLogs.userEmail, userEmail));
+      if (search) conditions.push(like(auditLogs.summary, `%${search}%`));
+      if (from) conditions.push(gte(auditLogs.createdAt, `${from}T00:00:00`));
+      if (to) conditions.push(lte(auditLogs.createdAt, `${to}T23:59:59`));
+      const limit = Math.min(300, Math.max(1, Number(args.limit ?? 100)));
+      const logs = await db
+        .select()
+        .from(auditLogs)
+        .where(and(...conditions))
+        .orderBy(desc(auditLogs.createdAt))
+        .limit(limit);
+      return rpc(payload.id, { logs, limit });
+    }
+    if (name === "create_shift_plan") {
+      if (args.confirm !== true) return rpcError(payload.id, mutating);
+      const groupId = text(args.groupId);
+      const member = await membership(db, groupId, identity.email);
+      if (!member || !editorRoles.has(member.role))
+        return rpcError(payload.id, "Editor membership required");
+      const startDate = text(args.startDate);
+      const endDate = text(args.endDate);
+      const openingTime = text(args.openingTime, "09:00");
+      const closingTime = text(args.closingTime, "18:00");
+      const slotMinutes = Number(args.slotMinutes ?? 60);
+      const rules = (
+        Array.isArray(args.slotRules)
+          ? args.slotRules
+          : [{ role: "", requiredCount: 1 }]
+      ) as Array<Record<string, unknown>>;
+      if (
+        !text(args.name) ||
+        !startDate ||
+        !endDate ||
+        startDate > endDate ||
+        ![30, 60, 120].includes(slotMinutes)
+      )
+        return rpcError(payload.id, "Invalid plan fields");
+      const parse = (v: string) => {
+        const [h, m] = v.split(":").map(Number);
+        return h * 60 + m;
+      };
+      if (parse(closingTime) <= parse(openingTime))
+        return rpcError(payload.id, "closingTime must be after openingTime");
+      const planId = crypto.randomUUID();
+      const dates: string[] = [];
+      const cursor = new Date(`${startDate}T00:00:00Z`);
+      const last = new Date(`${endDate}T00:00:00Z`);
+      while (cursor <= last) {
+        dates.push(cursor.toISOString().slice(0, 10));
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
+      }
+      const rows: Array<typeof shiftSlots.$inferInsert> = [];
+      for (const date of dates)
+        for (
+          let t = parse(openingTime);
+          t + slotMinutes <= parse(closingTime);
+          t += slotMinutes
+        )
+          for (const rule of rules)
+            rows.push({
+              id: crypto.randomUUID(),
+              planId,
+              date,
+              startTime: `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`,
+              endTime: `${String(Math.floor((t + slotMinutes) / 60)).padStart(2, "0")}:${String((t + slotMinutes) % 60).padStart(2, "0")}`,
+              role: text(rule.role),
+              requiredCount: Math.max(1, Number(rule.requiredCount ?? 1)),
+            });
+      await db.batch([
+        db.insert(shiftPlans).values({
+          id: planId,
+          groupId,
+          name: text(args.name),
+          startDate,
+          endDate,
+          openingTime,
+          closingTime,
+          slotMinutes,
+          defaultRequiredCount: Number(rules[0]?.requiredCount ?? 1),
+          notes: text(args.notes).slice(0, 2000),
+          status: "draft",
+          createdBy: identity.email,
+        }),
+        ...Array.from({ length: Math.ceil(rows.length / 8) }, (_, i) =>
+          db.insert(shiftSlots).values(rows.slice(i * 8, i * 8 + 8)),
+        ),
+      ]);
+      const period = args.requestPeriod as Record<string, unknown> | undefined;
+      if (period && text(period.opensOn) && text(period.closesOn))
+        await db.insert(shiftRequestPeriods).values({
+          id: crypto.randomUUID(),
+          groupId,
+          planId,
+          name: text(period.name, text(args.name)),
+          opensOn: text(period.opensOn),
+          closesOn: text(period.closesOn),
+          status: "open",
+          createdBy: identity.email,
+        });
+      await recordAudit({
+        groupId,
+        userEmail: identity.email,
+        action: "shift.create",
+        entityType: "shiftPlan",
+        entityId: planId,
+        summary: `MCPでシフトを作成: ${text(args.name)}`,
+        details: { source: "mcp", slotCount: rows.length },
+      });
+      return completeManagedExecution({ planId, slotCount: rows.length });
+    }
+    if (name === "delete_draft_shift_plan") {
+      if (args.confirm !== true) return rpcError(payload.id, mutating);
+      const found = await planFor(db, text(args.planId), identity.email);
+      if ("error" in found || !editorRoles.has(found.member.role))
+        return rpcError(payload.id, "Editor membership required");
+      if (found.plan.status !== "draft")
+        return rpcError(payload.id, "Only draft plans can be deleted");
+      const slots = await db
+        .select()
+        .from(shiftSlots)
+        .where(eq(shiftSlots.planId, found.plan.id));
+      const slotIds = slots.map((s) => s.id);
+      await db.batch([
+        ...(slotIds.length
+          ? [
+              db
+                .delete(shiftAssignments)
+                .where(inArray(shiftAssignments.slotId, slotIds)),
+            ]
+          : []),
+        db.delete(shiftSlots).where(eq(shiftSlots.planId, found.plan.id)),
+        db
+          .delete(shiftRequestPeriods)
+          .where(eq(shiftRequestPeriods.planId, found.plan.id)),
+        db.delete(shiftPlans).where(eq(shiftPlans.id, found.plan.id)),
+      ]);
+      await recordAudit({
+        groupId: found.plan.groupId,
+        userEmail: identity.email,
+        action: "shift.delete",
+        entityType: "shiftPlan",
+        entityId: found.plan.id,
+        summary: "MCPで下書きシフトを削除",
+        details: { source: "mcp" },
+      });
+      return completeManagedExecution({ ok: true, planId: found.plan.id });
+    }
     if (name === "update_slot_counts") {
       if (args.confirm !== true) return rpcError(payload.id, mutating);
       const found = await planFor(db, text(args.planId), identity.email);
-      if ("error" in found || !editorRoles.has(found.member.role)) return rpcError(payload.id, "Editor membership required");
-      if (found.plan.status !== "draft") return rpcError(payload.id, "Only draft plans can be adjusted");
+      if ("error" in found || !editorRoles.has(found.member.role))
+        return rpcError(payload.id, "Editor membership required");
+      if (found.plan.status !== "draft")
+        return rpcError(payload.id, "Only draft plans can be adjusted");
       const expectedVersion = Number(args.expectedVersion);
-      if (!Number.isInteger(expectedVersion) || expectedVersion !== found.plan.version) return rpcError(payload.id, "Shift plan version conflict. Reload the plan and retry with its latest version.");
-      const [locked] = await db.update(shiftPlans).set({ version: expectedVersion + 1 }).where(and(eq(shiftPlans.id, found.plan.id), eq(shiftPlans.version, expectedVersion))).returning({ version: shiftPlans.version });
-      if (!locked) return rpcError(payload.id, "Shift plan version conflict. Reload the plan and retry with its latest version.");
-      const changes = Array.isArray(args.slots) ? args.slots as Array<Record<string, unknown>> : [];
+      if (
+        !Number.isInteger(expectedVersion) ||
+        expectedVersion !== found.plan.version
+      )
+        return rpcError(
+          payload.id,
+          "Shift plan version conflict. Reload the plan and retry with its latest version.",
+        );
+      const [locked] = await db
+        .update(shiftPlans)
+        .set({ version: expectedVersion + 1 })
+        .where(
+          and(
+            eq(shiftPlans.id, found.plan.id),
+            eq(shiftPlans.version, expectedVersion),
+          ),
+        )
+        .returning({ version: shiftPlans.version });
+      if (!locked)
+        return rpcError(
+          payload.id,
+          "Shift plan version conflict. Reload the plan and retry with its latest version.",
+        );
+      const changes = Array.isArray(args.slots)
+        ? (args.slots as Array<Record<string, unknown>>)
+        : [];
       const slotUpdates = changes
         .filter((change) => text(change.slotId))
-        .map((change) => db.update(shiftSlots)
-          .set({ requiredCount: Math.max(0, Number(change.requiredCount ?? 0)) })
-          .where(and(eq(shiftSlots.id, text(change.slotId)), eq(shiftSlots.planId, found.plan.id))));
+        .map((change) =>
+          db
+            .update(shiftSlots)
+            .set({
+              requiredCount: Math.max(0, Number(change.requiredCount ?? 0)),
+            })
+            .where(
+              and(
+                eq(shiftSlots.id, text(change.slotId)),
+                eq(shiftSlots.planId, found.plan.id),
+              ),
+            ),
+        );
       await db.batch(slotUpdates);
-      await recordAudit({ groupId: found.plan.groupId, userEmail: identity.email, action: "shift.adjust", entityType: "shiftPlan", entityId: found.plan.id, summary: `MCPで勤務枠を調整: ${found.plan.name}`, details: { source: "mcp", updated: changes.length, closedDates: Array.isArray(args.closedDates) ? args.closedDates : [] } });
-      return rpc(payload.id, { ok: true, updated: changes.length, version: found.plan.version + 1, closedDates: Array.isArray(args.closedDates) ? args.closedDates : [] });
+      await recordAudit({
+        groupId: found.plan.groupId,
+        userEmail: identity.email,
+        action: "shift.adjust",
+        entityType: "shiftPlan",
+        entityId: found.plan.id,
+        summary: `MCPで勤務枠を調整: ${found.plan.name}`,
+        details: {
+          source: "mcp",
+          updated: changes.length,
+          closedDates: Array.isArray(args.closedDates) ? args.closedDates : [],
+        },
+      });
+      return completeManagedExecution({
+        ok: true,
+        updated: changes.length,
+        version: found.plan.version + 1,
+        closedDates: Array.isArray(args.closedDates) ? args.closedDates : [],
+      });
     }
-    if (name === "get_shift_requests") { const groupId = text(args.groupId); if (!await membership(db, groupId, identity.email)) return rpcError(payload.id, "Group membership required"); const periods = await db.select().from(shiftRequestPeriods).where(eq(shiftRequestPeriods.groupId, groupId)); const period = periods.find((p) => p.id === text(args.periodId)) ?? periods[0]; if (!period) return rpc(payload.id, { period: null, requests: [], submission: null }); const [submission] = await db.select().from(shiftRequestSubmissions).where(and(eq(shiftRequestSubmissions.periodId, period.id), eq(shiftRequestSubmissions.userEmail, identity.email))).limit(1); return rpc(payload.id, { period, requests: await db.select().from(shiftRequests).where(and(eq(shiftRequests.periodId, period.id), eq(shiftRequests.userEmail, identity.email))), submission: submission ?? null }); }
+    if (name === "get_shift_requests") {
+      const groupId = text(args.groupId);
+      if (!(await membership(db, groupId, identity.email)))
+        return rpcError(payload.id, "Group membership required");
+      const periods = await db
+        .select()
+        .from(shiftRequestPeriods)
+        .where(eq(shiftRequestPeriods.groupId, groupId));
+      const period =
+        periods.find((p) => p.id === text(args.periodId)) ?? periods[0];
+      if (!period)
+        return rpc(payload.id, {
+          period: null,
+          requests: [],
+          submission: null,
+        });
+      const [submission] = await db
+        .select()
+        .from(shiftRequestSubmissions)
+        .where(
+          and(
+            eq(shiftRequestSubmissions.periodId, period.id),
+            eq(shiftRequestSubmissions.userEmail, identity.email),
+          ),
+        )
+        .limit(1);
+      return rpc(payload.id, {
+        period,
+        requests: await db
+          .select()
+          .from(shiftRequests)
+          .where(
+            and(
+              eq(shiftRequests.periodId, period.id),
+              eq(shiftRequests.userEmail, identity.email),
+            ),
+          ),
+        submission: submission ?? null,
+      });
+    }
     if (name === "get_shift_request_overview") {
       const groupId = text(args.groupId);
       const restricted = assistantGroupError(identity, groupId);
       if (restricted) return rpcError(payload.id, restricted);
-      if (identity.tokenType !== "assistant") return rpcError(payload.id, "This overview is available to an assistant token only.");
-      if (!hasScope(identity, "shift:read")) return rpcError(payload.id, "Assistant token scope does not allow shift reads.");
+      if (identity.tokenType !== "assistant")
+        return rpcError(
+          payload.id,
+          "This overview is available to an assistant token only.",
+        );
+      if (!hasScope(identity, "shift:read"))
+        return rpcError(
+          payload.id,
+          "Assistant token scope does not allow shift reads.",
+        );
       const self = await membership(db, groupId, identity.email);
-      if (!self || self.status !== "active" || !editorRoles.has(self.role)) return rpcError(payload.id, "Active editor membership required");
-      const [period] = await db.select().from(shiftRequestPeriods).where(and(eq(shiftRequestPeriods.id, text(args.periodId)), eq(shiftRequestPeriods.groupId, groupId))).limit(1);
-      if (!period) return rpcError(payload.id, "Shift request period not found");
-      const members = await db.select().from(groupMembers).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.status, "active")));
+      if (!self || self.status !== "active" || !editorRoles.has(self.role))
+        return rpcError(payload.id, "Active editor membership required");
+      const [period] = await db
+        .select()
+        .from(shiftRequestPeriods)
+        .where(
+          and(
+            eq(shiftRequestPeriods.id, text(args.periodId)),
+            eq(shiftRequestPeriods.groupId, groupId),
+          ),
+        )
+        .limit(1);
+      if (!period)
+        return rpcError(payload.id, "Shift request period not found");
+      const members = await db
+        .select()
+        .from(groupMembers)
+        .where(
+          and(
+            eq(groupMembers.groupId, groupId),
+            eq(groupMembers.status, "active"),
+          ),
+        );
       const emails = members.map((member) => member.userEmail);
-      const [profiles, requests, submissions, preferences, availability] = await Promise.all([
-        emails.length ? db.select().from(accountProfiles).where(inArray(accountProfiles.userEmail, emails)) : [],
-        db.select().from(shiftRequests).where(eq(shiftRequests.periodId, period.id)),
-        db.select().from(shiftRequestSubmissions).where(eq(shiftRequestSubmissions.periodId, period.id)),
-        emails.length ? db.select().from(groupPreferences).where(and(eq(groupPreferences.groupId, groupId), inArray(groupPreferences.userEmail, emails))) : [],
-        emails.length ? db.select().from(shiftAvailability).where(and(eq(shiftAvailability.groupId, groupId), inArray(shiftAvailability.userEmail, emails))) : [],
-      ]);
+      const [profiles, requests, submissions, preferences, availability] =
+        await Promise.all([
+          emails.length
+            ? db
+                .select()
+                .from(accountProfiles)
+                .where(inArray(accountProfiles.userEmail, emails))
+            : [],
+          db
+            .select()
+            .from(shiftRequests)
+            .where(eq(shiftRequests.periodId, period.id)),
+          db
+            .select()
+            .from(shiftRequestSubmissions)
+            .where(eq(shiftRequestSubmissions.periodId, period.id)),
+          emails.length
+            ? db
+                .select()
+                .from(groupPreferences)
+                .where(
+                  and(
+                    eq(groupPreferences.groupId, groupId),
+                    inArray(groupPreferences.userEmail, emails),
+                  ),
+                )
+            : [],
+          emails.length
+            ? db
+                .select()
+                .from(shiftAvailability)
+                .where(
+                  and(
+                    eq(shiftAvailability.groupId, groupId),
+                    inArray(shiftAvailability.userEmail, emails),
+                  ),
+                )
+            : [],
+        ]);
       return rpc(payload.id, {
         period,
         members: members.map((member) => ({
-          member: { ...toPublicMember(member, false), accountNickname: profiles.find((profile) => profile.userEmail === member.userEmail)?.nickname ?? "" },
-          preferences: preferences.find((preference) => preference.userEmail === member.userEmail) ?? null,
-          availability: availability.filter((entry) => entry.userEmail === member.userEmail),
-          requests: requests.filter((requestRow) => requestRow.userEmail === member.userEmail),
-          submission: submissions.find((submission) => submission.userEmail === member.userEmail) ?? null,
+          member: {
+            ...toPublicMember(member, false),
+            accountNickname:
+              profiles.find((profile) => profile.userEmail === member.userEmail)
+                ?.nickname ?? "",
+          },
+          preferences:
+            preferences.find(
+              (preference) => preference.userEmail === member.userEmail,
+            ) ?? null,
+          availability: availability.filter(
+            (entry) => entry.userEmail === member.userEmail,
+          ),
+          requests: requests.filter(
+            (requestRow) => requestRow.userEmail === member.userEmail,
+          ),
+          submission:
+            submissions.find(
+              (submission) => submission.userEmail === member.userEmail,
+            ) ?? null,
         })),
       });
     }
-    if (name === "save_shift_requests") { if (args.confirm !== true) return rpcError(payload.id, mutating); const groupId = text(args.groupId); if (!await membership(db, groupId, identity.email)) return rpcError(payload.id, "Group membership required"); const [period] = await db.select().from(shiftRequestPeriods).where(and(eq(shiftRequestPeriods.id, text(args.periodId)), eq(shiftRequestPeriods.groupId, groupId))).limit(1); if (!period || period.status !== "open") return rpcError(payload.id, "Open request period required"); if (shiftRequestDeadlinePassed(period.closesOn)) { await db.update(shiftRequestPeriods).set({ status: "closed" }).where(eq(shiftRequestPeriods.id, period.id)); return rpcError(payload.id, "Shift request deadline has passed."); } const slots = await db.select().from(shiftSlots).where(eq(shiftSlots.planId, period.planId)); const valid = new Set(slots.map((s) => `${s.date}|${s.startTime}|${s.endTime}`)); const requests = (Array.isArray(args.requests) ? args.requests : []) as Array<Record<string, unknown>>; const invalidIndex = requests.findIndex((r) => !valid.has(`${text(r.date)}|${text(r.startTime)}|${text(r.endTime)}`) || !preferenceValues.has(text(r.preference)) || !isPreferenceStatus(r.preference)); if (invalidIndex >= 0) return rpcError(payload.id, `requests[${invalidIndex}] does not match a shift slot or has an invalid preference status`); const rows = requests.map((r) => ({ id: crypto.randomUUID(), periodId: period.id, userEmail: identity.email, date: text(r.date), startTime: text(r.startTime), endTime: text(r.endTime), preference: text(r.preference), note: text(r.note) })); const savedAt = new Date().toISOString(); const requestComment = text(args.requestComment).slice(0, 500); const [submission] = await db.select().from(shiftRequestSubmissions).where(and(eq(shiftRequestSubmissions.periodId, period.id), eq(shiftRequestSubmissions.userEmail, identity.email))).limit(1); const submissionStatement = submission ? db.update(shiftRequestSubmissions).set({ savedAt, requestComment }).where(eq(shiftRequestSubmissions.id, submission.id)) : db.insert(shiftRequestSubmissions).values({ id: crypto.randomUUID(), periodId: period.id, userEmail: identity.email, savedAt, requestComment }); await db.batch([db.delete(shiftRequests).where(and(eq(shiftRequests.periodId, period.id), eq(shiftRequests.userEmail, identity.email))), ...rows.map((row) => db.insert(shiftRequests).values(row)), submissionStatement]); await recordAudit({ groupId, userEmail: identity.email, action: "shift.request", entityType: "shiftRequestPeriod", entityId: period.id, summary: `勤務希望を保存: ${period.name}`, details: { count: rows.length, savedAt, requestComment, source: "mcp" } }); return rpc(payload.id, { ok: true, count: rows.length, normalizedCount: rows.length, submissionStatus: "submitted", savedAt, requestComment }); }
-    if (name === "set_shift_assignments") { if (args.confirm !== true) return rpcError(payload.id, mutating); const found = await planFor(db, text(args.planId), identity.email); if ("error" in found || !editorRoles.has(found.member.role)) return rpcError(payload.id, "Editor membership required"); const expectedVersion = Number(args.expectedVersion); if (!Number.isInteger(expectedVersion) || expectedVersion !== found.plan.version) return rpcError(payload.id, "Shift plan version conflict. Reload the plan and retry with its latest version."); const [locked] = await db.update(shiftPlans).set({ version: expectedVersion + 1 }).where(and(eq(shiftPlans.id, found.plan.id), eq(shiftPlans.version, expectedVersion))).returning({ version: shiftPlans.version }); if (!locked) return rpcError(payload.id, "Shift plan version conflict. Reload the plan and retry with its latest version."); const slots = await db.select().from(shiftSlots).where(eq(shiftSlots.planId, found.plan.id)); const members = await db.select().from(groupMembers).where(and(eq(groupMembers.groupId, found.plan.groupId), eq(groupMembers.status, "active"))); const memberEmails = new Set(members.map((m) => m.userEmail)); const input = (args.assignments ?? {}) as Record<string, unknown>; const rows: Array<typeof shiftAssignments.$inferInsert> = []; for (const slot of slots) for (const email of Array.isArray(input[slot.id]) ? input[slot.id] as unknown[] : []) if (typeof email === "string" && memberEmails.has(email)) rows.push({ id: crypto.randomUUID(), slotId: slot.id, userEmail: email }); const status = args.status === "published" ? "published" : "draft"; const statements = [...(slots.length ? [db.delete(shiftAssignments).where(inArray(shiftAssignments.slotId, slots.map((s) => s.id)))] : []), ...rows.map((r) => db.insert(shiftAssignments).values(r)), db.update(shiftPlans).set({ status }).where(eq(shiftPlans.id, found.plan.id)), db.delete(events).where(eq(events.shiftPlanId, found.plan.id))]; if (status === "published") { const profiles = members.length ? await db.select().from(accountProfiles).where(inArray(accountProfiles.userEmail, members.map((member) => member.userEmail))) : []; const memberNames = new Map(members.map((member) => [member.userEmail, member.displayName?.trim() || profiles.find((profile) => profile.userEmail === member.userEmail)?.nickname?.trim() || member.userEmail.split("@")[0]])); const [group] = await db.select().from(groups).where(eq(groups.id, found.plan.groupId)).limit(1); const publishedEvents = slots.map((slot) => ({ slot, assigned: rows.filter((row) => row.slotId === slot.id).map((row) => memberNames.get(row.userEmail) ?? row.userEmail) })).filter((item) => item.assigned.length > 0).map((item) => { const start = shiftDateTime(item.slot.date, item.slot.startTime); const end = shiftDateTime(item.slot.date, item.slot.endTime); return { id: crypto.randomUUID(), ownerEmail: found.plan.createdBy, groupId: found.plan.groupId, shiftPlanId: found.plan.id, title: item.slot.role?.trim() || group?.name || "予定", date: start.date, endDate: end.date, startTime: start.time, endTime: end.time, category: "仕事", notes: `担当：${item.assigned.join("、")}`, completed: false }; }); for (let index = 0; index < publishedEvents.length; index += 8) statements.push(db.insert(events).values(publishedEvents.slice(index, index + 8))); } await db.batch(statements); await recordAudit({ groupId: found.plan.groupId, userEmail: identity.email, action: status === "published" ? "shift.publish" : "shift.assign", entityType: "shiftPlan", entityId: found.plan.id, summary: status === "published" ? `MCPでシフトを公開: ${found.plan.name}` : `MCPで担当割当を保存: ${found.plan.name}`, details: { source: "mcp", assignedCount: rows.length, reason: text(args.reason) } }); return rpc(payload.id, { ok: true, assigned: rows.length, status, calendarEvents: status === "published" ? rows.length : 0, version: expectedVersion + 1 }); }
+    if (name === "save_shift_requests") {
+      if (args.confirm !== true) return rpcError(payload.id, mutating);
+      const groupId = text(args.groupId);
+      if (!(await membership(db, groupId, identity.email)))
+        return rpcError(payload.id, "Group membership required");
+      const [period] = await db
+        .select()
+        .from(shiftRequestPeriods)
+        .where(
+          and(
+            eq(shiftRequestPeriods.id, text(args.periodId)),
+            eq(shiftRequestPeriods.groupId, groupId),
+          ),
+        )
+        .limit(1);
+      if (!period || period.status !== "open")
+        return rpcError(payload.id, "Open request period required");
+      if (shiftRequestDeadlinePassed(period.closesOn)) {
+        await db
+          .update(shiftRequestPeriods)
+          .set({ status: "closed" })
+          .where(eq(shiftRequestPeriods.id, period.id));
+        return rpcError(payload.id, "Shift request deadline has passed.");
+      }
+      const slots = await db
+        .select()
+        .from(shiftSlots)
+        .where(eq(shiftSlots.planId, period.planId));
+      const valid = new Set(
+        slots.map((s) => `${s.date}|${s.startTime}|${s.endTime}`),
+      );
+      const requests = (
+        Array.isArray(args.requests) ? args.requests : []
+      ) as Array<Record<string, unknown>>;
+      const invalidIndex = requests.findIndex(
+        (r) =>
+          !valid.has(
+            `${text(r.date)}|${text(r.startTime)}|${text(r.endTime)}`,
+          ) ||
+          !preferenceValues.has(text(r.preference)) ||
+          !isPreferenceStatus(r.preference),
+      );
+      if (invalidIndex >= 0)
+        return rpcError(
+          payload.id,
+          `requests[${invalidIndex}] does not match a shift slot or has an invalid preference status`,
+        );
+      const rows = requests.map((r) => ({
+        id: crypto.randomUUID(),
+        periodId: period.id,
+        userEmail: identity.email,
+        date: text(r.date),
+        startTime: text(r.startTime),
+        endTime: text(r.endTime),
+        preference: text(r.preference),
+        note: text(r.note),
+      }));
+      const savedAt = new Date().toISOString();
+      const requestComment = text(args.requestComment).slice(0, 500);
+      const [submission] = await db
+        .select()
+        .from(shiftRequestSubmissions)
+        .where(
+          and(
+            eq(shiftRequestSubmissions.periodId, period.id),
+            eq(shiftRequestSubmissions.userEmail, identity.email),
+          ),
+        )
+        .limit(1);
+      const submissionStatement = submission
+        ? db
+            .update(shiftRequestSubmissions)
+            .set({ savedAt, requestComment })
+            .where(eq(shiftRequestSubmissions.id, submission.id))
+        : db.insert(shiftRequestSubmissions).values({
+            id: crypto.randomUUID(),
+            periodId: period.id,
+            userEmail: identity.email,
+            savedAt,
+            requestComment,
+          });
+      await db.batch([
+        db
+          .delete(shiftRequests)
+          .where(
+            and(
+              eq(shiftRequests.periodId, period.id),
+              eq(shiftRequests.userEmail, identity.email),
+            ),
+          ),
+        ...rows.map((row) => db.insert(shiftRequests).values(row)),
+        submissionStatement,
+      ]);
+      await recordAudit({
+        groupId,
+        userEmail: identity.email,
+        action: "shift.request",
+        entityType: "shiftRequestPeriod",
+        entityId: period.id,
+        summary: `勤務希望を保存: ${period.name}`,
+        details: { count: rows.length, savedAt, requestComment, source: "mcp" },
+      });
+      return rpc(payload.id, {
+        ok: true,
+        count: rows.length,
+        normalizedCount: rows.length,
+        submissionStatus: "submitted",
+        savedAt,
+        requestComment,
+      });
+    }
+    if (name === "set_shift_assignments") {
+      if (args.confirm !== true) return rpcError(payload.id, mutating);
+      const found = await planFor(db, text(args.planId), identity.email);
+      if ("error" in found || !editorRoles.has(found.member.role))
+        return rpcError(payload.id, "Editor membership required");
+      const expectedVersion = Number(args.expectedVersion);
+      if (
+        !Number.isInteger(expectedVersion) ||
+        expectedVersion !== found.plan.version
+      )
+        return rpcError(
+          payload.id,
+          "Shift plan version conflict. Reload the plan and retry with its latest version.",
+        );
+      const [locked] = await db
+        .update(shiftPlans)
+        .set({ version: expectedVersion + 1 })
+        .where(
+          and(
+            eq(shiftPlans.id, found.plan.id),
+            eq(shiftPlans.version, expectedVersion),
+          ),
+        )
+        .returning({ version: shiftPlans.version });
+      if (!locked)
+        return rpcError(
+          payload.id,
+          "Shift plan version conflict. Reload the plan and retry with its latest version.",
+        );
+      const slots = await db
+        .select()
+        .from(shiftSlots)
+        .where(eq(shiftSlots.planId, found.plan.id));
+      const members = await db
+        .select()
+        .from(groupMembers)
+        .where(
+          and(
+            eq(groupMembers.groupId, found.plan.groupId),
+            eq(groupMembers.status, "active"),
+          ),
+        );
+      const memberEmails = new Set(members.map((m) => m.userEmail));
+      const input = (args.assignments ?? {}) as Record<string, unknown>;
+      const rows: Array<typeof shiftAssignments.$inferInsert> = [];
+      for (const slot of slots)
+        for (const email of Array.isArray(input[slot.id])
+          ? (input[slot.id] as unknown[])
+          : [])
+          if (typeof email === "string" && memberEmails.has(email))
+            rows.push({
+              id: crypto.randomUUID(),
+              slotId: slot.id,
+              userEmail: email,
+            });
+      const status = args.status === "published" ? "published" : "draft";
+      const statements = [
+        ...(slots.length
+          ? [
+              db.delete(shiftAssignments).where(
+                inArray(
+                  shiftAssignments.slotId,
+                  slots.map((s) => s.id),
+                ),
+              ),
+            ]
+          : []),
+        ...rows.map((r) => db.insert(shiftAssignments).values(r)),
+        db
+          .update(shiftPlans)
+          .set({ status })
+          .where(eq(shiftPlans.id, found.plan.id)),
+        db.delete(events).where(eq(events.shiftPlanId, found.plan.id)),
+      ];
+      if (status === "published") {
+        const profiles = members.length
+          ? await db
+              .select()
+              .from(accountProfiles)
+              .where(
+                inArray(
+                  accountProfiles.userEmail,
+                  members.map((member) => member.userEmail),
+                ),
+              )
+          : [];
+        const memberNames = new Map(
+          members.map((member) => [
+            member.userEmail,
+            member.displayName?.trim() ||
+              profiles
+                .find((profile) => profile.userEmail === member.userEmail)
+                ?.nickname?.trim() ||
+              member.userEmail.split("@")[0],
+          ]),
+        );
+        const [group] = await db
+          .select()
+          .from(groups)
+          .where(eq(groups.id, found.plan.groupId))
+          .limit(1);
+        const publishedEvents = slots
+          .map((slot) => ({
+            slot,
+            assigned: rows
+              .filter((row) => row.slotId === slot.id)
+              .map((row) => memberNames.get(row.userEmail) ?? row.userEmail),
+          }))
+          .filter((item) => item.assigned.length > 0)
+          .map((item) => {
+            const start = shiftDateTime(item.slot.date, item.slot.startTime);
+            const end = shiftDateTime(item.slot.date, item.slot.endTime);
+            return {
+              id: crypto.randomUUID(),
+              ownerEmail: found.plan.createdBy,
+              groupId: found.plan.groupId,
+              shiftPlanId: found.plan.id,
+              title: item.slot.role?.trim() || group?.name || "予定",
+              date: start.date,
+              endDate: end.date,
+              startTime: start.time,
+              endTime: end.time,
+              category: "仕事",
+              notes: `担当：${item.assigned.join("、")}`,
+              completed: false,
+            };
+          });
+        for (let index = 0; index < publishedEvents.length; index += 8)
+          statements.push(
+            db.insert(events).values(publishedEvents.slice(index, index + 8)),
+          );
+      }
+      await db.batch(statements);
+      await recordAudit({
+        groupId: found.plan.groupId,
+        userEmail: identity.email,
+        action: status === "published" ? "shift.publish" : "shift.assign",
+        entityType: "shiftPlan",
+        entityId: found.plan.id,
+        summary:
+          status === "published"
+            ? `MCPでシフトを公開: ${found.plan.name}`
+            : `MCPで担当割当を保存: ${found.plan.name}`,
+        details: {
+          source: "mcp",
+          assignedCount: rows.length,
+          reason: text(args.reason),
+        },
+      });
+      return completeManagedExecution({
+        ok: true,
+        assigned: rows.length,
+        status,
+        calendarEvents: status === "published" ? rows.length : 0,
+        version: expectedVersion + 1,
+      });
+    }
     if (name === "get_assistant_message_queue_summary") {
       const groupId = text(args.groupId);
       const restricted = assistantGroupError(identity, groupId);
       if (restricted) return rpcError(payload.id, restricted);
-      if (identity.tokenType !== "assistant") return rpcError(payload.id, "This queue summary is available to an assistant token only.");
-      if (!hasScope(identity, "assistant:read")) return rpcError(payload.id, "Assistant token scope does not allow assistant reads.");
+      if (identity.tokenType !== "assistant")
+        return rpcError(
+          payload.id,
+          "This queue summary is available to an assistant token only.",
+        );
+      if (!hasScope(identity, "assistant:read"))
+        return rpcError(
+          payload.id,
+          "Assistant token scope does not allow assistant reads.",
+        );
       const self = await membership(db, groupId, identity.email);
-      if (!self || self.status !== "active" || !editorRoles.has(self.role)) return rpcError(payload.id, "Active editor membership required");
+      if (!self || self.status !== "active" || !editorRoles.has(self.role))
+        return rpcError(payload.id, "Active editor membership required");
       const now = new Date().toISOString();
-      const base = and(eq(assistantMessages.groupId, groupId), eq(assistantMessages.senderType, "member"));
-      const [pending, activeProcessing, reclaimableProcessing, needsReview] = await Promise.all([
-        db.select({ value: count() }).from(assistantMessages).where(and(base, eq(assistantMessages.status, "pending"))),
-        db.select({ value: count() }).from(assistantMessages).where(and(base, eq(assistantMessages.status, "processing"), gt(assistantMessages.claimExpiresAt, now))),
-        db.select({ value: count() }).from(assistantMessages).where(and(base, eq(assistantMessages.status, "processing"), lt(assistantMessages.claimExpiresAt, now))),
-        db.select({ value: count() }).from(assistantMessages).where(and(base, eq(assistantMessages.status, "needs_review"))),
-      ]);
+      const base = and(
+        eq(assistantMessages.groupId, groupId),
+        eq(assistantMessages.senderType, "member"),
+      );
+      const [pending, activeProcessing, reclaimableProcessing, needsReview] =
+        await Promise.all([
+          db
+            .select({ value: count() })
+            .from(assistantMessages)
+            .where(and(base, eq(assistantMessages.status, "pending"))),
+          db
+            .select({ value: count() })
+            .from(assistantMessages)
+            .where(
+              and(
+                base,
+                eq(assistantMessages.status, "processing"),
+                gt(assistantMessages.claimExpiresAt, now),
+              ),
+            ),
+          db
+            .select({ value: count() })
+            .from(assistantMessages)
+            .where(
+              and(
+                base,
+                eq(assistantMessages.status, "processing"),
+                lt(assistantMessages.claimExpiresAt, now),
+              ),
+            ),
+          db
+            .select({ value: count() })
+            .from(assistantMessages)
+            .where(and(base, eq(assistantMessages.status, "needs_review"))),
+        ]);
       return rpc(payload.id, {
         pendingCount: pending[0]?.value ?? 0,
         processingCount: activeProcessing[0]?.value ?? 0,
@@ -312,80 +2362,725 @@ export async function POST(request: Request) {
       });
     }
     if (name === "claim_next_assistant_message") {
-      if (identity.tokenType !== "assistant" || !identity.groupId) return rpcError(payload.id, "An assistant token is required.");
+      if (identity.tokenType !== "assistant" || !identity.groupId)
+        return rpcError(payload.id, "An assistant token is required.");
       const groupId = text(args.groupId);
       const restricted = assistantGroupError(identity, groupId);
       if (restricted) return rpcError(payload.id, restricted);
-      if (!hasScope(identity, "assistant:read")) return rpcError(payload.id, "Assistant token scope does not allow assistant reads.");
+      if (!hasScope(identity, "assistant:read"))
+        return rpcError(
+          payload.id,
+          "Assistant token scope does not allow assistant reads.",
+        );
       const now = new Date().toISOString();
-      const candidates = await db.select().from(assistantMessages).where(and(
-        eq(assistantMessages.groupId, groupId),
-        eq(assistantMessages.senderType, "member"),
-        or(eq(assistantMessages.status, "pending"), and(eq(assistantMessages.status, "processing"), lt(assistantMessages.claimExpiresAt, now))),
-      )).orderBy(assistantMessages.createdAt).limit(10);
+      const candidates = await db
+        .select()
+        .from(assistantMessages)
+        .where(
+          and(
+            eq(assistantMessages.groupId, groupId),
+            eq(assistantMessages.senderType, "member"),
+            or(
+              eq(assistantMessages.status, "pending"),
+              and(
+                eq(assistantMessages.status, "processing"),
+                lt(assistantMessages.claimExpiresAt, now),
+              ),
+            ),
+          ),
+        )
+        .orderBy(assistantMessages.createdAt)
+        .limit(10);
       for (const candidate of candidates) {
-        const claimExpiresAt = new Date(Date.now() + 1 * 60 * 1000).toISOString();
+        const claimExpiresAt = new Date(
+          Date.now() + 1 * 60 * 1000,
+        ).toISOString();
         const claimId = crypto.randomUUID();
-        const [claimed] = await db.update(assistantMessages).set({ status: "processing", claimedAt: now, claimExpiresAt, claimId }).where(and(
-          eq(assistantMessages.id, candidate.id),
-          or(eq(assistantMessages.status, "pending"), and(eq(assistantMessages.status, "processing"), lt(assistantMessages.claimExpiresAt, now))),
-        )).returning();
+        const [claimed] = await db
+          .update(assistantMessages)
+          .set({
+            status: "processing",
+            claimedAt: now,
+            claimExpiresAt,
+            claimId,
+          })
+          .where(
+            and(
+              eq(assistantMessages.id, candidate.id),
+              or(
+                eq(assistantMessages.status, "pending"),
+                and(
+                  eq(assistantMessages.status, "processing"),
+                  lt(assistantMessages.claimExpiresAt, now),
+                ),
+              ),
+            ),
+          )
+          .returning();
         if (!claimed) continue;
         const sender = await membership(db, groupId, claimed.memberEmail);
-        const mode = sender?.status === "active" && editorRoles.has(sender.role) ? "manager" : "member";
-        await recordAudit({ groupId, userEmail: identity.email, action: "assistant.claim", entityType: "assistantMessage", entityId: claimed.id, summary: `MCPでアシスタント問い合わせを取得: ${claimed.memberEmail}`, details: { source: "mcp", claimExpiresAt } });
-        return rpc(payload.id, { message: claimed, contextMode: mode, claimId, claimExpiresAt });
+        const mode =
+          sender?.status === "active" && editorRoles.has(sender.role)
+            ? "manager"
+            : "member";
+        await recordAudit({
+          groupId,
+          userEmail: identity.email,
+          action: "assistant.claim",
+          entityType: "assistantMessage",
+          entityId: claimed.id,
+          summary: `MCPでアシスタント問い合わせを取得: ${claimed.memberEmail}`,
+          details: { source: "mcp", claimExpiresAt },
+        });
+        return rpc(payload.id, {
+          message: claimed,
+          contextMode: mode,
+          claimId,
+          claimExpiresAt,
+        });
       }
       return rpc(payload.id, { message: null });
     }
     if (name === "create_shift_swap_announcement_draft") {
-      if (identity.tokenType !== "assistant" || !identity.groupId) return rpcError(payload.id, "An assistant token is required.");
+      if (identity.tokenType !== "assistant" || !identity.groupId)
+        return rpcError(payload.id, "An assistant token is required.");
       const groupId = text(args.groupId);
       const restricted = assistantGroupError(identity, groupId);
       if (restricted) return rpcError(payload.id, restricted);
-      if (!hasScope(identity, "assistant:reply") || !hasScope(identity, "shift:read")) return rpcError(payload.id, "Assistant token requires assistant:reply and shift:read scopes.");
+      if (
+        !hasScope(identity, "assistant:reply") ||
+        !hasScope(identity, "shift:read")
+      )
+        return rpcError(
+          payload.id,
+          "Assistant token requires assistant:reply and shift:read scopes.",
+        );
       const messageId = text(args.messageId);
       const [source, existing] = await Promise.all([
-        db.select().from(assistantMessages).where(and(eq(assistantMessages.id, messageId), eq(assistantMessages.groupId, groupId), eq(assistantMessages.senderType, "member"))).limit(1),
-        db.select().from(assistantAnnouncementDrafts).where(eq(assistantAnnouncementDrafts.sourceMessageId, messageId)).limit(1),
+        db
+          .select()
+          .from(assistantMessages)
+          .where(
+            and(
+              eq(assistantMessages.id, messageId),
+              eq(assistantMessages.groupId, groupId),
+              eq(assistantMessages.senderType, "member"),
+            ),
+          )
+          .limit(1),
+        db
+          .select()
+          .from(assistantAnnouncementDrafts)
+          .where(eq(assistantAnnouncementDrafts.sourceMessageId, messageId))
+          .limit(1),
       ]);
       if (!source[0]) return rpcError(payload.id, "Member message not found.");
-      if (existing[0]) return rpc(payload.id, { ok: true, duplicate: true, draft: existing[0] });
+      if (existing[0])
+        return rpc(payload.id, {
+          ok: true,
+          duplicate: true,
+          draft: existing[0],
+        });
       const sender = await membership(db, groupId, source[0].memberEmail);
-      if (!sender || sender.status !== "active" || editorRoles.has(sender.role)) return rpcError(payload.id, "Only an active member request can create a shift-swap draft.");
-      const plans = await db.select().from(shiftPlans).where(and(eq(shiftPlans.groupId, groupId), eq(shiftPlans.status, "published")));
-      const slots = plans.length ? await db.select().from(shiftSlots).where(inArray(shiftSlots.planId, plans.map((plan) => plan.id))) : [];
+      if (!sender || sender.status !== "active" || editorRoles.has(sender.role))
+        return rpcError(
+          payload.id,
+          "Only an active member request can create a shift-swap draft.",
+        );
+      const plans = await db
+        .select()
+        .from(shiftPlans)
+        .where(
+          and(
+            eq(shiftPlans.groupId, groupId),
+            eq(shiftPlans.status, "published"),
+          ),
+        );
+      const slots = plans.length
+        ? await db
+            .select()
+            .from(shiftSlots)
+            .where(
+              inArray(
+                shiftSlots.planId,
+                plans.map((plan) => plan.id),
+              ),
+            )
+        : [];
       const slotIds = slots.map((slot) => slot.id);
-      const assignments = slotIds.length ? await db.select().from(shiftAssignments).where(and(inArray(shiftAssignments.slotId, slotIds), eq(shiftAssignments.userEmail, source[0].memberEmail))) : [];
+      const assignments = slotIds.length
+        ? await db
+            .select()
+            .from(shiftAssignments)
+            .where(
+              and(
+                inArray(shiftAssignments.slotId, slotIds),
+                eq(shiftAssignments.userEmail, source[0].memberEmail),
+              ),
+            )
+        : [];
       const requestedSlotId = text(args.slotId);
-      const candidates = slots.filter((slot) => assignments.some((assignment) => assignment.slotId === slot.id) && (!requestedSlotId || slot.id === requestedSlotId));
+      const candidates = slots.filter(
+        (slot) =>
+          assignments.some((assignment) => assignment.slotId === slot.id) &&
+          (!requestedSlotId || slot.id === requestedSlotId),
+      );
       if (candidates.length !== 1) {
-        await db.update(assistantMessages).set({ status: "needs_review", claimedAt: null, claimExpiresAt: null, claimId: null }).where(eq(assistantMessages.id, messageId));
-        await recordAudit({ groupId, userEmail: identity.email, action: "assistant.shift_swap_draft.defer", entityType: "assistantMessage", entityId: messageId, summary: "交代希望の対象シフトを自動特定できず管理者確認へ", details: { sourceMessageId: messageId, candidateSlotIds: candidates.map((slot) => slot.id) } });
-        return rpc(payload.id, { ok: false, needsReview: true, reason: candidates.length ? "Multiple published shifts matched. Select one slotId." : "No published shift matched this member.", candidates: candidates.map((slot) => ({ id: slot.id, date: slot.date, startTime: slot.startTime, endTime: slot.endTime, role: slot.role })) });
+        const [deferred] = await db
+          .update(assistantMessages)
+          .set({
+            status: "needs_review",
+            claimedAt: null,
+            claimExpiresAt: null,
+            claimId: null,
+          })
+          .where(
+            and(
+              eq(assistantMessages.id, messageId),
+              eq(assistantMessages.groupId, groupId),
+              eq(assistantMessages.senderType, "member"),
+              eq(assistantMessages.status, "processing"),
+              eq(assistantMessages.claimId, text(args.claimId)),
+              gt(assistantMessages.claimExpiresAt, new Date().toISOString()),
+            ),
+          )
+          .returning();
+        if (!deferred)
+          return rpcError(
+            payload.id,
+            "The message claim is no longer current. Claim the message again before deferring it.",
+          );
+        await recordAudit({
+          groupId,
+          userEmail: identity.email,
+          action: "assistant.shift_swap_draft.defer",
+          entityType: "assistantMessage",
+          entityId: messageId,
+          summary: "交代希望の対象シフトを自動特定できず管理者確認へ",
+          details: {
+            sourceMessageId: messageId,
+            candidateSlotIds: candidates.map((slot) => slot.id),
+          },
+        });
+        return rpc(payload.id, {
+          ok: false,
+          needsReview: true,
+          reason: candidates.length
+            ? "Multiple published shifts matched. Select one slotId."
+            : "No published shift matched this member.",
+          candidates: candidates.map((slot) => ({
+            id: slot.id,
+            date: slot.date,
+            startTime: slot.startTime,
+            endTime: slot.endTime,
+            role: slot.role,
+          })),
+        });
       }
       const slot = candidates[0];
       const role = slot.role || "勤務";
       const title = `【交代募集】${slot.date.slice(5).replace("-", "/")} ${slot.startTime}〜${slot.endTime} ${role}`;
       const body = `${slot.date} ${slot.startTime}〜${slot.endTime} の${role}で、交代可能な方を募集しています。\n対応可能な方は管理者へご連絡ください。`;
-      const draft = { id: crypto.randomUUID(), groupId, sourceMessageId: messageId, requesterEmail: source[0].memberEmail, slotId: slot.id, date: slot.date, startTime: slot.startTime, endTime: slot.endTime, role: slot.role, title, body, createdBy: identity.email };
-      await db.batch([
-        db.insert(assistantAnnouncementDrafts).values(draft),
-        db.update(assistantMessages).set({ status: "needs_review", claimedAt: null, claimExpiresAt: null, claimId: null }).where(eq(assistantMessages.id, messageId)),
-      ]);
-      await recordAudit({ groupId, userEmail: identity.email, action: "assistant.shift_swap_draft.create", entityType: "assistantAnnouncementDraft", entityId: draft.id, summary: "交代希望から管理者確認用のお知らせ案を作成", details: { sourceMessageId: messageId, slotId: slot.id, requesterEmail: source[0].memberEmail } });
+      const draft = {
+        id: crypto.randomUUID(),
+        groupId,
+        sourceMessageId: messageId,
+        requesterEmail: source[0].memberEmail,
+        slotId: slot.id,
+        date: slot.date,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        role: slot.role,
+        title,
+        body,
+        createdBy: identity.email,
+      };
+      const [reviewRequested] = await db
+        .update(assistantMessages)
+        .set({
+          status: "needs_review",
+          claimedAt: null,
+          claimExpiresAt: null,
+          claimId: null,
+        })
+        .where(
+          and(
+            eq(assistantMessages.id, messageId),
+            eq(assistantMessages.groupId, groupId),
+            eq(assistantMessages.senderType, "member"),
+            eq(assistantMessages.status, "processing"),
+            eq(assistantMessages.claimId, text(args.claimId)),
+            gt(assistantMessages.claimExpiresAt, new Date().toISOString()),
+          ),
+        )
+        .returning();
+      if (!reviewRequested)
+        return rpcError(
+          payload.id,
+          "The message claim is no longer current. Claim the message again before creating a draft.",
+        );
+      await db.insert(assistantAnnouncementDrafts).values(draft);
+      await recordAudit({
+        groupId,
+        userEmail: identity.email,
+        action: "assistant.shift_swap_draft.create",
+        entityType: "assistantAnnouncementDraft",
+        entityId: draft.id,
+        summary: "交代希望から管理者確認用のお知らせ案を作成",
+        details: {
+          sourceMessageId: messageId,
+          slotId: slot.id,
+          requesterEmail: source[0].memberEmail,
+        },
+      });
       const reviewers = await activeGroupEmails(db, groupId, true);
-      await createSystemMessagesAndPush(db, { groupId, recipients: reviewers, eventId: `assistant-review:${messageId}`, eventType: "assistant_needs_review", body: "管理者による確認が必要なアシスタント依頼があります。", pushTitle: "KINBAN", pushBody: "KINBANアシスタントから新しい連絡があります", url: `/?group=${encodeURIComponent(groupId)}&view=assistant` });
-      return rpc(payload.id, { ok: true, draft: { ...draft, status: "needs_review" } });
+      await createSystemMessagesAndPush(db, {
+        groupId,
+        recipients: reviewers,
+        eventId: `assistant-review:${messageId}`,
+        eventType: "assistant_needs_review",
+        body: "管理者による確認が必要なアシスタント依頼があります。",
+        pushTitle: "KINBAN",
+        pushBody: "KINBANアシスタントから新しい連絡があります",
+        url: `/?group=${encodeURIComponent(groupId)}&view=assistant`,
+      });
+      return rpc(payload.id, {
+        ok: true,
+        draft: { ...draft, status: "needs_review" },
+      });
     }
-    if (name === "list_assistant_messages") { const groupId = text(args.groupId); const restricted = assistantGroupError(identity, groupId); if (restricted) return rpcError(payload.id, restricted); if (identity.tokenType === "assistant" && !hasScope(identity, "assistant:read")) return rpcError(payload.id, "Assistant token scope does not allow assistant reads."); const self = await membership(db, groupId, identity.email); if (!self) return rpcError(payload.id, "Group membership required"); const manager = editorRoles.has(self.role); const memberEmail = manager ? text(args.memberEmail) : identity.email; const filters = [eq(assistantMessages.groupId, groupId)]; if (memberEmail) filters.push(eq(assistantMessages.memberEmail, memberEmail)); const requestedStatus = text(args.status); if (["pending", "processing", "processed", "failed", "needs_review"].includes(requestedStatus)) filters.push(eq(assistantMessages.status, requestedStatus as "pending" | "processing" | "processed" | "failed" | "needs_review")); const limit = Math.min(Math.max(Number(args.limit) || 100, 1), 500); const [assistant, messages] = await Promise.all([db.select().from(groupAssistants).where(eq(groupAssistants.groupId, groupId)).limit(1), db.select().from(assistantMessages).where(and(...filters)).orderBy(desc(assistantMessages.createdAt)).limit(limit)]); return rpc(payload.id, { assistant: assistant[0] ?? null, messages, manager, filter: { memberEmail: memberEmail || null, status: requestedStatus || null }, count: messages.length }); }
-    if (name === "reply_assistant_message") { const groupId = text(args.groupId); const restricted = assistantGroupError(identity, groupId); if (restricted) return rpcError(payload.id, restricted); if (identity.tokenType === "assistant" && !hasScope(identity, "assistant:reply")) return rpcError(payload.id, "Assistant token scope does not allow assistant replies."); const self = await membership(db, groupId, identity.email); if (!self || !editorRoles.has(self.role)) return rpcError(payload.id, "Editor membership required"); const messageId = text(args.messageId); const replyBody = text(args.body).slice(0, 2000); if (!replyBody) return rpcError(payload.id, "body is required"); const [target] = await db.select().from(assistantMessages).where(and(eq(assistantMessages.id, messageId), eq(assistantMessages.groupId, groupId), eq(assistantMessages.senderType, "member"))).limit(1); if (!target) return rpcError(payload.id, "Assistant message not found"); const replyId = crypto.randomUUID(); await db.batch([db.update(assistantMessages).set({ status: "processed", claimedAt: null, claimExpiresAt: null, claimId: null }).where(eq(assistantMessages.id, target.id)), db.insert(assistantMessages).values({ id: replyId, groupId, memberEmail: target.memberEmail, senderType: "assistant", senderEmail: identity.email, body: replyBody, status: "processed" })]); await recordAudit({ groupId, userEmail: identity.email, action: "assistant.reply", entityType: "assistantMessage", entityId: replyId, summary: `MCPでKINBANアシスタントとして返信: ${target.memberEmail}`, details: { source: "mcp", replyToMessageId: target.id } }); await sendBusinessPush(db, { recipients: [target.memberEmail], eventId: `assistant-reply:${replyId}`, title: "KINBAN", body: "KINBANアシスタントから新しい連絡があります", url: `/?group=${encodeURIComponent(groupId)}&view=assistant`, urgency: "high" }); return rpc(payload.id, { ok: true, replyId, replyToMessageId: target.id, memberEmail: target.memberEmail }); }
-    if (["release_assistant_message", "defer_assistant_message", "complete_assistant_message"].includes(name)) { const groupId = text(args.groupId); const restricted = assistantGroupError(identity, groupId); if (restricted) return rpcError(payload.id, restricted); if (identity.tokenType !== "assistant" || !hasScope(identity, "assistant:read")) return rpcError(payload.id, "An assistant token with assistant:read scope is required."); const self = await membership(db, groupId, identity.email); if (!self || self.status !== "active" || !editorRoles.has(self.role)) return rpcError(payload.id, "Active editor membership required"); const messageId = text(args.messageId); const [target] = await db.select().from(assistantMessages).where(and(eq(assistantMessages.id, messageId), eq(assistantMessages.groupId, groupId), eq(assistantMessages.senderType, "member"))).limit(1); if (!target) return rpcError(payload.id, "Assistant message not found"); const reason = text(args.reason).slice(0, 500); if (name !== "release_assistant_message" && !reason) return rpcError(payload.id, "reason is required"); const nextStatus = name === "release_assistant_message" ? "pending" : name === "defer_assistant_message" ? "needs_review" : "processed"; await db.update(assistantMessages).set({ status: nextStatus, claimedAt: null, claimExpiresAt: null, claimId: null }).where(eq(assistantMessages.id, target.id)); if (name === "defer_assistant_message") { const recipients = await activeGroupEmails(db, groupId, true); await createSystemMessagesAndPush(db, { groupId, recipients, eventId: `assistant-review:${target.id}`, eventType: "assistant_needs_review", body: "管理者による確認が必要なアシスタント依頼があります。", pushTitle: "KINBAN", pushBody: "KINBANアシスタントから新しい連絡があります", url: `/?group=${encodeURIComponent(groupId)}&view=assistant` }); } const action = name === "release_assistant_message" ? "assistant.release" : name === "defer_assistant_message" ? "assistant.defer" : "assistant.complete"; await recordAudit({ groupId, userEmail: identity.email, action, entityType: "assistantMessage", entityId: target.id, summary: `MCPでアシスタントメッセージを${nextStatus}へ更新: ${target.memberEmail}`, details: { source: "mcp", reason: reason || null } }); return rpc(payload.id, { ok: true, messageId: target.id, status: nextStatus, reason: reason || null }); }
-    if (name === "list_announcements") { const groupId = text(args.groupId); const restricted = assistantGroupError(identity, groupId); if (restricted) return rpcError(payload.id, restricted); if (identity.tokenType === "assistant" && !hasScope(identity, "announcement:read")) return rpcError(payload.id, "Assistant token scope does not allow announcement reads."); if (!await membership(db, groupId, identity.email)) return rpcError(payload.id, "Group membership required"); const announcements = await db.select().from(groupAnnouncements).where(eq(groupAnnouncements.groupId, groupId)); const ids = announcements.map((a) => a.id); const replies = ids.length ? await db.select().from(announcementReplies).where(inArray(announcementReplies.announcementId, ids)) : []; const reads = ids.length ? await db.select().from(announcementReads).where(inArray(announcementReads.announcementId, ids)) : []; return rpc(payload.id, { announcements, replies, reads }); }
-    if (name === "mark_announcement_read") { const id = text(args.announcementId); const [announcement] = await db.select().from(groupAnnouncements).where(eq(groupAnnouncements.id, id)).limit(1); if (!announcement || !await membership(db, announcement.groupId, identity.email)) return rpcError(payload.id, "Announcement not found"); const [read] = await db.select().from(announcementReads).where(and(eq(announcementReads.announcementId, id), eq(announcementReads.userEmail, identity.email))).limit(1); if (!read) { await db.insert(announcementReads).values({ id: crypto.randomUUID(), announcementId: id, userEmail: identity.email }); await recordAudit({ groupId: announcement.groupId, userEmail: identity.email, action: "announcement.read", entityType: "announcement", entityId: id, summary: "MCPでお知らせを既読に変更", details: { source: "mcp" } }); } return rpc(payload.id, { ok: true, announcementId: id }); }
-    if (name === "create_announcement") { if (args.confirm !== true) return rpcError(payload.id, mutating); const groupId = text(args.groupId); const member = await membership(db, groupId, identity.email); if (!member || !editorRoles.has(member.role)) return rpcError(payload.id, "Editor membership required"); const row = { id: crypto.randomUUID(), groupId, createdBy: identity.email, title: text(args.title).slice(0, 120), body: text(args.body).slice(0, 2000) }; if (!row.title || !row.body) return rpcError(payload.id, "title and body are required"); await db.insert(groupAnnouncements).values(row); await recordAudit({ groupId, userEmail: identity.email, action: "announcement.create", entityType: "announcement", entityId: row.id, summary: `MCPでお知らせを作成: ${row.title}`, details: { source: "mcp" } }); return rpc(payload.id, row); }
-    if (name === "reply_announcement") { const id = text(args.announcementId); const [announcement] = await db.select().from(groupAnnouncements).where(eq(groupAnnouncements.id, id)).limit(1); if (!announcement || !await membership(db, announcement.groupId, identity.email)) return rpcError(payload.id, "Announcement not found"); const row = { id: crypto.randomUUID(), announcementId: id, userEmail: identity.email, body: text(args.body).slice(0, 2000) }; if (!row.body) return rpcError(payload.id, "body is required"); await db.insert(announcementReplies).values(row); await recordAudit({ groupId: announcement.groupId, userEmail: identity.email, action: "announcement.reply", entityType: "announcementReply", entityId: row.id, summary: "MCPでお知らせに返信", details: { source: "mcp", announcementId: id } }); return rpc(payload.id, row); }
-    if (name === "group_dashboard") { const groupId = text(args.groupId); const restricted = assistantGroupError(identity, groupId); if (restricted) return rpcError(payload.id, restricted); if (identity.tokenType === "assistant" && !hasScope(identity, "assistant:read")) return rpcError(payload.id, "Assistant token scope does not allow dashboard reads."); if (!await membership(db, groupId, identity.email)) return rpcError(payload.id, "Group membership required"); const [members, plans, announcements] = await Promise.all([db.select().from(groupMembers).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.status, "active"))), db.select().from(shiftPlans).where(eq(shiftPlans.groupId, groupId)), db.select().from(groupAnnouncements).where(eq(groupAnnouncements.groupId, groupId))]); return rpc(payload.id, { memberCount: members.length, planCount: plans.length, publishedPlanCount: plans.filter((p) => p.status === "published").length, announcementCount: announcements.length }); }
+    if (name === "list_assistant_messages") {
+      const groupId = text(args.groupId);
+      const restricted = assistantGroupError(identity, groupId);
+      if (restricted) return rpcError(payload.id, restricted);
+      if (
+        identity.tokenType === "assistant" &&
+        !hasScope(identity, "assistant:read")
+      )
+        return rpcError(
+          payload.id,
+          "Assistant token scope does not allow assistant reads.",
+        );
+      const self = await membership(db, groupId, identity.email);
+      if (!self) return rpcError(payload.id, "Group membership required");
+      const manager = editorRoles.has(self.role);
+      const memberEmail = manager ? text(args.memberEmail) : identity.email;
+      const filters = [eq(assistantMessages.groupId, groupId)];
+      if (memberEmail)
+        filters.push(eq(assistantMessages.memberEmail, memberEmail));
+      const requestedStatus = text(args.status);
+      if (
+        [
+          "pending",
+          "processing",
+          "processed",
+          "failed",
+          "needs_review",
+        ].includes(requestedStatus)
+      )
+        filters.push(
+          eq(
+            assistantMessages.status,
+            requestedStatus as
+              | "pending"
+              | "processing"
+              | "processed"
+              | "failed"
+              | "needs_review",
+          ),
+        );
+      const limit = Math.min(Math.max(Number(args.limit) || 100, 1), 500);
+      const [assistant, messages] = await Promise.all([
+        db
+          .select()
+          .from(groupAssistants)
+          .where(eq(groupAssistants.groupId, groupId))
+          .limit(1),
+        db
+          .select()
+          .from(assistantMessages)
+          .where(and(...filters))
+          .orderBy(desc(assistantMessages.createdAt))
+          .limit(limit),
+      ]);
+      return rpc(payload.id, {
+        assistant: assistant[0] ?? null,
+        messages,
+        manager,
+        filter: {
+          memberEmail: memberEmail || null,
+          status: requestedStatus || null,
+        },
+        count: messages.length,
+      });
+    }
+    if (name === "reply_assistant_message") {
+      const groupId = text(args.groupId);
+      const restricted = assistantGroupError(identity, groupId);
+      if (restricted) return rpcError(payload.id, restricted);
+      if (
+        identity.tokenType === "assistant" &&
+        !hasScope(identity, "assistant:reply")
+      )
+        return rpcError(
+          payload.id,
+          "Assistant token scope does not allow assistant replies.",
+        );
+      const self = await membership(db, groupId, identity.email);
+      if (!self || !editorRoles.has(self.role))
+        return rpcError(payload.id, "Editor membership required");
+      const messageId = text(args.messageId);
+      const replyBody = text(args.body).slice(0, 2000);
+      if (!replyBody) return rpcError(payload.id, "body is required");
+      const replyId = crypto.randomUUID();
+      const now = new Date().toISOString();
+      const [target] = await db
+        .update(assistantMessages)
+        .set({
+          status: "processed",
+          claimedAt: null,
+          claimExpiresAt: null,
+          claimId: null,
+        })
+        .where(
+          and(
+            eq(assistantMessages.id, messageId),
+            eq(assistantMessages.groupId, groupId),
+            eq(assistantMessages.senderType, "member"),
+            eq(assistantMessages.status, "processing"),
+            eq(assistantMessages.claimId, text(args.claimId)),
+            gt(assistantMessages.claimExpiresAt, now),
+          ),
+        )
+        .returning();
+      if (!target)
+        return rpcError(
+          payload.id,
+          "The message claim is no longer current. Claim the message again before replying.",
+        );
+      await db.insert(assistantMessages).values({
+        id: replyId,
+        groupId,
+        memberEmail: target.memberEmail,
+        senderType: "assistant",
+        senderEmail: identity.email,
+        body: replyBody,
+        status: "processed",
+      });
+      await recordAudit({
+        groupId,
+        userEmail: identity.email,
+        action: "assistant.reply",
+        entityType: "assistantMessage",
+        entityId: replyId,
+        summary: `MCPでKINBANアシスタントとして返信: ${target.memberEmail}`,
+        details: { source: "mcp", replyToMessageId: target.id },
+      });
+      await sendBusinessPush(db, {
+        recipients: [target.memberEmail],
+        eventId: `assistant-reply:${replyId}`,
+        title: "KINBAN",
+        body: "KINBANアシスタントから新しい連絡があります",
+        url: `/?group=${encodeURIComponent(groupId)}&view=assistant`,
+        urgency: "high",
+      });
+      return rpc(payload.id, {
+        ok: true,
+        replyId,
+        replyToMessageId: target.id,
+        memberEmail: target.memberEmail,
+      });
+    }
+    if (
+      [
+        "release_assistant_message",
+        "defer_assistant_message",
+        "complete_assistant_message",
+      ].includes(name)
+    ) {
+      const groupId = text(args.groupId);
+      const restricted = assistantGroupError(identity, groupId);
+      if (restricted) return rpcError(payload.id, restricted);
+      if (
+        identity.tokenType !== "assistant" ||
+        !hasScope(identity, "assistant:read")
+      )
+        return rpcError(
+          payload.id,
+          "An assistant token with assistant:read scope is required.",
+        );
+      const self = await membership(db, groupId, identity.email);
+      if (!self || self.status !== "active" || !editorRoles.has(self.role))
+        return rpcError(payload.id, "Active editor membership required");
+      const messageId = text(args.messageId);
+      const reason = text(args.reason).slice(0, 500);
+      if (name !== "release_assistant_message" && !reason)
+        return rpcError(payload.id, "reason is required");
+      const nextStatus =
+        name === "release_assistant_message"
+          ? "pending"
+          : name === "defer_assistant_message"
+            ? "needs_review"
+            : "processed";
+      const now = new Date().toISOString();
+      const [target] = await db
+        .update(assistantMessages)
+        .set({
+          status: nextStatus,
+          claimedAt: null,
+          claimExpiresAt: null,
+          claimId: null,
+        })
+        .where(
+          and(
+            eq(assistantMessages.id, messageId),
+            eq(assistantMessages.groupId, groupId),
+            eq(assistantMessages.senderType, "member"),
+            eq(assistantMessages.status, "processing"),
+            eq(assistantMessages.claimId, text(args.claimId)),
+            gt(assistantMessages.claimExpiresAt, now),
+          ),
+        )
+        .returning();
+      if (!target)
+        return rpcError(
+          payload.id,
+          "The message claim is no longer current. Claim the message again before changing its status.",
+        );
+      if (name === "defer_assistant_message") {
+        const recipients = await activeGroupEmails(db, groupId, true);
+        await createSystemMessagesAndPush(db, {
+          groupId,
+          recipients,
+          eventId: `assistant-review:${target.id}`,
+          eventType: "assistant_needs_review",
+          body: "管理者による確認が必要なアシスタント依頼があります。",
+          pushTitle: "KINBAN",
+          pushBody: "KINBANアシスタントから新しい連絡があります",
+          url: `/?group=${encodeURIComponent(groupId)}&view=assistant`,
+        });
+      }
+      const action =
+        name === "release_assistant_message"
+          ? "assistant.release"
+          : name === "defer_assistant_message"
+            ? "assistant.defer"
+            : "assistant.complete";
+      await recordAudit({
+        groupId,
+        userEmail: identity.email,
+        action,
+        entityType: "assistantMessage",
+        entityId: target.id,
+        summary: `MCPでアシスタントメッセージを${nextStatus}へ更新: ${target.memberEmail}`,
+        details: { source: "mcp", reason: reason || null },
+      });
+      return rpc(payload.id, {
+        ok: true,
+        messageId: target.id,
+        status: nextStatus,
+        reason: reason || null,
+      });
+    }
+    if (name === "list_announcements") {
+      const groupId = text(args.groupId);
+      const restricted = assistantGroupError(identity, groupId);
+      if (restricted) return rpcError(payload.id, restricted);
+      if (
+        identity.tokenType === "assistant" &&
+        !hasScope(identity, "announcement:read")
+      )
+        return rpcError(
+          payload.id,
+          "Assistant token scope does not allow announcement reads.",
+        );
+      if (!(await membership(db, groupId, identity.email)))
+        return rpcError(payload.id, "Group membership required");
+      const announcements = await db
+        .select()
+        .from(groupAnnouncements)
+        .where(eq(groupAnnouncements.groupId, groupId));
+      const ids = announcements.map((a) => a.id);
+      const replies = ids.length
+        ? await db
+            .select()
+            .from(announcementReplies)
+            .where(inArray(announcementReplies.announcementId, ids))
+        : [];
+      const reads = ids.length
+        ? await db
+            .select()
+            .from(announcementReads)
+            .where(inArray(announcementReads.announcementId, ids))
+        : [];
+      return rpc(payload.id, { announcements, replies, reads });
+    }
+    if (name === "mark_announcement_read") {
+      const id = text(args.announcementId);
+      const [announcement] = await db
+        .select()
+        .from(groupAnnouncements)
+        .where(eq(groupAnnouncements.id, id))
+        .limit(1);
+      if (
+        !announcement ||
+        !(await membership(db, announcement.groupId, identity.email))
+      )
+        return rpcError(payload.id, "Announcement not found");
+      const [read] = await db
+        .select()
+        .from(announcementReads)
+        .where(
+          and(
+            eq(announcementReads.announcementId, id),
+            eq(announcementReads.userEmail, identity.email),
+          ),
+        )
+        .limit(1);
+      if (!read) {
+        await db.insert(announcementReads).values({
+          id: crypto.randomUUID(),
+          announcementId: id,
+          userEmail: identity.email,
+        });
+        await recordAudit({
+          groupId: announcement.groupId,
+          userEmail: identity.email,
+          action: "announcement.read",
+          entityType: "announcement",
+          entityId: id,
+          summary: "MCPでお知らせを既読に変更",
+          details: { source: "mcp" },
+        });
+      }
+      return rpc(payload.id, { ok: true, announcementId: id });
+    }
+    if (name === "create_announcement") {
+      if (args.confirm !== true) return rpcError(payload.id, mutating);
+      const groupId = text(args.groupId);
+      const member = await membership(db, groupId, identity.email);
+      if (!member || !editorRoles.has(member.role))
+        return rpcError(payload.id, "Editor membership required");
+      const row = {
+        id: crypto.randomUUID(),
+        groupId,
+        createdBy: identity.email,
+        title: text(args.title).slice(0, 120),
+        body: text(args.body).slice(0, 2000),
+      };
+      if (!row.title || !row.body)
+        return rpcError(payload.id, "title and body are required");
+      await db.insert(groupAnnouncements).values(row);
+      await recordAudit({
+        groupId,
+        userEmail: identity.email,
+        action: "announcement.create",
+        entityType: "announcement",
+        entityId: row.id,
+        summary: `MCPでお知らせを作成: ${row.title}`,
+        details: { source: "mcp" },
+      });
+      return completeManagedExecution(row);
+    }
+    if (name === "reply_announcement") {
+      const id = text(args.announcementId);
+      const [announcement] = await db
+        .select()
+        .from(groupAnnouncements)
+        .where(eq(groupAnnouncements.id, id))
+        .limit(1);
+      if (
+        !announcement ||
+        !(await membership(db, announcement.groupId, identity.email))
+      )
+        return rpcError(payload.id, "Announcement not found");
+      const row = {
+        id: crypto.randomUUID(),
+        announcementId: id,
+        userEmail: identity.email,
+        body: text(args.body).slice(0, 2000),
+      };
+      if (!row.body) return rpcError(payload.id, "body is required");
+      await db.insert(announcementReplies).values(row);
+      await recordAudit({
+        groupId: announcement.groupId,
+        userEmail: identity.email,
+        action: "announcement.reply",
+        entityType: "announcementReply",
+        entityId: row.id,
+        summary: "MCPでお知らせに返信",
+        details: { source: "mcp", announcementId: id },
+      });
+      return rpc(payload.id, row);
+    }
+    if (name === "group_dashboard") {
+      const groupId = text(args.groupId);
+      const restricted = assistantGroupError(identity, groupId);
+      if (restricted) return rpcError(payload.id, restricted);
+      if (
+        identity.tokenType === "assistant" &&
+        !hasScope(identity, "assistant:read")
+      )
+        return rpcError(
+          payload.id,
+          "Assistant token scope does not allow dashboard reads.",
+        );
+      if (!(await membership(db, groupId, identity.email)))
+        return rpcError(payload.id, "Group membership required");
+      const [members, plans, announcements] = await Promise.all([
+        db
+          .select()
+          .from(groupMembers)
+          .where(
+            and(
+              eq(groupMembers.groupId, groupId),
+              eq(groupMembers.status, "active"),
+            ),
+          ),
+        db.select().from(shiftPlans).where(eq(shiftPlans.groupId, groupId)),
+        db
+          .select()
+          .from(groupAnnouncements)
+          .where(eq(groupAnnouncements.groupId, groupId)),
+      ]);
+      return rpc(payload.id, {
+        memberCount: members.length,
+        planCount: plans.length,
+        publishedPlanCount: plans.filter((p) => p.status === "published")
+          .length,
+        announcementCount: announcements.length,
+      });
+    }
     return rpcError(payload.id, `Unknown tool: ${name}`);
-  } catch (caught) { return rpcError(payload.id, caught instanceof Error ? caught.message : "MCP tool failed"); }
+  } catch (caught) {
+    if (activeExecution)
+      await db
+        .update(assistantMessageExecutions)
+        .set({
+          status: "failed",
+          errorCode:
+            caught instanceof Error ? caught.name.slice(0, 80) : "mcp_error",
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(assistantMessageExecutions.id, activeExecution.id));
+    return rpcError(
+      payload.id,
+      caught instanceof Error ? caught.message : "MCP tool failed",
+    );
+  } finally {
+    if (activeExecution)
+      await db
+        .update(assistantMessageExecutions)
+        .set({
+          status: "failed",
+          errorCode: "operation_not_completed",
+          updatedAt: new Date().toISOString(),
+        })
+        .where(
+          and(
+            eq(assistantMessageExecutions.id, activeExecution.id),
+            eq(assistantMessageExecutions.status, "processing"),
+          ),
+        );
+  }
 }
