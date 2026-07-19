@@ -2,6 +2,7 @@ import { and, count, desc, eq, gt, gte, inArray, isNull, like, lt, lte, or } fro
 import { getDb } from "../../db";
 import {
   accountProfiles,
+  assistantMessageExecutions,
   assistantMessages,
   auditLogs,
   announcementReads,
@@ -60,21 +61,32 @@ async function assistantActiveError(db: ReturnType<typeof getDb>, identity: Awai
 }
 
 type AssistantPermission = "canCreateShifts" | "canPublishShifts" | "canReviewDailyWork" | "canReviewMonthlyWork" | "canCreateAnnouncements";
+const assistantManagementTools = new Set(["create_shift_plan", "delete_draft_shift_plan", "update_slot_counts", "set_shift_assignments", "submit_work_record", "review_monthly_work", "create_announcement"]);
 // Assistant replies are authorised by their group-bound key and the target message ID.
 async function consumeConfirmation() { return true; }
-async function assistantPermissionError(db: ReturnType<typeof getDb>, identity: Awaited<ReturnType<typeof requireApiIdentity>>, groupId: string, permission: AssistantPermission, sourceMessageId: unknown) {
+function assistantExecutionTarget(name: string, args: Args) {
+  if (name === "create_shift_plan") return `${text(args.name)}|${text(args.startDate)}|${text(args.endDate)}`;
+  if (name === "review_monthly_work") return `${text(args.userEmail)}|${text(args.month)}|${text(args.action)}`;
+  if (name === "submit_work_record") return `${text(args.recordId)}|${text(args.status)}`;
+  if (name === "create_announcement") return `${text(args.title)}|${text(args.body)}`;
+  return text(args.planId);
+}
+async function assistantPermissionError(db: ReturnType<typeof getDb>, identity: Awaited<ReturnType<typeof requireApiIdentity>>, groupId: string, permission: AssistantPermission, sourceMessageId: unknown, claimId: unknown) {
   if (identity instanceof Response || identity.tokenType !== "assistant") return null;
   const restricted = assistantGroupError(identity, groupId);
   if (restricted) return restricted;
   const messageId = text(sourceMessageId);
   if (!messageId) return "sourceMessageId from an active manager is required for this assistant operation.";
+  const activeClaimId = text(claimId);
+  if (!activeClaimId) return "claimId from the current message claim is required for this assistant operation.";
+  const now = new Date().toISOString();
   const [assistant, source] = await Promise.all([
     db.select().from(groupAssistants).where(eq(groupAssistants.groupId, groupId)).limit(1),
-    db.select().from(assistantMessages).where(and(eq(assistantMessages.id, messageId), eq(assistantMessages.groupId, groupId), eq(assistantMessages.senderType, "member"))).limit(1),
+    db.select().from(assistantMessages).where(and(eq(assistantMessages.id, messageId), eq(assistantMessages.groupId, groupId), eq(assistantMessages.senderType, "member"), eq(assistantMessages.status, "processing"), eq(assistantMessages.claimId, activeClaimId), gt(assistantMessages.claimExpiresAt, now))).limit(1),
   ]);
   if (assistant[0]?.status !== "active") return "KINBAN assistant is inactive.";
   if (!assistant[0]?.[permission]) return "This group has disabled the AI assistant permission for this operation.";
-  if (!source[0]) return "sourceMessageId must identify a human message in this group.";
+  if (!source[0]) return "sourceMessageId must identify a currently claimed human manager message in this group.";
   const sender = await membership(db, groupId, source[0].memberEmail);
   if (!sender || sender.status !== "active" || !editorRoles.has(sender.role)) return "The claimed message sender is not an active manager.";
   return null;
@@ -142,7 +154,7 @@ export async function POST(request: Request) {
   const assistantStatusError = await assistantActiveError(db, identity);
   if (assistantStatusError) return rpcError(payload.id, assistantStatusError);
   try {
-    if (identity.tokenType === "assistant" && ["create_shift_plan", "delete_draft_shift_plan", "update_slot_counts", "set_shift_assignments", "submit_work_record", "review_monthly_work", "create_announcement"].includes(name)) {
+    if (identity.tokenType === "assistant" && assistantManagementTools.has(name)) {
       let groupId = text(args.groupId);
       let permission: AssistantPermission = "canCreateShifts";
       if (["delete_draft_shift_plan", "update_slot_counts", "set_shift_assignments"].includes(name)) {
@@ -155,8 +167,16 @@ export async function POST(request: Request) {
         permission = "canReviewDailyWork";
       } else if (name === "review_monthly_work") permission = "canReviewMonthlyWork";
       else if (name === "create_announcement") permission = "canCreateAnnouncements";
-      const permissionError = await assistantPermissionError(db, identity, groupId, permission, args.sourceMessageId);
+      const permissionError = await assistantPermissionError(db, identity, groupId, permission, args.sourceMessageId, args.claimId);
       if (permissionError) return rpcError(payload.id, permissionError);
+      const messageId = text(args.sourceMessageId);
+      const target = assistantExecutionTarget(name, args);
+      const executionId = crypto.randomUUID();
+      await db.insert(assistantMessageExecutions).values({ id: executionId, groupId, messageId, operation: name, target }).onConflictDoNothing();
+      const [execution] = await db.select().from(assistantMessageExecutions).where(and(eq(assistantMessageExecutions.messageId, messageId), eq(assistantMessageExecutions.operation, name), eq(assistantMessageExecutions.target, target))).limit(1);
+      if (!execution || execution.id !== executionId)
+        return rpc(payload.id, { ok: true, duplicate: true, message: "This manager instruction has already been executed for the same operation and target." });
+      await recordAudit({ groupId, userEmail: identity.email, action: "assistant.execute", entityType: "assistantMessage", entityId: messageId, summary: `MCPで管理者指示を実行: ${name}`, details: { source: "mcp", sourceMessageId: messageId, operation: name, target } });
       (args as { confirm?: boolean }).confirm = true;
     }
     if (name === "set_shift_assignments") {
@@ -165,6 +185,18 @@ export async function POST(request: Request) {
         if (args.status === "draft") return rpcError(payload.id, "Published shift plans cannot be returned to draft");
         (args as { status?: string }).status = "published";
       }
+    }
+    if (identity.tokenType === "assistant" && ["reply_assistant_message", "release_assistant_message", "defer_assistant_message", "complete_assistant_message"].includes(name)) {
+      const now = new Date().toISOString();
+      const [claimed] = await db.select({ id: assistantMessages.id }).from(assistantMessages).where(and(
+        eq(assistantMessages.id, text(args.messageId)),
+        eq(assistantMessages.groupId, text(args.groupId)),
+        eq(assistantMessages.senderType, "member"),
+        eq(assistantMessages.status, "processing"),
+        eq(assistantMessages.claimId, text(args.claimId)),
+        gt(assistantMessages.claimExpiresAt, now),
+      )).limit(1);
+      if (!claimed) return rpcError(payload.id, "A current claimId is required for this message operation.");
     }
     if (name === "get_work_records") { const groupId = text(args.groupId); const restricted = assistantGroupError(identity, groupId); if (restricted) return rpcError(payload.id, restricted); if (identity.tokenType === "assistant" && !hasScope(identity, "work:read")) return rpcError(payload.id, "Assistant token scope does not allow work-record reads."); const result = await getMcpWorkRecords(db, groupId, identity.email, args); return "error" in result ? rpcError(payload.id, result.error) : rpc(payload.id, result); }
     if (name === "clock_work") { const result = await mcpClock(db, text(args.groupId), identity.email, text(args.action), text(args.recordId) || undefined); return "error" in result ? rpcError(payload.id, result.error) : rpc(payload.id, result); }
@@ -292,7 +324,8 @@ export async function POST(request: Request) {
       )).orderBy(assistantMessages.createdAt).limit(10);
       for (const candidate of candidates) {
         const claimExpiresAt = new Date(Date.now() + 1 * 60 * 1000).toISOString();
-        const [claimed] = await db.update(assistantMessages).set({ status: "processing", claimedAt: now, claimExpiresAt }).where(and(
+        const claimId = crypto.randomUUID();
+        const [claimed] = await db.update(assistantMessages).set({ status: "processing", claimedAt: now, claimExpiresAt, claimId }).where(and(
           eq(assistantMessages.id, candidate.id),
           or(eq(assistantMessages.status, "pending"), and(eq(assistantMessages.status, "processing"), lt(assistantMessages.claimExpiresAt, now))),
         )).returning();
@@ -300,7 +333,7 @@ export async function POST(request: Request) {
         const sender = await membership(db, groupId, claimed.memberEmail);
         const mode = sender?.status === "active" && editorRoles.has(sender.role) ? "manager" : "member";
         await recordAudit({ groupId, userEmail: identity.email, action: "assistant.claim", entityType: "assistantMessage", entityId: claimed.id, summary: `MCPでアシスタント問い合わせを取得: ${claimed.memberEmail}`, details: { source: "mcp", claimExpiresAt } });
-        return rpc(payload.id, { message: claimed, contextMode: mode, claimExpiresAt });
+        return rpc(payload.id, { message: claimed, contextMode: mode, claimId, claimExpiresAt });
       }
       return rpc(payload.id, { message: null });
     }

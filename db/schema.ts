@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const events = sqliteTable("events", {
   id: text("id").primaryKey(),
@@ -98,10 +98,22 @@ export const assistantMessages = sqliteTable("assistant_messages", {
     .default("pending"),
   claimedAt: text("claimed_at"),
   claimExpiresAt: text("claim_expires_at"),
+  claimId: text("claim_id"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
 });
+
+export const assistantMessageExecutions = sqliteTable("assistant_message_executions", {
+  id: text("id").primaryKey(),
+  groupId: text("group_id").notNull(),
+  messageId: text("message_id").notNull(),
+  operation: text("operation").notNull(),
+  target: text("target").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("assistant_message_execution_unique_idx").on(table.messageId, table.operation, table.target),
+]);
 
 export const assistantContexts = sqliteTable("assistant_contexts", {
   id: text("id").primaryKey(),

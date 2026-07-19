@@ -1,7 +1,7 @@
 import { eq, inArray } from "drizzle-orm";
 import { getChatGPTUser } from "../../../chatgpt-auth";
 import { getDb } from "../../../../db";
-import { assistantMessages, attachments, events, groupAssistants, groupJoinRequests, groupMembers, groupPreferences, groups, shiftAvailability } from "../../../../db/schema";
+import { assistantMessageExecutions, assistantMessages, attachments, events, groupAssistants, groupJoinRequests, groupMembers, groupPreferences, groups, shiftAvailability } from "../../../../db/schema";
 import { env } from "cloudflare:workers";
 import { getGroup, getMembership } from "../group-access";
 import { recordAudit } from "../../../audit-log";
@@ -57,6 +57,7 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
     ...(groupEvents.length ? [db.delete(attachments).where(inArray(attachments.eventId, groupEvents.map((event) => event.id)))] : []),
     db.delete(events).where(eq(events.groupId, id)),
     db.delete(groupJoinRequests).where(eq(groupJoinRequests.groupId, id)),
+    db.delete(assistantMessageExecutions).where(eq(assistantMessageExecutions.groupId, id)),
     db.delete(assistantMessages).where(eq(assistantMessages.groupId, id)),
     db.delete(groupAssistants).where(eq(groupAssistants.groupId, id)),
     db.delete(groupMembers).where(eq(groupMembers.groupId, id)),
