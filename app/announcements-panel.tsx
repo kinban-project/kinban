@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { localApiFetch } from "./local-api";
+import AssistantChat from "./assistant-chat";
 
 type Announcement = { id: string; title: string; body: string; createdBy: string; createdAt: string };
 type Reply = { id: string; announcementId: string; userEmail: string; body: string; createdAt: string };
@@ -22,6 +23,7 @@ export default function AnnouncementsPanel({ groupId, manager = false }: Props) 
   const [body, setBody] = useState("");
   const [reply, setReply] = useState<Record<string, string>>({});
   const [notice, setNotice] = useState("");
+  const [tab, setTab] = useState<"announcements" | "assistant">("announcements");
 
   async function load() {
     const [response, groupResponse] = await Promise.all([
@@ -52,7 +54,9 @@ export default function AnnouncementsPanel({ groupId, manager = false }: Props) 
   }
 
   return <div className="announcements-panel">
-    <div className="modal-head"><div><p className="eyebrow">ANNOUNCEMENTS</p><h2>お知らせ・連絡{selectedGroupName ? `（${selectedGroupName}）` : ""}</h2></div></div>
+    <div className="modal-head"><div><p className="eyebrow">MESSAGES</p><h2>お知らせ・連絡{selectedGroupName ? `（${selectedGroupName}）` : ""}</h2></div></div>
+    <div className="message-tabs" role="tablist"><button className={tab === "announcements" ? "active" : ""} onClick={() => setTab("announcements")} role="tab" aria-selected={tab === "announcements"}>お知らせ</button><button className={tab === "assistant" ? "active" : ""} onClick={() => setTab("assistant")} role="tab" aria-selected={tab === "assistant"}>KINBANアシスタント</button></div>
+    {tab === "assistant" ? <AssistantChat groupId={groupId} manager={manager} /> : <>
     {manager && <form className="announcement-create" onSubmit={(event) => { event.preventDefault(); void post("create"); }}><input required value={title} onChange={(event) => setTitle(event.target.value)} placeholder="タイトル" /><textarea required rows={3} value={body} onChange={(event) => setBody(event.target.value)} placeholder="メンバーへのお知らせ" /><button className="primary-button">お知らせを作成</button></form>}
     <div className="announcement-list">
       {items.length ? items.map((item) => {
@@ -68,5 +72,6 @@ export default function AnnouncementsPanel({ groupId, manager = false }: Props) 
       }) : <p className="empty-state">お知らせはありません。</p>}
     </div>
     {notice && <p className="group-notice">{notice}</p>}
+    </>}
   </div>;
 }

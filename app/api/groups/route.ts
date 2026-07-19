@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { getDb } from "../../../db";
-import { groupJoinRequests, groupMembers, groups, shiftRequestPeriods } from "../../../db/schema";
+import { groupAssistants, groupJoinRequests, groupMembers, groups, shiftRequestPeriods } from "../../../db/schema";
 import { recordAudit } from "../../audit-log";
 import { toPublicMember } from "../groups/member-dto";
 
@@ -37,6 +37,7 @@ export async function POST(request: Request) {
   await db.batch([
     db.insert(groups).values({ id, name, description: body.description?.trim() ?? "", ownerEmail: user.email }),
     db.insert(groupMembers).values({ id: crypto.randomUUID(), groupId: id, userEmail: user.email, role: "owner", showInPersonal: true }),
+    db.insert(groupAssistants).values({ groupId: id }),
   ]);
   await recordAudit({ groupId: id, userEmail: user.email, action: "group.create", entityType: "group", entityId: id, summary: `グループを作成: ${name}` });
   return Response.json({ group: { id, name, description: body.description?.trim() ?? "", ownerEmail: user.email, membership: { role: "owner", showInPersonal: true } } }, { status: 201 });

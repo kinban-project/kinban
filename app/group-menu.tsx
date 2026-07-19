@@ -164,7 +164,7 @@ export default function GroupMenu({
                 type="button"
                 onClick={() => onAnnouncements(group.groupId)}
               >
-                お知らせ
+                お知らせ・連絡
                 {unread > 0 && <span className="unread-badge">{unread}</span>}
               </button>
               <WorkDeclareButton groupId={group.groupId} onClick={() => onWorkDeclare(group.groupId)} />
@@ -198,7 +198,7 @@ export default function GroupMenu({
                       type="button"
                       onClick={() => onAnnouncements(group.groupId)}
                     >
-                      お知らせ管理
+                      お知らせ・連絡管理
                     </button>
                     <button
                       className="group-menu-button admin"
@@ -242,7 +242,7 @@ export default function GroupMenu({
                           {pendingMembers > 0 && <span className="unread-badge">{pendingMembers}</span>}
                         </button>
                         <button onClick={() => onAnnouncements(group.groupId)}>
-                          お知らせ管理
+                          お知らせ・連絡管理
                         </button>
                         <button onClick={() => onDashboard(group.groupId)}>
                           ダッシュボード

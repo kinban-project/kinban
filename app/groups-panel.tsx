@@ -14,7 +14,8 @@ type Group = {
 type MemberPreference = { minDays: number; maxDays: number; minHours: number; maxHours: number; freeComment?: string | null };
 type Availability = { dayOfWeek: number; status: string; startTime: string; endTime: string };
 type Member = { userEmail: string; displayName?: string | null; adminNote?: string | null; role: string; status: "active" | "inactive"; showInPersonal: boolean; preference?: MemberPreference | null; availability?: Availability[] };
-type GroupDetail = { currentEmail: string; group: Group; membership: { role: string; showInPersonal: boolean }; members: Member[]; requests: Array<{ id: string; userEmail: string; status: string }> };
+type Assistant = { displayName: string; role: "editor"; status: "active" | "inactive" };
+type GroupDetail = { currentEmail: string; group: Group; membership: { role: string; showInPersonal: boolean }; members: Member[]; requests: Array<{ id: string; userEmail: string; status: string }>; assistant: Assistant | null };
 
 const weekdayLabels = ["日", "月", "火", "水", "木", "金", "土"];
 const preferenceStatusLabels: Record<string, string> = { want: "出勤希望", possible: "可能", off: "休み希望", unavailable: "勤務不可" };
@@ -73,6 +74,14 @@ export default function GroupsPanel({ onChanged, initialGroupId }: { onChanged: 
     if (!window.confirm(message)) return;
     await updateMember({ userEmail: member.userEmail, status: inactive ? "inactive" : "active" });
   }
+  async function changeAssistantStatus() {
+    if (!selected?.assistant) return;
+    const inactive = selected.assistant.status === "active";
+    if (!window.confirm(`KINBANアシスタントを${inactive ? "停止" : "再開"}しますか？${inactive ? "\n過去の会話は残りますが、メンバーは新しいメッセージを送れなくなります。" : ""}`)) return;
+    const response = await localApiFetch(`/api/groups/${selected.group.id}/assistant`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: inactive ? "inactive" : "active" }) });
+    setNotice(response.ok ? `KINBANアシスタントを${inactive ? "停止" : "再開"}しました` : "KINBANアシスタントの状態を変更できませんでした");
+    if (response.ok) await openGroup(selected.group);
+  }
   async function removeMember(member: Member) {
     if (!window.confirm(`「${member.displayName?.trim() || member.userEmail}」をメンバーから完全に削除しますか？\n基本設定・勤務希望も削除され、元に戻せません。`)) return;
     if (!selected) return;
@@ -116,6 +125,11 @@ export default function GroupsPanel({ onChanged, initialGroupId }: { onChanged: 
         {isAdmin && <label className="member-admin-note-field">管理者メモ<textarea defaultValue={member.adminNote ?? ""} placeholder="気を付けることなど" rows={2} onBlur={(event) => { const value = event.currentTarget.value.trim(); if (value !== (member.adminNote ?? "")) void updateMember({ userEmail: member.userEmail, adminNote: value }); }} /></label>}
         {isAdmin && member.role !== "owner" && member.userEmail !== selected.currentEmail && <div className="member-admin-actions"><button className="small-action" onClick={() => void changeStatus(member)}>{member.status === "inactive" ? "有効化" : "利用停止"}</button><button className="small-action danger" onClick={() => void removeMember(member)}>メンバーを削除</button></div>}
       </article>)}</div>
+      {selected.assistant && <><h4>運営支援AI</h4><article className={`member-card assistant-member-card ${selected.assistant.status === "inactive" ? "is-inactive" : ""}`}>
+        <div className="member-card-head"><div><strong>{selected.assistant.displayName}</strong><small>システムメンバー・シフト割当対象外</small></div><div className="member-card-badges"><span className="member-role-badge">管理者</span>{selected.assistant.status === "inactive" && <span className="member-status-badge inactive">利用停止</span>}</div></div>
+        <p className="assistant-member-description">メンバーからのシフト・勤怠相談を受け付けます。AIが接続されていない間もメッセージは保持されます。</p>
+        {isAdmin && <div className="member-admin-actions"><button className="small-action" onClick={() => void changeAssistantStatus()}>{selected.assistant.status === "inactive" ? "再開" : "利用停止"}</button></div>}
+      </article></>}
       {!isAdmin && <p className="member-privacy-note">他のメンバーの勤務希望は表示せず、本人の情報だけ確認できます。</p>}
       <div className="group-detail-actions">{selected.membership.role === "owner" && <button className="small-action danger" onClick={() => void deleteGroup()}>グループを削除</button>}</div>
     </div>}

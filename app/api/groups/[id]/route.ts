@@ -1,7 +1,7 @@
 import { eq, inArray } from "drizzle-orm";
 import { getChatGPTUser } from "../../../chatgpt-auth";
 import { getDb } from "../../../../db";
-import { attachments, events, groupJoinRequests, groupMembers, groupPreferences, groups, shiftAvailability } from "../../../../db/schema";
+import { assistantMessages, attachments, events, groupAssistants, groupJoinRequests, groupMembers, groupPreferences, groups, shiftAvailability } from "../../../../db/schema";
 import { env } from "cloudflare:workers";
 import { getGroup, getMembership } from "../group-access";
 import { recordAudit } from "../../../audit-log";
@@ -19,6 +19,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   if (!membership) return Response.json({ error: "このグループのメンバーではありません" }, { status: 403 });
   const db = getDb();
   const members = await db.select().from(groupMembers).where(eq(groupMembers.groupId, id));
+  const [assistant] = await db.select().from(groupAssistants).where(eq(groupAssistants.groupId, id)).limit(1);
   const requests = membership.role === "owner" ? await db.select().from(groupJoinRequests).where(eq(groupJoinRequests.groupId, id)) : [];
   const isAdmin = canViewAdminNote(membership.role);
   const visiblePreferenceEmails = isAdmin ? members.map((member) => member.userEmail) : [user.email];
@@ -37,7 +38,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       ? availability.filter((entry) => entry.userEmail === member.userEmail)
       : [],
   }));
-  return Response.json({ currentEmail: user.email, group, membership: toPublicMember(membership, isAdmin), members: safeMembers, requests });
+  return Response.json({ currentEmail: user.email, group, membership: toPublicMember(membership, isAdmin), members: safeMembers, requests, assistant: assistant ?? null });
 }
 
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
@@ -56,6 +57,8 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
     ...(groupEvents.length ? [db.delete(attachments).where(inArray(attachments.eventId, groupEvents.map((event) => event.id)))] : []),
     db.delete(events).where(eq(events.groupId, id)),
     db.delete(groupJoinRequests).where(eq(groupJoinRequests.groupId, id)),
+    db.delete(assistantMessages).where(eq(assistantMessages.groupId, id)),
+    db.delete(groupAssistants).where(eq(groupAssistants.groupId, id)),
     db.delete(groupMembers).where(eq(groupMembers.groupId, id)),
     db.delete(groups).where(eq(groups.id, id)),
   ]);

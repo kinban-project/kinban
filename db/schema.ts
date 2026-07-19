@@ -57,6 +57,35 @@ export const groupMembers = sqliteTable("group_members", {
     .default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const groupAssistants = sqliteTable("group_assistants", {
+  groupId: text("group_id").primaryKey(),
+  displayName: text("display_name").notNull().default("KINBANアシスタント"),
+  role: text("role", { enum: ["editor"] }).notNull().default("editor"),
+  status: text("status", { enum: ["active", "inactive"] })
+    .notNull()
+    .default("active"),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const assistantMessages = sqliteTable("assistant_messages", {
+  id: text("id").primaryKey(),
+  groupId: text("group_id").notNull(),
+  memberEmail: text("member_email").notNull(),
+  senderType: text("sender_type", { enum: ["member", "assistant"] })
+    .notNull()
+    .default("member"),
+  senderEmail: text("sender_email"),
+  body: text("body").notNull(),
+  status: text("status", { enum: ["pending", "processed", "failed"] })
+    .notNull()
+    .default("pending"),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const groupPreferences = sqliteTable("group_preferences", {
   id: text("id").primaryKey(),
   groupId: text("group_id").notNull(),
