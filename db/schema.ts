@@ -131,7 +131,9 @@ export const assistantMessages = sqliteTable("assistant_messages", {
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [
-  uniqueIndex("assistant_message_event_recipient_unique_idx").on(table.groupId, table.memberEmail, table.eventId),
+  uniqueIndex("assistant_message_event_recipient_unique_idx")
+    .on(table.groupId, table.memberEmail, table.eventId)
+    .where(sql`event_id <> ''`),
 ]);
 
 export const assistantMessageExecutions = sqliteTable("assistant_message_executions", {

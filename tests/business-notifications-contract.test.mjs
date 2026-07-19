@@ -14,6 +14,7 @@ test("business notifications keep urgency, system events, and no-duplicate contr
   assert.match(schema, /category/);
   assert.match(schema, /senderType.*system/);
   assert.match(schema, /assistant_message_event_recipient_unique_idx/);
+  assert.match(schema, /where\(sql`event_id <> ''`\)/);
   assert.match(helper, /onConflictDoNothing\(\)/);
   assert.match(helper, /sendBusinessPush/);
   assert.match(announcements, /notificationLevel === "urgent"/);
