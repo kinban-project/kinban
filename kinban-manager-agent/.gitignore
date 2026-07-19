@@ -1,0 +1,13 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Runtime output: KINBAN remains the source of truth.
+workspace/*
+!workspace/README.md
+
+# Local editor and task state
+.codex/
+.vscode/
+*.log

@@ -12,6 +12,8 @@ test("assistant shift request overview is operation-context-only and returns mem
   assert.match(route, /assistantContext\.mode !== "operations"/);
   assert.match(route, /Active editor membership required/);
   assert.match(route, /from\(shiftRequestSubmissions\)\.where\(eq\(shiftRequestSubmissions\.periodId, period\.id\)\)/);
+  assert.match(route, /from\(groupPreferences\)/);
+  assert.match(route, /from\(shiftAvailability\)/);
   assert.match(route, /submission: submissions\.find/);
   assert.match(route, /requests: requests\.filter/);
 });

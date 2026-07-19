@@ -1,0 +1,33 @@
+{
+  "timezone": "Asia/Tokyo",
+  "jobs": [
+    {
+      "id": "daily-check",
+      "enabled": false,
+      "schedule": "weekday 09:00",
+      "runbook": "jobs/daily-check.md",
+      "mode": "read-and-report"
+    },
+    {
+      "id": "shift-request-reminder",
+      "enabled": false,
+      "schedule": "before request deadline",
+      "runbook": "jobs/shift-request-reminder.md",
+      "mode": "draft-only"
+    },
+    {
+      "id": "shift-draft-preview",
+      "enabled": false,
+      "schedule": "after request deadline",
+      "runbook": "jobs/shift-draft-preview.md",
+      "mode": "preview-only"
+    },
+    {
+      "id": "month-end-check",
+      "enabled": false,
+      "schedule": "before month close",
+      "runbook": "jobs/month-end-check.md",
+      "mode": "read-and-report"
+    }
+  ]
+}

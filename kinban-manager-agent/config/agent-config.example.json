@@ -1,0 +1,11 @@
+{
+  "assistantName": "KINBANアシスタント",
+  "role": "運営支援AI",
+  "timezone": "Asia/Tokyo",
+  "reportDirectory": "workspace/reports",
+  "requireHumanConfirmation": true,
+  "autoPublishShift": false,
+  "autoApproveAttendance": false,
+  "autoSendMemberMessage": false,
+  "notes": "組織固有の判断基準は runbooks/ に記載します。秘密情報は保存しません。"
+}

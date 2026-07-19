@@ -47,3 +47,8 @@ next-env.d.ts
 /docs/
 /assets/
 /screenshots/
+
+# Local runtime state for the PC-resident KINBAN operations assistant.
+/kinban-manager-agent/.env
+/kinban-manager-agent/workspace/*
+!/kinban-manager-agent/workspace/README.md

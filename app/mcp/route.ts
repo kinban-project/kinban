@@ -210,15 +210,19 @@ export async function POST(request: Request) {
       if (!period) return rpcError(payload.id, "Shift request period not found");
       const members = await db.select().from(groupMembers).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.status, "active")));
       const emails = members.map((member) => member.userEmail);
-      const [profiles, requests, submissions] = await Promise.all([
+      const [profiles, requests, submissions, preferences, availability] = await Promise.all([
         emails.length ? db.select().from(accountProfiles).where(inArray(accountProfiles.userEmail, emails)) : [],
         db.select().from(shiftRequests).where(eq(shiftRequests.periodId, period.id)),
         db.select().from(shiftRequestSubmissions).where(eq(shiftRequestSubmissions.periodId, period.id)),
+        emails.length ? db.select().from(groupPreferences).where(and(eq(groupPreferences.groupId, groupId), inArray(groupPreferences.userEmail, emails))) : [],
+        emails.length ? db.select().from(shiftAvailability).where(and(eq(shiftAvailability.groupId, groupId), inArray(shiftAvailability.userEmail, emails))) : [],
       ]);
       return rpc(payload.id, {
         period,
         members: members.map((member) => ({
           member: { ...toPublicMember(member, false), accountNickname: profiles.find((profile) => profile.userEmail === member.userEmail)?.nickname ?? "" },
+          preferences: preferences.find((preference) => preference.userEmail === member.userEmail) ?? null,
+          availability: availability.filter((entry) => entry.userEmail === member.userEmail),
           requests: requests.filter((requestRow) => requestRow.userEmail === member.userEmail),
           submission: submissions.find((submission) => submission.userEmail === member.userEmail) ?? null,
         })),
