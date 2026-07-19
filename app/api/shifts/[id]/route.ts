@@ -5,6 +5,7 @@ import { accountProfiles, events, groupMembers, groupPreferences, groups, shiftA
 import { getMembership } from "../../groups/group-access";
 import { isValidShiftTime, shiftDateTime, shiftTimeToMinutes } from "../../../shift-time";
 import { recordAudit } from "../../../audit-log";
+import { canViewAdminNote, toPublicMember } from "../../groups/member-dto";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const memberAvailability = canManage ? await db.select().from(shiftAvailability).where(eq(shiftAvailability.groupId, plan.groupId)) : [];
   const requests = canManage && requestPeriod ? await db.select().from(shiftRequests).where(eq(shiftRequests.periodId, requestPeriod.id)) : [];
   const requestSubmissions = canManage && requestPeriod ? await db.select().from(shiftRequestSubmissions).where(eq(shiftRequestSubmissions.periodId, requestPeriod.id)) : [];
-  return Response.json({ currentEmail: user.email, plan, slots, assignments, members, closedDates, requestPeriod: requestPeriod ?? null, memberPreferences, memberAvailability, requests, requestSubmissions });
+  return Response.json({ currentEmail: user.email, plan, slots, assignments, members: members.map((member) => toPublicMember(member, canViewAdminNote(membership.role))), closedDates, requestPeriod: requestPeriod ?? null, memberPreferences, memberAvailability, requests, requestSubmissions });
 }
 
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {

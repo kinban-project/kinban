@@ -5,6 +5,7 @@ import { attachments, events, groupJoinRequests, groupMembers, groupPreferences,
 import { env } from "cloudflare:workers";
 import { getGroup, getMembership } from "../group-access";
 import { recordAudit } from "../../../audit-log";
+import { canViewAdminNote, toPublicMember } from "../member-dto";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const db = getDb();
   const members = await db.select().from(groupMembers).where(eq(groupMembers.groupId, id));
   const requests = membership.role === "owner" ? await db.select().from(groupJoinRequests).where(eq(groupJoinRequests.groupId, id)) : [];
-  const isAdmin = membership.role === "owner" || membership.role === "editor";
+  const isAdmin = canViewAdminNote(membership.role);
   const visiblePreferenceEmails = isAdmin ? members.map((member) => member.userEmail) : [user.email];
   const preferences = visiblePreferenceEmails.length
     ? await db.select().from(groupPreferences).where(eq(groupPreferences.groupId, id))
@@ -27,9 +28,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const availability = visiblePreferenceEmails.length
     ? await db.select().from(shiftAvailability).where(eq(shiftAvailability.groupId, id))
     : [];
-  const safeMembers = members.map(({ adminNote, ...member }) => ({
-    ...member,
-    ...(isAdmin || member.userEmail === user.email ? { adminNote: isAdmin ? adminNote : undefined } : {}),
+  const safeMembers = members.map((member) => ({
+    ...toPublicMember(member, isAdmin),
     preference: visiblePreferenceEmails.includes(member.userEmail)
       ? preferences.find((preference) => preference.userEmail === member.userEmail) ?? null
       : null,
@@ -37,7 +37,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       ? availability.filter((entry) => entry.userEmail === member.userEmail)
       : [],
   }));
-  return Response.json({ currentEmail: user.email, group, membership, members: safeMembers, requests });
+  return Response.json({ currentEmail: user.email, group, membership: toPublicMember(membership, isAdmin), members: safeMembers, requests });
 }
 
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
