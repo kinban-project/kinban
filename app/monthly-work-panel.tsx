@@ -30,8 +30,13 @@ function monthOptions() {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
   });
 }
-function formatMinutes(value: number) {
+function legacyFormatMinutes(value: number) {
   return `${Math.floor(value / 60)}時間${value % 60}分`;
+}
+function formatMinutes(value: number) {
+  const sign = value < 0 ? "-" : "";
+  const absolute = Math.abs(value);
+  return `${sign}${Math.floor(absolute / 60)}時間${absolute % 60}分`;
 }
 function formatDate(value: string) {
   const date = new Date(`${value}T00:00:00+09:00`);
