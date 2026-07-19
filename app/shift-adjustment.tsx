@@ -459,42 +459,7 @@ export default function ShiftAdjustment({
               </table>
             </div>
           )}
-          {viewMode === ("legacy-preview" as unknown as typeof viewMode) ? (
-            <div className="assignment-preview-wrap">
-              <table className="assignment-preview-table">
-                <thead>
-                  <tr>
-                    <th>日付</th>
-                    <th>時間</th>
-                    <th>担当</th>
-                    <th>配置</th>
-                    <th>状態</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {detail.slots.map((slot) => {
-                    const names = [...new Set(assignments[slot.id] ?? [])].map(
-                      (email) => detail.members.find((member) => member.userEmail === email)?.displayName || email.split("@")[0],
-                    );
-                    const assignedCount = names.length;
-                    const shortage = assignedCount < slot.requiredCount;
-                    const excess = assignedCount > slot.requiredCount;
-                    return (
-                      <tr className={shortage ? "assignment-row-shortage" : ""} key={slot.id}>
-                        <td>{slot.date}</td>
-                        <td>{displayShiftTime(slot.startTime)}〜{displayShiftTime(slot.endTime)}</td>
-                        <td>{slot.role || "共通"}</td>
-                        <td>{names.length ? names.join("、") : "未割当"}</td>
-                        <td className={shortage || excess ? "assignment-preview-issue" : ""}>
-                          {assignedCount}/{slot.requiredCount}人{shortage ? " 不足" : excess ? " 過剰" : ""}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          ) : viewMode === "list" ? (
+          {viewMode === "list" ? (
             <div className="assignment-table-wrap">
               <table className="assignment-table">
                 <thead>
@@ -529,7 +494,7 @@ export default function ShiftAdjustment({
                 </tbody>
               </table>
             </div>
-          ) : (
+          ) : viewMode === "calendar" ? (
             <div className="assignment-calendar-wrap">
               <table className="assignment-calendar">
                 <thead>
@@ -564,7 +529,7 @@ export default function ShiftAdjustment({
                 </tbody>
               </table>
             </div>
-          )}
+          ) : null}
           <div className="member-summary">
             <h3>勤務状況サマリ</h3>
             {memberSummary.map((row) => (
