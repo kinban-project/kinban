@@ -5,10 +5,11 @@ import { groupMembers, groupPreferences, groups, shiftAvailability, shiftPlans, 
 import { getMembership } from "../groups/group-access";
 import { recordAudit } from "../../audit-log";
 import { shiftRequestDeadlinePassed } from "../../shift-request-deadline";
+import { isPreferenceStatus, preferenceStatuses } from "../../preference-status";
 
 export const dynamic = "force-dynamic";
 const editable = (role: string) => role === "owner" || role === "editor";
-const preferences = new Set(["want", "possible", "off", "unavailable"]);
+const preferences = new Set(preferenceStatuses);
 
 export async function GET(request: Request) {
   const user = await getChatGPTUser();
@@ -44,7 +45,14 @@ export async function POST(request: Request) {
   const db = getDb();
 
   if (body.action === "save-base") {
-    const entries = (body.entries ?? []).filter((entry) => Number.isInteger(entry.dayOfWeek) && entry.dayOfWeek >= 0 && entry.dayOfWeek <= 6 && ["available", "limited", "unavailable"].includes(entry.status));
+    const entries = body.entries ?? [];
+    const invalidIndex = entries.findIndex((entry) =>
+      !Number.isInteger(entry.dayOfWeek) ||
+      entry.dayOfWeek < 0 ||
+      entry.dayOfWeek > 6 ||
+      !isPreferenceStatus(entry.status),
+    );
+    if (invalidIndex >= 0) return Response.json({ error: `entries[${invalidIndex}] has an invalid preference status or dayOfWeek` }, { status: 400 });
     await db.batch([
       db.delete(shiftAvailability).where(and(eq(shiftAvailability.groupId, groupId), eq(shiftAvailability.userEmail, user.email))),
       ...entries.map((entry) => db.insert(shiftAvailability).values({ id: crypto.randomUUID(), groupId, userEmail: user.email, dayOfWeek: entry.dayOfWeek, status: entry.status, startTime: entry.startTime ?? "", endTime: entry.endTime ?? "", note: entry.note?.trim() ?? "" })),
@@ -74,7 +82,10 @@ export async function POST(request: Request) {
     }
     const slots = await db.select().from(shiftSlots).where(eq(shiftSlots.planId, period.planId));
     const valid = new Set(slots.map((slot) => `${slot.date}|${slot.startTime}|${slot.endTime}`));
-    const rows = (body.requests ?? []).filter((item) => valid.has(`${item.date}|${item.startTime}|${item.endTime}`) && preferences.has(item.preference)).map((item) => ({ id: crypto.randomUUID(), periodId: period.id, userEmail: user.email, date: item.date, startTime: item.startTime, endTime: item.endTime, preference: item.preference, note: item.note?.trim() ?? "" }));
+    const requests = body.requests ?? [];
+    const invalidIndex = requests.findIndex((item) => !valid.has(`${item.date}|${item.startTime}|${item.endTime}`) || !preferences.has(item.preference));
+    if (invalidIndex >= 0) return Response.json({ error: `requests[${invalidIndex}] does not match a shift slot or has an invalid preference status` }, { status: 400 });
+    const rows = requests.map((item) => ({ id: crypto.randomUUID(), periodId: period.id, userEmail: user.email, date: item.date, startTime: item.startTime, endTime: item.endTime, preference: item.preference, note: item.note?.trim() ?? "" }));
     const savedAt = new Date().toISOString();
     const [submission] = await db.select().from(shiftRequestSubmissions).where(and(eq(shiftRequestSubmissions.periodId, period.id), eq(shiftRequestSubmissions.userEmail, user.email))).limit(1);
     const submissionStatement = submission

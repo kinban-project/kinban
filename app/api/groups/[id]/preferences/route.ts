@@ -5,6 +5,7 @@ import { groupMembers, groupPreferences, shiftAvailability } from "../../../../.
 import { getMembership } from "../../group-access";
 import { isValidShiftTime, shiftTimeToMinutes } from "../../../../shift-time";
 import { recordAudit } from "../../../../audit-log";
+import { isPreferenceStatus } from "../../../../preference-status";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const maxDays = Math.max(minDays, Math.min(7, Number(body.maxDays ?? 7)));
   const minHours = Math.max(0, Math.min(168, Number(body.minHours ?? 0)));
   const maxHours = Math.max(minHours, Math.min(168, Number(body.maxHours ?? 40)));
-  const entries = (body.availability ?? []).filter((entry) => Number.isInteger(entry.dayOfWeek) && entry.dayOfWeek >= 0 && entry.dayOfWeek <= 6 && ["want", "possible", "off", "unavailable"].includes(entry.status));
+  const entries = body.availability ?? [];
+  const invalidIndex = entries.findIndex((entry) => !Number.isInteger(entry.dayOfWeek) || entry.dayOfWeek < 0 || entry.dayOfWeek > 6 || !isPreferenceStatus(entry.status));
+  if (invalidIndex >= 0) return Response.json({ error: `availability[${invalidIndex}] has an invalid preference status or dayOfWeek` }, { status: 400 });
   for (const entry of entries) {
     const startTime = entry.startTime ?? "";
     const endTime = entry.endTime ?? "";
