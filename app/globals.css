@@ -148,6 +148,7 @@ button { cursor: pointer; }
 .mobile-home-tabs { display: none; }
 .mobile-request-list, .mobile-request-savebar { display: none; }
 .mobile-roster-tabs, .mobile-roster-list { display: none; }
+.mobile-work-record-list { display: none; }
 .group-menu { margin: 12px 0 18px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,.82); overflow: visible; }
 .group-menu-button.has-unread { background: #fff4c9; color: #80671d; border-color: #e8cf76; font-weight: 700; }.group-menu-button.has-rejected { background: #fff1ef; color: #9b4b43; border-color: #e8b7b0; font-weight: 700; }.unread-badge { display: inline-grid; place-items: center; min-width: 16px; height: 16px; margin-left: 5px; padding: 0 4px; border-radius: 999px; background: #e2aa28; color: #fff; font-size: 9px; line-height: 1; }.rejection-badge { background: #d76b5f; }
 .group-menu-global { padding: 8px 12px; border-bottom: 1px solid var(--line); }.group-menu-application { border: 0; background: transparent; color: var(--teal); font-size: 11px; font-weight: 700; padding: 6px 8px; cursor: pointer; }
@@ -244,6 +245,21 @@ button { cursor: pointer; }
   .mobile-roster-card > div:first-child, .mobile-roster-card-body { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .mobile-roster-card strong { font-size: 13px; }.mobile-roster-card span, .mobile-roster-card small { color: var(--muted); font-size: 11px; }.mobile-roster-card-body b { color: var(--teal); font-size: 12px; }.mobile-roster-card p { margin: 0; color: #4d5a56; font-size: 12px; }.mobile-roster-empty { padding: 28px 12px; color: var(--muted); text-align: center; font-size: 12px; }
   .roster-desktop-grid { display: none; }
+  .work-records-modal { width: 100vw; max-height: 100dvh; border-radius: 0; padding: 16px 12px; }
+  .work-records-modal .modal-global-close { top: 10px; right: 10px; }
+  .work-records-panel > .modal-head { padding-right: 38px; }
+  .work-month-toolbar { display: grid; grid-template-columns: auto 1fr auto; }
+  .work-month-toolbar select { min-width: 0; }
+  .monthly-work-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; align-items: stretch; }
+  .monthly-work-summary strong, .monthly-work-summary > span { display: grid; align-items: center; padding: 9px; border-radius: 9px; background: #f5f7f3; font-size: 11px; }
+  .monthly-work-summary .primary-button { grid-column: span 2; width: 100%; margin: 0; }
+  .monthly-work-wrap { display: none; }
+  .mobile-work-record-list { display: grid; gap: 9px; margin-top: 12px; }
+  .mobile-work-record-card { display: grid; gap: 9px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+  .mobile-work-record-card.needs-action { border-color: #e8cf76; background: #fffdf5; }
+  .mobile-work-record-head, .mobile-work-schedule { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .mobile-work-record-head strong { font-size: 13px; }.mobile-work-schedule { flex-wrap: wrap; padding: 8px; border-radius: 8px; background: #f5f7f3; }.mobile-work-schedule span { color: var(--muted); font-size: 10px; }.mobile-work-schedule b { font-size: 11px; }.mobile-work-schedule .small-action { margin-left: auto; }
+  .mobile-work-edit { display: grid; gap: 8px; }.mobile-work-edit label { display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: center; gap: 7px; color: var(--muted); font-size: 11px; }.mobile-work-edit label > input { min-width: 0; width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 7px; padding: 7px; background: #fff; color: var(--ink); }.mobile-work-edit label .claim-time-fields { min-width: 0; grid-template-columns: minmax(0, 1fr) 10px minmax(0, 1fr); }.mobile-work-edit .claim-time-select { width: 100%; }.mobile-work-total { padding-top: 5px; color: var(--teal); font-size: 12px; font-weight: 800; }.mobile-work-submit { width: 100%; padding: 10px; }.mobile-work-future { margin: 0; color: var(--muted); font-size: 11px; }
 }
 @media (max-width: 760px) { .member-cards { grid-template-columns: 1fr; }.member-card-head { display: block; }.member-card-badges { justify-content: flex-start; margin-top: 8px; }.group-nickname-setting { align-items: stretch; flex-direction: column; }.group-nickname-setting input { width: 100%; } }
 @media (max-width: 760px) { .preference-days { grid-template-columns: repeat(2, 1fr); }.preference-fields { grid-template-columns: repeat(2, 1fr); } }

@@ -688,6 +688,21 @@ export default function WorkRecordsPanel({
               {monthlyStatus === "submitted" ? "月次申告済み" : "月次申告"}
             </button>
           </div>
+          <div className="mobile-work-record-list">
+            {days.map((date) => {
+              const record = recordsByDate.get(date);
+              const planned = schedulesByDate.get(date);
+              const draft = record ? (claimDrafts[record.id] ?? { start: localDateTime(record.claimedStartAt ?? record.startedAt), end: localDateTime(record.claimedEndAt ?? record.endedAt), breakMinutes: record.claimedBreakMinutes ?? breakMinutes(breaksFor(record.id)), note: record.employeeNote ?? "" }) : null;
+              const manual = manualDrafts[date] ?? { start: "", end: "", breakMinutes: 0 };
+              const past = date <= today;
+              const needsAction = record?.status === "rejected" || (past && (!record || record.status === "unsubmitted"));
+              return <article className={`mobile-work-record-card${needsAction ? " needs-action" : ""}`} key={date}>
+                <div className="mobile-work-record-head"><strong>{dayLabel(date)}</strong>{record ? <span className={`work-status work-status-${record.status}`}>{statusLabel(record.status, Boolean(record.endedAt))}</span> : planned ? <span className="work-status work-status-unsubmitted">未申告</span> : <span className="work-status work-status-none">—</span>}</div>
+                <div className="mobile-work-schedule"><span>シフト予定</span><b>{planned ? `${planned.startTime}〜${planned.endTime}${planned.role ? ` ／ ${planned.role}` : ""}` : "予定なし"}</b>{planned && (record ? !record.monthlyClosedAt && <button className="small-action" disabled={busy} onClick={() => void applySchedule(record)}>シフト通り</button> : past && <button className="small-action" disabled={busy} onClick={() => void createClaim(planned)}>シフト通り</button>)}</div>
+                {record || past ? <div className="mobile-work-edit"><label>申告時間<div className="claim-time-fields"><TimeSelect value={record ? draft?.start ?? "" : manual.start} date={date} label={`${date} 申告開始`} disabled={Boolean(record?.monthlyClosedAt)} onChange={(value) => record ? updateDraft(record, { start: value, end: draft?.end ?? "" }) : updateManualDraft(date, { start: value, end: manual.end, breakMinutes: manual.breakMinutes })} /><span>〜</span><TimeSelect value={record ? draft?.end ?? "" : manual.end} date={date} label={`${date} 申告終了`} disabled={Boolean(record?.monthlyClosedAt)} onChange={(value) => record ? updateDraft(record, { start: draft?.start ?? "", end: value }) : updateManualDraft(date, { start: manual.start, end: value, breakMinutes: manual.breakMinutes })} /></div></label>{record && <><label>休憩<input type="number" min={0} max={1440} value={draft?.breakMinutes ?? 0} disabled={Boolean(record.monthlyClosedAt)} onChange={(event) => updateDraft(record, { breakMinutes: Math.max(0, Math.min(1440, Number(event.target.value) || 0)) })} />分</label><label>備考<input value={draft?.note ?? ""} placeholder="理由・備考" disabled={Boolean(record.monthlyClosedAt)} onChange={(event) => updateDraft(record, { note: event.target.value })} /></label><div className="mobile-work-total">実働 {formatMinutes(claimedMinutes(draft))}</div>{record.status === "rejected" && record.managerNote && <p className="work-rejection-note">差戻し理由：{record.managerNote}</p>}{["working", "unsubmitted", "rejected"].includes(record.status) && (record.endedAt || draft?.end) && <button className="primary-button mobile-work-submit" disabled={busy} onClick={() => void submit(record)}>申請</button>}</>}</div> : <p className="mobile-work-future">過去日になると入力できます。</p>}
+              </article>;
+            })}
+          </div>
           <div className="monthly-work-wrap work-records-table-wrap">
             <table className="work-records-table monthly-work-table">
               <thead>
