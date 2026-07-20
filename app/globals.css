@@ -148,10 +148,14 @@ button { cursor: pointer; }
 .compact-intro { display: none; }
 .mobile-home-tabs { display: none; }
 .mobile-request-list, .mobile-request-savebar { display: none; }
-.mobile-roster-tabs, .mobile-roster-list { display: none; }
+.mobile-roster-list { display: none; }
 .mobile-work-record-list, .mobile-clock-card { display: none; }
 .mobile-preference-savebar { display: none; }
 .group-menu { margin: 12px 0 18px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,.82); overflow: visible; }
+
+.roster-view-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; padding: 4px; border-radius: 10px; background: #eef1ee; }
+.roster-view-tabs button { border: 0; border-radius: 7px; padding: 9px 12px; background: transparent; color: var(--muted); font-size: 11px; }
+.roster-view-tabs button.active { background: #fff; color: var(--teal); font-weight: 800; box-shadow: 0 1px 4px rgba(24,35,31,.1); }
 .group-menu-button.has-unread { background: #fff4c9; color: #80671d; border-color: #e8cf76; font-weight: 700; }.group-menu-button.has-rejected { background: #fff1ef; color: #9b4b43; border-color: #e8b7b0; font-weight: 700; }.unread-badge { display: inline-grid; place-items: center; min-width: 16px; height: 16px; margin-left: 5px; padding: 0 4px; border-radius: 999px; background: #e2aa28; color: #fff; font-size: 9px; line-height: 1; }.rejection-badge { background: #d76b5f; }
 .group-menu-global { padding: 8px 12px; border-bottom: 1px solid var(--line); }.group-menu-application { border: 0; background: transparent; color: var(--teal); font-size: 11px; font-weight: 700; padding: 6px 8px; cursor: pointer; }
 .group-menu-row { display: flex; align-items: center; gap: 16px; padding: 10px 12px; border-bottom: 1px solid #eef1ed; }.group-menu-row:last-child { border-bottom: 0; }.group-menu-name { min-width: 105px; font-size: 13px; white-space: nowrap; }.group-menu-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; flex: 1; }.group-menu-button { border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--ink); padding: 7px 10px; font-size: 10px; cursor: pointer; white-space: nowrap; }.group-menu-button:hover { border-color: var(--teal); color: var(--teal); }.group-menu-button.emphasis { background: #e2f0ee; color: #34716d; border-color: #d2e7e3; }.group-menu-button.admin { background: #f7f1df; color: #80671d; border-color: #eadfb9; }.group-menu-button.disabled, .group-menu-button:disabled { color: #aeb5af; background: #f4f6f3; border-color: #e8ebe7; cursor: not-allowed; }.admin-inline { display: contents; }.admin-compact { display: none; position: relative; }.admin-popover { position: absolute; z-index: 4; right: 0; top: calc(100% + 6px); min-width: 150px; padding: 6px; border: 1px solid var(--line); border-radius: 10px; background: #fff; box-shadow: 0 10px 25px rgba(24,35,31,.12); }.admin-popover button { display: block; width: 100%; border: 0; background: transparent; color: var(--ink); text-align: left; padding: 8px; font-size: 11px; border-radius: 6px; }.admin-popover button:hover { background: #eef5d9; }.admin-popover .group-menu-button { display: block; width: 100%; border: 0; border-radius: 6px; text-align: left; }
@@ -245,9 +249,8 @@ button { cursor: pointer; }
   .roster-toolbar { display: grid; gap: 8px; }
   .roster-plan-select { width: 100%; }
   .roster-legend { margin-left: 0; }
-  .mobile-roster-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; margin: 12px 0; border-radius: 10px; background: #eef1ee; }
-  .mobile-roster-tabs button { border: 0; border-radius: 7px; padding: 9px 3px; background: transparent; color: var(--muted); font-size: 11px; }
-  .mobile-roster-tabs button.active { background: #fff; color: var(--teal); font-weight: 800; box-shadow: 0 1px 4px rgba(24,35,31,.1); }
+  .roster-view-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+  .roster-view-tabs button { min-width: 0; padding: 9px 3px; font-size: 10px; white-space: nowrap; }
   .mobile-roster-list { display: grid; gap: 8px; }
   .mobile-roster-card { display: grid; gap: 6px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
   .mobile-roster-card.shortage { border-color: #e8a39b; background: #fff5f3; }
