@@ -139,16 +139,21 @@ function TimeSelect({
   onChange: (value: string) => void;
   disabled?: boolean;
 }) {
+  const selected = timeOnly(value, date);
+  const options =
+    selected && !timeOptions.some((option) => option.value === selected)
+      ? [{ value: selected, label: selected }, ...timeOptions]
+      : timeOptions;
   return (
     <select
       className="claim-time-select"
       aria-label={label}
-      value={timeOnly(value, date)}
+      value={selected}
       disabled={disabled}
       onChange={(event) => onChange(withDate(date, event.target.value))}
     >
       <option value="">--:--</option>
-      {timeOptions.map((option) => (
+      {options.map((option) => (
         <option value={option.value} key={option.value}>
           {option.label}
         </option>
@@ -276,6 +281,7 @@ export default function WorkRecordsPanel({
   const [breaks, setBreaks] = useState<BreakRow[]>([]);
   const [schedule, setSchedule] = useState<ScheduleRow[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
+  const [currentUserEmail, setCurrentUserEmail] = useState("");
   const [claimDrafts, setClaimDrafts] = useState<Record<string, Draft>>({});
   const [manualDrafts, setManualDrafts] = useState<Record<string, Draft>>({});
   const [month, setMonth] = useState(monthKey(new Date()));
@@ -296,6 +302,7 @@ export default function WorkRecordsPanel({
         breaks?: BreakRow[];
         schedule?: ScheduleRow[];
         members?: Member[];
+        currentUserEmail?: string;
         pagination?: { page?: number; hasNext?: boolean };
       };
       const nextRecords = data.records ?? [];
@@ -305,6 +312,7 @@ export default function WorkRecordsPanel({
       setBreaks(nextBreaks);
       setSchedule(data.schedule ?? []);
       setMembers(data.members ?? []);
+      setCurrentUserEmail(data.currentUserEmail ?? "");
       setRecordHasNext(Boolean(data.pagination?.hasNext));
       setClaimDrafts(
         Object.fromEntries(
@@ -387,6 +395,29 @@ export default function WorkRecordsPanel({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
+  }
+  async function recordClock(action: "start" | "break-start" | "break-end" | "end", recordId?: string) {
+    setBusy(true);
+    const response = await localApiFetch(`/api/groups/${groupId}/work-records`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, ...(recordId ? { recordId } : {}) }),
+    });
+    const result = (await response.json().catch(() => ({}))) as { error?: string };
+    await load();
+    setNotice(
+      response.ok
+        ? `${
+            {
+              start: "勤務開始",
+              "break-start": "休憩開始",
+              "break-end": "休憩終了",
+              end: "勤務終了",
+            }[action]
+          }を記録しました。`
+        : (result.error ?? "打刻を記録できませんでした。"),
+    );
+    setBusy(false);
   }
   async function review(recordId: string, status: "approved" | "rejected", managerNote = "") {
     const response = await patch({ recordId, status, ...(status === "rejected" ? { managerNote } : {}) });
@@ -583,6 +614,36 @@ export default function WorkRecordsPanel({
     setMonth(monthKey(date));
   }
   const today = todayKey();
+  const mobileNeedsAction = (date: string) => {
+    const record = recordsByDate.get(date);
+    const planned = schedulesByDate.get(date);
+    return (
+      record?.status === "rejected" ||
+      (date <= today &&
+        Boolean(planned || record) &&
+        (!record || record.status === "unsubmitted" || record.status === "working"))
+    );
+  };
+  const mobileDays = useMemo(
+    () =>
+      [...days].sort(
+        (left, right) =>
+          Number(mobileNeedsAction(right)) - Number(mobileNeedsAction(left)) ||
+          left.localeCompare(right),
+      ),
+    [days, recordsByDate, schedulesByDate, today],
+  );
+  const activeClockRecord = records.find(
+    (record) =>
+      record.userEmail === currentUserEmail &&
+      record.status === "working" &&
+      !record.endedAt &&
+      !record.attendanceExpired,
+  );
+  const isOnBreak = Boolean(
+    activeClockRecord &&
+      breaksFor(activeClockRecord.id).some((item) => !item.endedAt),
+  );
   const monthSummary = useMemo(
     () =>
       days.reduce(
@@ -644,6 +705,36 @@ export default function WorkRecordsPanel({
         />
       ) : (
         <>
+          <section className="mobile-clock-card" aria-label="現在の勤務状況">
+            <div>
+              <span>現在の勤務状況</span>
+              {activeClockRecord ? (
+                <strong>
+                  {isOnBreak ? "休憩中" : "勤務中"} ・ {formatClock(activeClockRecord.startedAt)} 勤務開始
+                </strong>
+              ) : (
+                <strong>勤務外</strong>
+              )}
+            </div>
+            {isOnBreak ? (
+              <button className="clock-action clock-break" disabled={busy} onClick={() => void recordClock("break-end", activeClockRecord?.id)}>
+                休憩終了
+              </button>
+            ) : activeClockRecord ? (
+              <div className="mobile-clock-actions">
+                <button className="clock-action clock-break" disabled={busy} onClick={() => void recordClock("break-start", activeClockRecord.id)}>
+                  休憩開始
+                </button>
+                <button className="clock-action clock-end" disabled={busy} onClick={() => void recordClock("end", activeClockRecord.id)}>
+                  勤務終了
+                </button>
+              </div>
+            ) : (
+              <button className="clock-action clock-start" disabled={busy} onClick={() => void recordClock("start")}>
+                勤務開始
+              </button>
+            )}
+          </section>
           <div className="work-month-toolbar">
             <button className="small-action" onClick={() => moveMonth(-1)}>
               前月
@@ -689,13 +780,13 @@ export default function WorkRecordsPanel({
             </button>
           </div>
           <div className="mobile-work-record-list">
-            {days.map((date) => {
+            {mobileDays.map((date) => {
               const record = recordsByDate.get(date);
               const planned = schedulesByDate.get(date);
               const draft = record ? (claimDrafts[record.id] ?? { start: localDateTime(record.claimedStartAt ?? record.startedAt), end: localDateTime(record.claimedEndAt ?? record.endedAt), breakMinutes: record.claimedBreakMinutes ?? breakMinutes(breaksFor(record.id)), note: record.employeeNote ?? "" }) : null;
               const manual = manualDrafts[date] ?? { start: "", end: "", breakMinutes: 0 };
               const past = date <= today;
-              const needsAction = record?.status === "rejected" || (past && (!record || record.status === "unsubmitted"));
+              const needsAction = mobileNeedsAction(date);
               return <article className={`mobile-work-record-card${needsAction ? " needs-action" : ""}`} key={date}>
                 <div className="mobile-work-record-head"><strong>{dayLabel(date)}</strong>{record ? <span className={`work-status work-status-${record.status}`}>{statusLabel(record.status, Boolean(record.endedAt))}</span> : planned ? <span className="work-status work-status-unsubmitted">未申告</span> : <span className="work-status work-status-none">—</span>}</div>
                 <div className="mobile-work-schedule"><span>シフト予定</span><b>{planned ? `${planned.startTime}〜${planned.endTime}${planned.role ? ` ／ ${planned.role}` : ""}` : "予定なし"}</b>{planned && (record ? !record.monthlyClosedAt && <button className="small-action" disabled={busy} onClick={() => void applySchedule(record)}>シフト通り</button> : past && <button className="small-action" disabled={busy} onClick={() => void createClaim(planned)}>シフト通り</button>)}</div>
