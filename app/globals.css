@@ -147,6 +147,8 @@ button { cursor: pointer; }
 .request-launch { position: fixed; top: 22px; right: 135px; z-index: 4; border: 1px solid var(--line); background: #fff; color: var(--ink); border-radius: 999px; padding: 10px 15px; cursor: pointer; }
 .compact-intro { display: none; }
 .mobile-home-tabs { display: none; }
+.mobile-home-empty { display: none; }
+.mobile-period-status { display: none; }
 .mobile-request-list, .mobile-request-savebar { display: none; }
 .mobile-roster-list { display: none; }
 .mobile-work-record-list, .mobile-clock-card { display: none; }
@@ -227,6 +229,11 @@ button { cursor: pointer; }
   .request-header-right { padding-right: 38px; }
   .request-toolbar { align-items: stretch; }
   .request-period-inline { min-width: 0; }
+  .mobile-period-status { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 8px; margin-top: 7px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 9px; background: #f7f9f5; font-size: 10px; }
+  .mobile-period-status strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mobile-period-status span { grid-column: 1; color: var(--muted); white-space: nowrap; }
+  .mobile-period-status em { grid-column: 2; grid-row: 1 / span 2; align-self: center; padding: 4px 7px; border-radius: 999px; color: #80671d; background: #fff0c5; font-size: 10px; font-style: normal; white-space: nowrap; }
+  .mobile-period-status em.is-open { color: #34716d; background: #e2f0ee; }
   .request-toolbar .request-legend, .request-toolbar .toolbar-save, .request-grid-wrap, .request-comment-field, .request-help { display: none; }
   .mobile-request-list { display: grid; gap: 10px; margin-top: 12px; }
   .mobile-request-date { overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
@@ -259,13 +266,20 @@ button { cursor: pointer; }
   .roster-desktop-grid { display: none; }
   .work-records-modal { width: 100vw; max-height: 100dvh; border-radius: 0; padding: 16px 12px; }
   .work-records-modal .modal-global-close { top: 10px; right: 10px; }
+  .message-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+  .message-tabs button { min-width: 0; overflow: hidden; padding: 9px 5px; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
   .work-records-panel > .modal-head { padding-right: 38px; }
   .work-month-toolbar { display: grid; grid-template-columns: auto 1fr auto; }
-  .work-month-toolbar select { min-width: 0; }
+  .work-month-toolbar select { min-width: 0; width: 100%; }
+  .work-month-toolbar .small-action { min-width: 36px; padding: 8px 4px; overflow: hidden; font-size: 0; white-space: nowrap; }
+  .work-month-toolbar .small-action::first-letter { font-size: 0; }
+  .work-month-toolbar .small-action:first-child::after { content: "‹"; font-size: 18px; line-height: 1; }
+  .work-month-toolbar .small-action:last-child::after { content: "›"; font-size: 18px; line-height: 1; }
   .monthly-work-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; align-items: stretch; }
-  .monthly-work-summary strong, .monthly-work-summary > span { display: grid; align-items: center; padding: 9px; border-radius: 9px; background: #f5f7f3; font-size: 11px; }
+  .monthly-work-summary strong, .monthly-work-summary > span { display: grid; min-width: 0; align-items: center; padding: 9px 7px; border-radius: 9px; background: #f5f7f3; font-size: 10px; line-height: 1.35; white-space: nowrap; }
   .monthly-work-summary .primary-button { grid-column: span 2; width: 100%; margin: 0; }
   .monthly-work-wrap { display: none; }
+  .mobile-home-empty { display: block; margin: 0 0 8px; padding: 12px; border: 1px dashed var(--line); border-radius: 10px; color: var(--muted); background: #fbfcfa; text-align: center; font-size: 11px; }
   .mobile-clock-card { display: grid; gap: 10px; margin: 12px 0; padding: 12px; border: 1px solid #d4e3d0; border-radius: 12px; background: #f6faf3; }
   .mobile-clock-card > div:first-child { display: grid; gap: 3px; }.mobile-clock-card span { color: var(--muted); font-size: 10px; }.mobile-clock-card strong { color: var(--ink); font-size: 14px; }.mobile-clock-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
   .clock-action { width: 100%; border: 1px solid var(--line); border-radius: 9px; padding: 10px; font-weight: 800; }.clock-action.clock-start { background: #dcefd9; border-color: #bad9b5; color: #3e6d38; }.clock-action.clock-break { background: #fff0c5; border-color: #eddca4; color: #896a14; }.clock-action.clock-end { background: #f3e2e2; border-color: #e8c4c4; color: #914a4a; }

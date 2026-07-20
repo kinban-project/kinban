@@ -498,6 +498,11 @@ export default function Home() {
         </button>
       </div>
       <section className={`dashboard mobile-home-${homeView}`}>
+        {homeView === "today" && selectedEvents.length === 0 && (
+          <p className="mobile-home-empty" role="status">
+            本日の予定はありません。
+          </p>
+        )}
         <div className="calendar-card">
           <div className="calendar-head">
             <div>

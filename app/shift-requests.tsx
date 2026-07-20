@@ -318,6 +318,15 @@ export default function ShiftRequests({
               </option>
             ))}
           </select>
+          {activePeriod && (
+            <div className="mobile-period-status" aria-live="polite">
+              <strong>{activePeriod.name}</strong>
+              <span>{activePeriod.opensOn}〜{activePeriod.closesOn}</span>
+              <em className={activePeriod.status === "open" ? "is-open" : "is-closed"}>
+                {activePeriod.status === "open" ? "受付中" : "終了"}
+              </em>
+            </div>
+          )}
         </div>
         <div className="request-legend">
           <span className="legend-base">基本</span>
