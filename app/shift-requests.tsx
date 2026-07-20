@@ -92,6 +92,9 @@ export default function ShiftRequests({
     Record<number, Availability[]>
   >({});
   const [requestMap, setRequestMap] = useState<Record<string, RequestRow>>({});
+  const [savedRequestMap, setSavedRequestMap] = useState<
+    Record<string, RequestRow>
+  >({});
   const [requestComment, setRequestComment] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -116,6 +119,22 @@ export default function ShiftRequests({
       ]),
     ).values(),
   ];
+  const mobileSlotsByDate = useMemo(() => {
+    const map = new Map<string, Slot[]>();
+    for (const [date, slots] of slotsByDate) {
+      const seen = new Set<string>();
+      map.set(
+        date,
+        slots.filter((slot) => {
+          const key = `${slot.startTime}|${slot.endTime}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        }),
+      );
+    }
+    return map;
+  }, [slotsByDate]);
   function basePreference(slot: Slot) {
     const rows = availability[dateDay(slot.date)] ?? [];
     if (!rows.length) return "possible";
@@ -158,11 +177,11 @@ export default function ShiftRequests({
     for (const entry of next.availability)
       (grouped[entry.dayOfWeek] ??= []).push(entry);
     setAvailability(grouped);
-    setRequestMap(
-      Object.fromEntries(
-        next.requests.map((entry) => [dayKey(entry as Slot), entry]),
-      ),
+    const nextRequestMap = Object.fromEntries(
+      next.requests.map((entry) => [dayKey(entry as Slot), entry]),
     );
+    setRequestMap(nextRequestMap);
+    setSavedRequestMap(nextRequestMap);
     setRequestComment(next.submission?.requestComment ?? "");
   }
   useEffect(() => {
@@ -216,7 +235,16 @@ export default function ShiftRequests({
     }
     setRequestMap(next);
   }
-  const changedCount = Object.keys(requestMap).length;
+  const changedCount = [
+    ...new Set([...Object.keys(requestMap), ...Object.keys(savedRequestMap)]),
+  ].filter((key) => {
+    const current = requestMap[key];
+    const saved = savedRequestMap[key];
+    return (
+      current?.preference !== saved?.preference ||
+      (current?.note ?? "") !== (saved?.note ?? "")
+    );
+  }).length;
   async function saveRequests() {
     if (!activePeriod) return;
     setBusy(true);
@@ -409,7 +437,7 @@ export default function ShiftRequests({
                     <option value="unavailable">勤務不可</option>
                   </select>
                 </div>
-                {(slotsByDate.get(date) ?? []).map((slot) => {
+                {(mobileSlotsByDate.get(date) ?? []).map((slot) => {
                   const key = dayKey(slot);
                   const override = requestMap[key];
                   const value = override?.preference ?? basePreference(slot);
@@ -417,7 +445,6 @@ export default function ShiftRequests({
                     <div className={`mobile-request-slot preference-${value}`} key={key}>
                       <div>
                         <strong>{displayShiftTime(slot.startTime)}〜{displayShiftTime(slot.endTime)}</strong>
-                        {slot.role && <small>{slot.role}</small>}
                         <span>{override ? "変更済み" : `基本：${labels[value]}`}</span>
                       </div>
                       <div className="mobile-preference-actions" aria-label={`${date} ${slot.startTime}の希望`}>
