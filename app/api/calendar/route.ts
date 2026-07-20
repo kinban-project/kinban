@@ -34,12 +34,46 @@ export async function GET() {
   const shiftSlotRows = shiftPlanIds.length ? await db.select().from(shiftSlots).where(inArray(shiftSlots.planId, shiftPlanIds)) : [];
   const assignmentChunks = await Promise.all(chunk(shiftSlotRows.map((slot) => slot.id), 50).map((slotIds) => slotIds.length ? db.select().from(shiftAssignments).where(inArray(shiftAssignments.slotId, slotIds)) : Promise.resolve([])));
   const assignedSlotIds = new Set(assignmentChunks.flat().filter((assignment) => assignment.userEmail === user.email).map((assignment) => assignment.slotId));
-  const slotByEventKey = new Set(shiftSlotRows.filter((slot) => assignedSlotIds.has(slot.id)).map((slot) => `${slot.planId}|${slot.date}|${slot.startTime}`));
-  const rows = candidateRows.filter((event) => {
+  const groupNameById = new Map(groupTableRows.map((group) => [group.id, group.name]));
+  const planGroupById = new Map(
+    candidateRows
+      .filter((event) => Boolean(event.shiftPlanId && event.groupId))
+      .map((event) => [event.shiftPlanId!, event.groupId!] as const),
+  );
+  const slotByEventKey = new Set(
+    shiftSlotRows
+      .filter((slot) => assignedSlotIds.has(slot.id))
+      .map((slot) => {
+        const groupName = groupNameById.get(planGroupById.get(slot.planId) ?? "") ?? "予定";
+        return `${slot.planId}|${slot.date}|${slot.startTime}|${slot.role?.trim() || groupName}`;
+      }),
+  );
+  const visibleRows = candidateRows.filter((event) => {
     if (event.groupId && !visibleGroupIds.includes(event.groupId)) return false;
     if (!event.shiftPlanId) return !event.groupId || visibleGroupIds.includes(event.groupId);
-    return slotByEventKey.has(`${event.shiftPlanId}|${event.date}|${event.startTime}`);
-  }).sort((a, b) => `${b.date}${b.startTime}`.localeCompare(`${a.date}${a.startTime}`));
+    return slotByEventKey.has(`${event.shiftPlanId}|${event.date}|${event.startTime}|${event.title}`);
+  });
+  const rows = visibleRows
+    .sort((a, b) => `${a.date}${a.startTime}`.localeCompare(`${b.date}${b.startTime}`))
+    .reduce<typeof visibleRows>((merged, event) => {
+      const previous = merged.at(-1);
+      const canMerge = Boolean(
+        event.shiftPlanId &&
+          previous?.shiftPlanId === event.shiftPlanId &&
+          previous.groupId === event.groupId &&
+          previous.title === event.title &&
+          previous.date === event.date &&
+          previous.endDate === event.endDate &&
+          previous.endTime === event.startTime,
+      );
+      if (canMerge && previous) {
+        previous.endTime = event.endTime;
+        return merged;
+      }
+      merged.push({ ...event });
+      return merged;
+    }, [])
+    .sort((a, b) => `${b.date}${b.startTime}`.localeCompare(`${a.date}${a.startTime}`));
   const files = await db.select().from(attachments).where(eq(attachments.ownerEmail, user.email));
   const fileMap = new Map<string, typeof files>();
   for (const file of files) fileMap.set(file.eventId, [...(fileMap.get(file.eventId) ?? []), file]);

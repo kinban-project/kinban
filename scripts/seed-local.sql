@@ -1,6 +1,6 @@
 -- My Day local scenario seed
--- 6/30: monthly closing test fixture
--- 7/1-7/31: normal operation, approval, rejection, punch and gap fixtures
+-- 7/1-7/31: completed and published shift fixtures
+-- 8/1-8/15: shift-request acceptance fixture (closes 7/30)
 
 DELETE FROM work_breaks;
 DELETE FROM push_deliveries;
@@ -120,8 +120,8 @@ FROM users CROSS JOIN days;
 INSERT INTO shift_plans (id, group_id, name, start_date, end_date, opening_time, closing_time, slot_minutes, default_required_count, notes, status, created_by) VALUES
   ('seed-plan-june', 'seed-group-store', '6月末締めテスト', '2026-06-30', '2026-06-30', '09:30', '26:00', 30, 1, '月末締め操作を確認するための1日分データです。', 'published', 'tanaka@local.test'),
   ('seed-plan-first-half', 'seed-group-store', '7月前半シフト', '2026-07-01', '2026-07-15', '09:30', '26:00', 30, 1, '終了済みの通常運用データです。', 'published', 'tanaka@local.test'),
-  ('seed-plan-second-half', 'seed-group-store', '7月後半シフト', '2026-07-16', '2026-07-31', '09:30', '26:00', 30, 1, '公開済み。希望・割当・勤務申告を確認できます。', 'published', 'tanaka@local.test'),
-  ('seed-plan-august-first', 'seed-group-store', '8月前半シフト（受付前）', '2026-08-01', '2026-08-15', '09:30', '26:00', 30, 1, '次回受付前の下書きデータです。', 'draft', 'tanaka@local.test');
+  ('seed-plan-second-half', 'seed-group-store', '7月後半シフト', '2026-07-16', '2026-07-31', '09:30', '26:00', 30, 1, '公開済み。個人カレンダーにも担当予定を反映します。', 'published', 'tanaka@local.test'),
+  ('seed-plan-august-first', 'seed-group-store', '8月前半シフト', '2026-08-01', '2026-08-15', '09:30', '26:00', 30, 1, '希望受付中。締切は7月30日です。', 'draft', 'tanaka@local.test');
 
 WITH dates(date) AS (SELECT '2026-06-30'),
 slot_defs(start_time, end_time, role, required_count) AS (VALUES
@@ -171,6 +171,26 @@ SELECT lower(hex(randomblob(16))), slots.id, assignees.user_email
 FROM shift_slots slots JOIN assignees ON assignees.start_time = slots.start_time AND assignees.role = slots.role
 WHERE slots.plan_id IN ('seed-plan-first-half', 'seed-plan-second-half')
   AND NOT (slots.plan_id = 'seed-plan-second-half' AND slots.date = '2026-07-22' AND slots.start_time = '17:00' AND slots.role = '厨房' AND assignees.user_email = 'member03@local.test');
+
+-- Published shifts are also represented as read-only personal calendar events.
+-- This mirrors the normal publish flow so the home calendar works after a seed reset.
+INSERT INTO events (id, owner_email, group_id, shift_plan_id, title, date, end_date, start_time, end_time, category, notes, completed)
+SELECT
+  'seed-calendar-' || slots.id,
+  'tanaka@local.test',
+  'seed-group-store',
+  slots.plan_id,
+  COALESCE(NULLIF(slots.role, ''), 'サンプル店'),
+  slots.date,
+  CASE WHEN CAST(substr(slots.end_time, 1, 2) AS INTEGER) >= 24 THEN date(slots.date, '+1 day') ELSE slots.date END,
+  slots.start_time,
+  CASE WHEN CAST(substr(slots.end_time, 1, 2) AS INTEGER) >= 24 THEN printf('%02d:%s', CAST(substr(slots.end_time, 1, 2) AS INTEGER) - 24, substr(slots.end_time, 4, 2)) ELSE slots.end_time END,
+  '仕事',
+  '公開済みシフト',
+  0
+FROM shift_slots slots
+WHERE slots.plan_id IN ('seed-plan-first-half', 'seed-plan-second-half')
+  AND EXISTS (SELECT 1 FROM shift_assignments assignments WHERE assignments.slot_id = slots.id);
 
 WITH assignees(start_time, role, user_email) AS (VALUES
   ('09:30', 'ホール', 'tanaka@local.test'), ('09:30', 'ホール', 'member04@local.test'),
@@ -252,23 +272,23 @@ INSERT INTO monthly_work_claims (id, group_id, user_email, month_key, status, su
 INSERT INTO shift_request_periods (id, group_id, plan_id, name, opens_on, closes_on, status, created_by) VALUES
   ('seed-request-june', 'seed-group-store', 'seed-plan-june', '6月末締めテスト（受付終了）', '2026-06-15', '2026-06-20', 'closed', 'tanaka@local.test'),
   ('seed-request-first-half', 'seed-group-store', 'seed-plan-first-half', '7月前半希望（受付終了）', '2026-06-10', '2026-06-20', 'closed', 'tanaka@local.test'),
-  ('seed-request-second-half', 'seed-group-store', 'seed-plan-second-half', '7月後半希望', '2026-07-10', '2026-07-20', 'open', 'tanaka@local.test'),
-  ('seed-request-august-first', 'seed-group-store', 'seed-plan-august-first', '8月前半希望（受付前）', '2026-07-25', '2026-07-31', 'upcoming', 'tanaka@local.test');
+  ('seed-request-second-half', 'seed-group-store', 'seed-plan-second-half', '7月後半希望（受付終了）', '2026-07-10', '2026-07-20', 'closed', 'tanaka@local.test'),
+  ('seed-request-august-first', 'seed-group-store', 'seed-plan-august-first', '8月前半希望', '2026-07-20', '2026-07-30', 'open', 'tanaka@local.test');
 
 INSERT INTO shift_request_submissions (id, period_id, user_email, saved_at) VALUES
-  ('seed-submission-02', 'seed-request-second-half', 'member02@local.test', '2026-07-17T09:10:00.000Z'),
-  ('seed-submission-04', 'seed-request-second-half', 'member04@local.test', '2026-07-17T10:20:00.000Z'),
-  ('seed-submission-05', 'seed-request-second-half', 'member05@local.test', '2026-07-17T11:30:00.000Z'),
-  ('seed-submission-07', 'seed-request-second-half', 'member07@local.test', '2026-07-17T12:40:00.000Z');
+  ('seed-submission-02', 'seed-request-august-first', 'member02@local.test', '2026-07-20T09:10:00.000Z'),
+  ('seed-submission-04', 'seed-request-august-first', 'member04@local.test', '2026-07-20T10:20:00.000Z'),
+  ('seed-submission-05', 'seed-request-august-first', 'member05@local.test', '2026-07-20T11:30:00.000Z'),
+  ('seed-submission-07', 'seed-request-august-first', 'member07@local.test', '2026-07-20T12:40:00.000Z');
 
 INSERT INTO shift_requests (id, period_id, user_email, date, start_time, end_time, preference, note) VALUES
-  ('seed-request-row-01', 'seed-request-second-half', 'member02@local.test', '2026-07-18', '17:00', '22:00', 'want', '夕方から希望。'),
-  ('seed-request-row-02', 'seed-request-second-half', 'member04@local.test', '2026-07-19', '09:30', '14:00', 'off', '家庭の予定で休み希望。'),
-  ('seed-request-row-03', 'seed-request-second-half', 'member05@local.test', '2026-07-21', '09:30', '14:00', 'want', '日中希望。'),
-  ('seed-request-row-04', 'seed-request-second-half', 'member07@local.test', '2026-07-24', '22:00', '26:00', 'want', '深夜帯も対応可能。');
+  ('seed-request-row-01', 'seed-request-august-first', 'member02@local.test', '2026-08-01', '17:00', '22:00', 'want', '夕方から希望。'),
+  ('seed-request-row-02', 'seed-request-august-first', 'member04@local.test', '2026-08-02', '09:30', '14:00', 'off', '家庭の予定で休み希望。'),
+  ('seed-request-row-03', 'seed-request-august-first', 'member05@local.test', '2026-08-04', '09:30', '14:00', 'want', '日中希望。'),
+  ('seed-request-row-04', 'seed-request-august-first', 'member07@local.test', '2026-08-08', '17:00', '22:00', 'want', '夜の時間帯を希望。');
 
 INSERT INTO group_announcements (id, group_id, created_by, title, body) VALUES
-  ('seed-announcement-01', 'seed-group-store', 'tanaka@local.test', '7月後半シフトについて', '7月後半の勤務希望を7月20日までに確認してください。'),
+  ('seed-announcement-01', 'seed-group-store', 'tanaka@local.test', '8月前半シフト希望について', '8月前半の勤務希望を7月30日までに入力してください。'),
   ('seed-announcement-02', 'seed-group-store', 'member01@local.test', '月末締めテストのお知らせ', '6月30日分の勤務申告を確認し、順次承認します。');
 
 INSERT INTO announcement_reads (id, announcement_id, user_email) VALUES
