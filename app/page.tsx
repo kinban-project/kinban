@@ -127,11 +127,17 @@ export default function Home() {
   const [cursor, setCursor] = useState(
     new Date(today.getFullYear(), today.getMonth(), 1),
   );
-  const [homeView, setHomeView] = useState<"today" | "month">("today");
   const [selectedDate, setSelectedDate] = useState(todayKey);
-  const [events, setEvents] = useState<EventItem[]>(demoEvents);
+  const [events, setEvents] = useState<EventItem[]>(
+    process.env.NEXT_PUBLIC_LOCAL_MODE === "true" ? [] : demoEvents,
+  );
   const [groups, setGroups] = useState<GroupMembership[]>([]);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(
+    process.env.NEXT_PUBLIC_LOCAL_MODE === "true"
+      ? `${process.env.NEXT_PUBLIC_LOCAL_USER_ID || "tanaka"}@local.test`
+      : null,
+  );
+  const [accountNickname, setAccountNickname] = useState("");
   const [editorOpen, setEditorOpen] = useState(false);
   const [detailEvent, setDetailEvent] = useState<EventItem | null>(null);
   const [dayAgendaOpen, setDayAgendaOpen] = useState(false);
@@ -208,6 +214,11 @@ export default function Home() {
       groups?: GroupMembership[];
     };
     setUserEmail(data.email);
+    const profileResponse = await localApiFetch("/api/profile");
+    if (profileResponse.ok) {
+      const profile = (await profileResponse.json()) as { nickname?: string };
+      setAccountNickname(profile.nickname?.trim() ?? "");
+    }
     setEvents(data.events);
     const memberships = data.groups ?? [];
     const withUnread = await Promise.all(
@@ -384,8 +395,8 @@ export default function Home() {
               <p>重要な情報は登録しないでください。</p>
             </div>
           </details>
-          <a className="ghost-button" href="/api-guide">
-            APIガイド
+          <a className="ghost-button" href="/demo">
+            デモを試す
           </a>
           <span className="sync-label">
             {process.env.NEXT_PUBLIC_LOCAL_MODE === "true"
@@ -399,7 +410,7 @@ export default function Home() {
               className="ghost-button"
               onClick={() => setSettingsOpen(true)}
             >
-              アカウント
+              {accountNickname || "アカウント"}
             </button>
           ) : (
             <a className="ghost-button" href="/signin-with-chatgpt?return_to=/">
@@ -477,32 +488,7 @@ export default function Home() {
           ＋ 予定を追加
         </button>
       </section>
-      <div className="mobile-home-tabs" aria-label="ホーム表示">
-        <button
-          type="button"
-          className={homeView === "today" ? "active" : ""}
-          onClick={() => {
-            setHomeView("today");
-            setSelectedDate(todayKey);
-            setCursor(new Date(today.getFullYear(), today.getMonth(), 1));
-          }}
-        >
-          今日
-        </button>
-        <button
-          type="button"
-          className={homeView === "month" ? "active" : ""}
-          onClick={() => setHomeView("month")}
-        >
-          月
-        </button>
-      </div>
-      <section className={`dashboard mobile-home-${homeView}`}>
-        {homeView === "today" && selectedEvents.length === 0 && (
-          <p className="mobile-home-empty" role="status">
-            本日の予定はありません。
-          </p>
-        )}
+      <section className="dashboard">
         <div className="calendar-card">
           <div className="calendar-head">
             <div>
