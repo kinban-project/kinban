@@ -184,6 +184,7 @@ button { cursor: pointer; }
 @media (max-width: 760px) { .group-menu-row { align-items: flex-start; flex-direction: column; gap: 8px; }.group-menu-name { min-width: 0; }.group-menu-actions { width: 100%; }.base-grid { grid-template-columns: repeat(2, 1fr); }.period-create { grid-template-columns: 1fr 1fr; }.period-create .primary-button { grid-column: span 2; }.request-slot { grid-template-columns: 1fr 130px; }.request-launch { right: 115px; padding: 8px 10px; }.roster-launch { padding: 8px 10px; } }
 @media (max-width: 620px) {
   .request-backdrop { align-items: stretch; padding: 0; }
+  .day-agenda-backdrop, .detail-backdrop { align-items: stretch; padding: 0; }
   .shell { padding: 0 12px 28px; }
   .compact-intro { display: none; }
   .mobile-home-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 12px 0; padding: 4px; border-radius: 12px; background: #eef1ee; }
@@ -199,10 +200,14 @@ button { cursor: pointer; }
   .agenda-item { grid-template-columns: 43px 20px 1fr; gap: 8px; padding: 15px 0; }
   .calendar-card { padding: 16px 8px; border-radius: 18px; }
   .week-row { margin-top: 18px; }
-  .day-cell { min-height: 58px; padding: 4px 3px; }
+  .week-row, .calendar-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); min-width: 0; }
+  .day-cell { min-width: 0; min-height: 58px; padding: 4px 3px; }
   .day-number { margin-bottom: 2px; font-size: 10px; }
-  .event-dot { display: block; overflow: hidden; padding: 2px 3px; margin: 2px 0 0; border-radius: 3px; font-size: 8px; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }
+  .event-dot { display: block; min-width: 0; overflow: hidden; padding: 2px 3px; margin: 2px 0 0; border-radius: 3px; font-size: 8px; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }
   .event-more { display: block; margin-top: 2px; color: var(--muted); font-size: 8px; line-height: 1; text-align: right; }
+  .day-agenda-modal, .detail-modal { width: 100%; min-width: 0; height: 100dvh; max-height: 100dvh; border-radius: 0; padding: 16px 14px; }
+  .day-agenda-nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: -8px 0 14px; }
+  .day-agenda-nav button { min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 9px 4px; background: #f7f9f5; color: var(--teal); font-size: 11px; font-weight: 700; }
   .group-menu { margin-top: 8px; }
   .group-menu-global { display: flex; gap: 4px; }
   .group-menu-row { gap: 6px; padding: 9px 10px; }

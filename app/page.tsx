@@ -293,6 +293,17 @@ export default function Home() {
     setSelectedDate(date);
     setDayAgendaOpen(true);
   }
+  function moveDayAgenda(offset: number) {
+    const current = new Date(`${selectedDate}T00:00:00`);
+    current.setDate(current.getDate() + offset);
+    const nextDate = keyForDate(current);
+    setSelectedDate(nextDate);
+    setCursor(new Date(current.getFullYear(), current.getMonth(), 1));
+  }
+  function showTodayAgenda() {
+    setSelectedDate(todayKey);
+    setCursor(new Date(today.getFullYear(), today.getMonth(), 1));
+  }
   function openEdit(event: EventItem) {
     setDetailEvent(null);
     setEditingId(event.id);
@@ -877,7 +888,7 @@ export default function Home() {
       )}
       {dayAgendaOpen && (
         <div
-          className="modal-backdrop"
+          className="modal-backdrop day-agenda-backdrop"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) setDayAgendaOpen(false);
           }}
@@ -895,6 +906,11 @@ export default function Home() {
               >
                 ×
               </button>
+            </div>
+            <div className="day-agenda-nav" aria-label="日付移動">
+              <button type="button" onClick={() => moveDayAgenda(-1)}>前日</button>
+              <button type="button" onClick={showTodayAgenda}>今日</button>
+              <button type="button" onClick={() => moveDayAgenda(1)}>翌日</button>
             </div>
             <div className="day-agenda-list">
               {selectedEvents.length ? (
@@ -946,7 +962,7 @@ export default function Home() {
       )}
       {detailEvent && (
         <div
-          className="modal-backdrop"
+          className="modal-backdrop detail-backdrop"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) setDetailEvent(null);
           }}
