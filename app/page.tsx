@@ -96,6 +96,20 @@ const demoEvents: EventItem[] = [
 function keyForDate(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
+function timeToMinutes(value: string) {
+  const [hours, minutes] = value.split(":").map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return Number.MAX_SAFE_INTEGER;
+  return hours * 60 + minutes;
+}
+function compareEvents(a: EventItem, b: EventItem) {
+  return (
+    a.date.localeCompare(b.date) ||
+    timeToMinutes(a.startTime) - timeToMinutes(b.startTime) ||
+    timeToMinutes(a.endTime) - timeToMinutes(b.endTime) ||
+    a.title.localeCompare(b.title, "ja") ||
+    a.id.localeCompare(b.id)
+  );
+}
 function formatDate(key: string) {
   return new Intl.DateTimeFormat("ja-JP", {
     month: "long",
@@ -171,7 +185,7 @@ export default function Home() {
   );
   const selectedEvents = events
     .filter((event) => event.date === selectedDate)
-    .sort((a, b) => a.startTime.localeCompare(b.startTime));
+    .sort(compareEvents);
   const editableGroups = groups.filter(
     (group) => group.role === "owner" || group.role === "editor",
   );
@@ -534,7 +548,9 @@ export default function Home() {
           <div className="calendar-grid">
             {days.map((day) => {
               const key = keyForDate(day);
-              const dayEvents = events.filter((item) => item.date === key);
+              const dayEvents = events
+                .filter((item) => item.date === key)
+                .sort(compareEvents);
               return (
                 <button
                   className={`day-cell ${day.getMonth() !== cursor.getMonth() ? "muted" : ""} ${key === selectedDate ? "selected" : ""} ${key === todayKey ? "today" : ""}`}
