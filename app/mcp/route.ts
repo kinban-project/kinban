@@ -93,6 +93,7 @@ const assistantTools = new Set([
   "submit_work_record",
   "review_monthly_work",
   "create_announcement",
+  "send_member_message",
 ]);
 const chunk = <T>(items: T[], size: number) => {
   const chunks: T[][] = [];
@@ -156,6 +157,7 @@ const assistantManagementTools = new Set([
   "submit_work_record",
   "review_monthly_work",
   "create_announcement",
+  "send_member_message",
 ]);
 const assistantExecutionLeaseMs = 60 * 1000;
 function assistantExecutionTarget(name: string, args: Args) {
@@ -167,6 +169,8 @@ function assistantExecutionTarget(name: string, args: Args) {
     return `${text(args.recordId)}|${text(args.status)}`;
   if (name === "create_announcement")
     return `${text(args.title)}|${text(args.body)}`;
+  if (name === "send_member_message")
+    return `${text(args.recipientEmail)}|${text(args.body)}`;
   return text(args.planId);
 }
 async function assistantPermissionError(
@@ -792,6 +796,23 @@ const tools = [
     },
   },
   {
+    name: "send_member_message",
+    description:
+      "Send a new private message to one active member of the same group. The recipient receives it in the KINBAN assistant conversation and, when configured, as a Web Push notification. Requires confirm:true; assistant calls also require sourceMessageId and claimId from a claimed manager instruction plus announcement permission.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId", "recipientEmail", "body"],
+      properties: {
+        groupId: { type: "string" },
+        recipientEmail: { type: "string" },
+        body: { type: "string" },
+        confirm: { type: "boolean" },
+        sourceMessageId: { type: "string" },
+        claimId: { type: "string" },
+      },
+    },
+  },
+  {
     name: "reply_announcement",
     description: "Reply to a group announcement.",
     inputSchema: {
@@ -958,6 +979,8 @@ export async function POST(request: Request) {
       } else if (name === "review_monthly_work")
         permission = "canReviewMonthlyWork";
       else if (name === "create_announcement")
+        permission = "canCreateAnnouncements";
+      else if (name === "send_member_message")
         permission = "canCreateAnnouncements";
       const permissionError = await assistantPermissionError(
         db,
@@ -3014,6 +3037,52 @@ export async function POST(request: Request) {
         details: { source: "mcp" },
       });
       return completeManagedExecution(row);
+    }
+    if (name === "send_member_message") {
+      if (args.confirm !== true) return rpcError(payload.id, mutating);
+      const groupId = text(args.groupId);
+      const recipientEmail = text(args.recipientEmail).toLowerCase();
+      const body = text(args.body).slice(0, 2000);
+      if (!groupId || !recipientEmail || !body)
+        return rpcError(payload.id, "groupId, recipientEmail, and body are required");
+      const sender = await membership(db, groupId, identity.email);
+      if (!sender || sender.status !== "active" || !editorRoles.has(sender.role))
+        return rpcError(payload.id, "Editor membership required");
+      const recipient = await membership(db, groupId, recipientEmail);
+      if (!recipient || recipient.status !== "active")
+        return rpcError(payload.id, "Recipient must be an active member of this group");
+      const message = {
+        id: crypto.randomUUID(),
+        groupId,
+        memberEmail: recipientEmail,
+        senderType: "assistant" as const,
+        senderEmail: identity.email,
+        body,
+        status: "processed" as const,
+      };
+      await db.insert(assistantMessages).values(message);
+      await recordAudit({
+        groupId,
+        userEmail: identity.email,
+        action: "assistant.member_message.send",
+        entityType: "assistantMessage",
+        entityId: message.id,
+        summary: `MCP縺ｧ繝｡繝ｳ繝舌・縺ｸ蛹悶・騾｣邨｡: ${recipientEmail}`,
+        details: { source: "mcp", recipientEmail },
+      });
+      await sendBusinessPush(db, {
+        recipients: [recipientEmail],
+        eventId: `assistant-member-message:${message.id}`,
+        title: "KINBAN",
+        body: "KINBANアシスタントから新しい連絡があります",
+        url: `/?group=${encodeURIComponent(groupId)}&view=assistant`,
+        urgency: "high",
+      });
+      return completeManagedExecution({
+        ok: true,
+        messageId: message.id,
+        recipientEmail,
+      });
     }
     if (name === "reply_announcement") {
       const id = text(args.announcementId);
