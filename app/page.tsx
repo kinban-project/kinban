@@ -1103,7 +1103,7 @@ export default function Home() {
       )}
       {shiftRequestsOpen && (
         <div
-          className="modal-backdrop"
+          className="modal-backdrop request-backdrop"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget)
               setShiftRequestsOpen(false);
