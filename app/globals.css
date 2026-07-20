@@ -282,6 +282,10 @@ button { cursor: pointer; }
   .preference-day { grid-template-columns: 48px minmax(0, 1fr); padding: 8px; }.preference-range { min-width: 0; width: 100%; }.preference-range .time-pair { grid-template-columns: minmax(0, 1fr) 8px minmax(0, 1fr); flex: 1; }.preference-range .time-pair select { width: 100%; }.preference-range select { width: 82px; }
   .mobile-preference-savebar { position: fixed; right: 0; bottom: 0; left: 0; z-index: 8; display: block; padding: 10px 14px; border-top: 1px solid var(--line); background: rgba(255,255,255,.97); box-shadow: 0 -6px 18px rgba(24,35,31,.08); }.mobile-preference-savebar .primary-button { width: 100%; padding: 11px; }
 }
+
+/* The home screen is month-calendar first; day details open from a calendar cell. */
+.dashboard { grid-template-columns: minmax(0, 1fr); }
+.calendar-card { min-width: 0; }
 @media (max-width: 760px) { .member-cards { grid-template-columns: 1fr; }.member-card-head { display: block; }.member-card-badges { justify-content: flex-start; margin-top: 8px; }.group-nickname-setting { align-items: stretch; flex-direction: column; }.group-nickname-setting input { width: 100%; } }
 @media (max-width: 760px) { .preference-days { grid-template-columns: repeat(2, 1fr); }.preference-fields { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 900px) { .request-header-right { flex-direction: column; align-items: stretch; }.request-header-right .request-baseline { max-width: none; }.request-header-right > select { width: 100%; } }

@@ -202,7 +202,6 @@ export default function Home() {
   const [attachment, setAttachment] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [usedBytes, setUsedBytes] = useState(0);
   const notificationTargetRef = useRef<string | null>(null);
   const days = useMemo(
     () => daysForMonth(cursor.getFullYear(), cursor.getMonth()),
@@ -211,7 +210,6 @@ export default function Home() {
   const selectedEvents = events
     .filter((event) => event.date === selectedDate)
     .sort((a, b) => a.startTime.localeCompare(b.startTime));
-  const openEvents = events.filter((event) => !event.completed).length;
   const editableGroups = groups.filter(
     (group) => group.role === "owner" || group.role === "editor",
   );
@@ -250,12 +248,10 @@ export default function Home() {
     if (!response.ok) return;
     const data = (await response.json()) as {
       email: string;
-      usedBytes: number;
       events: EventItem[];
       groups?: GroupMembership[];
     };
     setUserEmail(data.email);
-    setUsedBytes(data.usedBytes ?? 0);
     setEvents(data.events);
     const memberships = data.groups ?? [];
     const withUnread = await Promise.all(
@@ -409,12 +405,6 @@ export default function Home() {
     if (!event.id.startsWith("demo-"))
       await localApiFetch(`/api/calendar/${event.id}`, { method: "DELETE" });
   }
-  const storagePercent = Math.min(100, (usedBytes / (10 * 1024 * 1024)) * 100);
-  const formatSize = (bytes: number) =>
-    bytes < 1024 * 1024
-      ? `${Math.round(bytes / 1024)}KB`
-      : `${(bytes / 1024 / 1024).toFixed(2)}MB`;
-
   function openGroupTarget(
     groupId: string,
     target: "basic" | "requests" | "shift" | "members" | "adjustment",
@@ -644,106 +634,6 @@ export default function Home() {
               );
             })}
           </div>
-        </div>
-        <aside className="agenda-card">
-          <div className="agenda-head">
-            <div>
-              <p className="eyebrow">AGENDA</p>
-              <h2>{formatDate(selectedDate)}</h2>
-            </div>
-            <button
-              className="icon-button"
-              onClick={() => openNew()}
-              aria-label="予定を追加"
-            >
-              ＋
-            </button>
-          </div>
-          <div className="agenda-list">
-            {selectedEvents.length ? (
-              selectedEvents.map((item) => (
-                <article
-                  className={`agenda-item ${item.completed ? "done" : ""}`}
-                  key={item.id}
-                  onClick={() => setDetailEvent(item)}
-                >
-                  <div className="time">
-                    {item.startTime}
-                    <small>{item.endTime}</small>
-                  </div>
-                  <button
-                    className={`check ${item.completed ? "checked" : ""}`}
-                    disabled={item.readOnly}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      void toggleEvent(item);
-                    }}
-                    aria-label="完了にする"
-                  >
-                    {item.completed ? "✓" : ""}
-                  </button>
-                  <div className="event-info">
-                    <h3>{item.title}</h3>
-                    <p>
-                      <span
-                        className={`category ${item.category === "生活" ? "life" : item.category === "予定" ? "plan" : "work"}`}
-                      >
-                        {item.category}
-                      </span>
-                      {item.groupId && <span>グループ</span>}
-                      {item.notes && <span>{item.notes}</span>}
-                    </p>
-                    {item.attachments?.length ? (
-                      <p className="attachment-chip">
-                        ⌕ {item.attachments.length}件の添付
-                      </p>
-                    ) : null}
-                  </div>
-                  <span className="open-detail">›</span>
-                </article>
-              ))
-            ) : (
-              <div className="empty-state">
-                <span>○</span>
-                <p>
-                  この日の予定はありません。
-                  <br />
-                  余白も、予定のうち。
-                </p>
-                <button onClick={() => openNew()}>予定を追加する</button>
-              </div>
-            )}
-          </div>
-          <div className="agenda-footer">
-            <span>{openEvents}件の未完了タスク</span>
-            <button onClick={() => setSettingsOpen(true)}>設定 →</button>
-          </div>
-        </aside>
-      </section>
-      <section className="bottom-row">
-        <div className="tip-card">
-          <span className="tip-icon">✦</span>
-          <div>
-            <p className="eyebrow">A LITTLE NOTE</p>
-            <h3>すべてを埋めなくていい。</h3>
-            <p>空白の時間も、あなたの予定です。</p>
-          </div>
-        </div>
-        <div className="storage-card">
-          <div className="storage-top">
-            <span>添付ファイル</span>
-            <strong>
-              {process.env.NEXT_PUBLIC_LOCAL_MODE === "true"
-                ? "LOCAL STORAGE"
-                : "R2 STORAGE"}
-            </strong>
-          </div>
-          <div className="storage-bar">
-            <span style={{ width: `${storagePercent}%` }} />
-          </div>
-          <p>
-            {formatSize(usedBytes)} / 10MB　※アプリ側では上限を設定していません
-          </p>
         </div>
       </section>
       {editorOpen && (
