@@ -482,3 +482,21 @@ button { cursor: pointer; }
 .assistant-confirmation { display: flex; align-items: center; gap: 7px; margin-top: 6px; }.assistant-confirmation code { min-width: 0; overflow-wrap: anywhere; font-size: 9px; }
 .push-notification-control { display: grid; gap: 8px; margin: 12px 0; padding: 12px; border: 1px solid #cfe4df; border-radius: 10px; background: #f7faf5; }.push-notification-control strong { color: var(--teal); font-size: 12px; }.push-notification-control p { margin: 3px 0 0; color: var(--muted); font-size: 10px; line-height: 1.5; }.push-notification-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }.push-notification-state { padding: 5px 8px; border-radius: 999px; background: #eef1ee; color: var(--muted); font-size: 10px; }.push-notification-state.enabled { background: #dff0df; color: #23633c; }.push-notification-note { color: var(--muted); font-size: 10px; }
 @media (max-width: 620px) { .assistant-profile { grid-template-columns: auto 1fr; }.assistant-state { grid-column: 2; justify-self: start; }.assistant-composer { grid-template-columns: 1fr; }.assistant-composer button { justify-self: end; }.assistant-message { max-width: 90%; } }
+@media (max-width: 620px) {
+  .work-records-summary.monthly-work-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+    gap: 7px;
+  }
+  .work-records-summary.monthly-work-summary > strong,
+  .work-records-summary.monthly-work-summary > span {
+    min-width: 0;
+    white-space: nowrap;
+  }
+  .work-records-summary.monthly-work-summary > .primary-button {
+    grid-column: 1 / -1;
+    width: 100%;
+    margin: 0;
+  }
+}
