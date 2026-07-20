@@ -177,6 +177,7 @@ export default function Home() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [detailEvent, setDetailEvent] = useState<EventItem | null>(null);
+  const [dayAgendaOpen, setDayAgendaOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [groupsOpen, setGroupsOpen] = useState(false);
   const [groupJoinOpen, setGroupJoinOpen] = useState(false);
@@ -287,6 +288,10 @@ export default function Home() {
     setForm(emptyForm(date));
     setAttachment(null);
     setEditorOpen(true);
+  }
+  function openDayAgenda(date: string) {
+    setSelectedDate(date);
+    setDayAgendaOpen(true);
   }
   function openEdit(event: EventItem) {
     setDetailEvent(null);
@@ -607,7 +612,7 @@ export default function Home() {
                 <button
                   className={`day-cell ${day.getMonth() !== cursor.getMonth() ? "muted" : ""} ${key === selectedDate ? "selected" : ""} ${key === todayKey ? "today" : ""}`}
                   key={key}
-                  onClick={() => setSelectedDate(key)}
+                  onClick={() => openDayAgenda(key)}
                 >
                   <span className="day-number">{day.getDate()}</span>
                   {events
@@ -865,6 +870,75 @@ export default function Home() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+      {dayAgendaOpen && (
+        <div
+          className="modal-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setDayAgendaOpen(false);
+          }}
+        >
+          <div className="modal day-agenda-modal">
+            <div className="modal-head">
+              <div>
+                <p className="eyebrow">DAY SCHEDULE</p>
+                <h2>{formatDate(selectedDate)}</h2>
+              </div>
+              <button
+                className="close-button"
+                onClick={() => setDayAgendaOpen(false)}
+                aria-label="閉じる"
+              >
+                ×
+              </button>
+            </div>
+            <div className="day-agenda-list">
+              {selectedEvents.length ? (
+                selectedEvents.map((item) => (
+                  <button
+                    type="button"
+                    className={`day-agenda-item ${item.completed ? "done" : ""}`}
+                    key={item.id}
+                    onClick={() => {
+                      setDayAgendaOpen(false);
+                      setDetailEvent(item);
+                    }}
+                  >
+                    <span className="day-agenda-time">
+                      {displayShiftTime(item.startTime)}〜{displayShiftTime(item.endTime)}
+                    </span>
+                    <span className="day-agenda-content">
+                      <strong>{item.title}</strong>
+                      <small>
+                        <span
+                          className={`category ${item.category === "生活" ? "life" : item.category === "予定" ? "plan" : "work"}`}
+                        >
+                          {item.category}
+                        </span>
+                        {item.groupName ? ` ${item.groupName}` : item.groupId ? " グループ予定" : ""}
+                      </small>
+                    </span>
+                    <span className="open-detail">›</span>
+                  </button>
+                ))
+              ) : (
+                <p className="day-agenda-empty">この日の予定はありません。</p>
+              )}
+            </div>
+            <div className="modal-footer">
+              <span>{selectedEvents.length}件の予定</span>
+              <button
+                className="primary-button"
+                onClick={() => {
+                  setDayAgendaOpen(false);
+                  openNew(selectedDate);
+                }}
+              >
+                予定を追加
+              </button>
+            </div>
+          </div>
         </div>
       )}
       {detailEvent && (

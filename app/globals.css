@@ -14,6 +14,7 @@ button { cursor: pointer; }
 /* Event detail and attachment previews */
 .agenda-item { position: relative; grid-template-columns: 45px 22px 1fr 12px; cursor: pointer; }
 .agenda-item:hover { background: #fbfcf8; }
+.day-agenda-list { display: grid; gap: 8px; }.day-agenda-item { display: grid; grid-template-columns: 92px minmax(0, 1fr) 16px; align-items: center; width: 100%; gap: 10px; border: 1px solid var(--line); border-radius: 11px; padding: 11px; color: var(--ink); background: #fff; text-align: left; }.day-agenda-item:hover { border-color: #b8d6d1; background: #f7fbf8; }.day-agenda-item.done strong { color: var(--muted); text-decoration: line-through; }.day-agenda-time { color: var(--teal); font-size: 11px; font-weight: 800; }.day-agenda-content { display: grid; min-width: 0; gap: 5px; }.day-agenda-content strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }.day-agenda-content small { display: flex; align-items: center; gap: 5px; min-width: 0; color: var(--muted); font-size: 10px; }.day-agenda-empty { margin: 0; padding: 28px 10px; color: var(--muted); text-align: center; font-size: 12px; }
 .open-detail { color: #aeb7b0; font-size: 23px; align-self: center; }
 .modal button:disabled { opacity: .55; cursor: wait; }
 .small-modal, .detail-modal { width: min(560px, 100%); }
