@@ -422,11 +422,17 @@ export default function Home() {
         </div>
       )}
       <header className="topbar">
-        <div className="brand">
+        <button
+          type="button"
+          className="brand"
+          onClick={() => window.location.assign("/")}
+          aria-label="ホームを再読み込み"
+          title="ホームを再読み込み"
+        >
           <img className="brand-mark" src="/kinban-mark.png" alt="" />
           <span>勤番 <small className="brand-latin">KINBAN</small></span>
           <span className="brand-pill">シフト、勤怠管理をひとつに。</span>
-        </div>
+        </button>
         <div className="top-actions">
           <details className="demo-notice">
             <summary>⚠ デモ用</summary>
