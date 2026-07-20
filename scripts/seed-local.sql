@@ -174,7 +174,9 @@ FROM dates CROSS JOIN slot_defs;
 WITH RECURSIVE dates(date) AS (SELECT '2026-08-01' UNION ALL SELECT date(date, '+1 day') FROM dates WHERE date < '2026-08-15'),
 slot_defs(start_time, end_time, role, required_count) AS (VALUES
   ('09:30', '14:00', 'ホール', 2), ('09:30', '14:00', '厨房', 2),
-  ('17:00', '22:00', 'ホール', 2), ('17:00', '22:00', '厨房', 2))
+  ('14:00', '17:00', 'ホール', 1), ('14:00', '17:00', '厨房', 1),
+  ('17:00', '22:00', 'ホール', 2), ('17:00', '22:00', '厨房', 2),
+  ('22:00', '26:00', 'ホール', 1), ('22:00', '26:00', '厨房', 1))
 INSERT INTO shift_slots (id, plan_id, date, start_time, end_time, required_count, role)
 SELECT 'slot-aug1-' || lower(hex(randomblob(8))), 'seed-plan-august-first', dates.date, start_time, end_time, required_count, role
 FROM dates CROSS JOIN slot_defs;
