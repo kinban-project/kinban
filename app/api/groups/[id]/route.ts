@@ -1,8 +1,7 @@
 import { eq, inArray } from "drizzle-orm";
 import { getChatGPTUser } from "../../../chatgpt-auth";
 import { getDb } from "../../../../db";
-import { assistantAnnouncementDrafts, assistantMessageExecutions, assistantMessages, attachments, events, groupAssistants, groupJoinRequests, groupMembers, groupPreferences, groups, shiftAvailability } from "../../../../db/schema";
-import { env } from "cloudflare:workers";
+import { assistantAnnouncementDrafts, assistantMessageExecutions, assistantMessages, events, groupAssistants, groupJoinRequests, groupMembers, groupPreferences, groups, shiftAvailability } from "../../../../db/schema";
 import { getGroup, getMembership } from "../group-access";
 import { recordAudit } from "../../../audit-log";
 import { canViewAdminNote, toPublicMember } from "../member-dto";
@@ -50,11 +49,8 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
   if (group.ownerEmail !== user.email) return Response.json({ error: "グループ削除はownerだけが実行できます" }, { status: 403 });
   const db = getDb();
   const groupEvents = await db.select().from(events).where(eq(events.groupId, id));
-  const groupFiles = groupEvents.length ? await db.select().from(attachments).where(eq(attachments.ownerEmail, group.ownerEmail)) : [];
-  if (env.FILES) await Promise.all(groupFiles.filter((file) => groupEvents.some((event) => event.id === file.eventId)).map((file) => env.FILES.delete(file.objectKey)));
   await recordAudit({ groupId: id, userEmail: user.email, action: "group.delete", entityType: "group", entityId: id, summary: `グループを削除: ${group.name}` });
   await db.batch([
-    ...(groupEvents.length ? [db.delete(attachments).where(inArray(attachments.eventId, groupEvents.map((event) => event.id)))] : []),
     db.delete(events).where(eq(events.groupId, id)),
     db.delete(groupJoinRequests).where(eq(groupJoinRequests.groupId, id)),
     db.delete(assistantAnnouncementDrafts).where(eq(assistantAnnouncementDrafts.groupId, id)),

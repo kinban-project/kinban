@@ -25,7 +25,6 @@ DELETE FROM group_preferences;
 DELETE FROM shift_assignments;
 DELETE FROM shift_slots;
 DELETE FROM shift_plans;
-DELETE FROM attachments;
 DELETE FROM events;
 DELETE FROM group_join_requests;
 DELETE FROM group_members;

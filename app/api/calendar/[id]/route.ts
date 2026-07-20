@@ -1,8 +1,7 @@
 import { eq } from "drizzle-orm";
 import { getChatGPTUser } from "../../../chatgpt-auth";
 import { getDb } from "../../../../db";
-import { attachments, events } from "../../../../db/schema";
-import { env } from "cloudflare:workers";
+import { events } from "../../../../db/schema";
 import { getMembership } from "../../groups/group-access";
 
 export const dynamic = "force-dynamic";
@@ -36,9 +35,6 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
   if (!found.event) return Response.json({ error: "Event not found" }, { status: 404 });
   if (!found.allowed) return Response.json({ error: "この予定を削除する権限がありません" }, { status: 403 });
   const db = getDb();
-  const files = await db.select().from(attachments).where(eq(attachments.eventId, id));
-  if (env.FILES) await Promise.all(files.map((file) => env.FILES.delete(file.objectKey)));
-  await db.delete(attachments).where(eq(attachments.eventId, id));
   await db.delete(events).where(eq(events.id, id));
   return Response.json({ ok: true });
 }

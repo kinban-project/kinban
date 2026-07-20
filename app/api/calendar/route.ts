@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { getDb } from "../../../db";
-import { accountProfiles, attachments, events, groupJoinRequests, groupMembers, groups as groupTable, shiftAssignments, shiftSlots } from "../../../db/schema";
+import { accountProfiles, events, groupJoinRequests, groupMembers, groups as groupTable, shiftAssignments, shiftSlots } from "../../../db/schema";
 import { getMembership } from "../groups/group-access";
 import { toPublicMember } from "../groups/member-dto";
 
@@ -74,18 +74,13 @@ export async function GET() {
       return merged;
     }, [])
     .sort((a, b) => `${b.date}${b.startTime}`.localeCompare(`${a.date}${a.startTime}`));
-  const files = await db.select().from(attachments).where(eq(attachments.ownerEmail, user.email));
-  const fileMap = new Map<string, typeof files>();
-  for (const file of files) fileMap.set(file.eventId, [...(fileMap.get(file.eventId) ?? []), file]);
-  const usedBytes = files.reduce((total, file) => total + file.size, 0);
   return Response.json({
     email: user.email,
-    usedBytes,
     groups: memberships.map((membership) => ({ ...toPublicMember(membership, false), name: groupTableRows.find((group) => group.id === membership.groupId)?.name ?? membership.groupId, pendingMemberRequests: groupTableRows.find((group) => group.id === membership.groupId)?.ownerEmail === user.email ? pendingMemberRequests.filter((request) => request.groupId === membership.groupId && request.status === "pending").length : 0 })),
     events: rows.map((event) => {
       const membership = event.groupId ? memberships.find((item) => item.groupId === event.groupId) : null;
       const groupName = event.groupId ? groupTableRows.find((group) => group.id === event.groupId)?.name ?? event.groupId : null;
-      return { ...event, title: event.title, notes: event.shiftPlanId ? `担当：${personalDisplayName}` : event.notes, groupName, attachments: fileMap.get(event.id) ?? [], readOnly: Boolean(event.shiftPlanId || (event.groupId && membership?.role !== "owner" && membership?.role !== "editor")) };
+      return { ...event, title: event.title, notes: event.shiftPlanId ? `担当：${personalDisplayName}` : event.notes, groupName, readOnly: Boolean(event.shiftPlanId || (event.groupId && membership?.role !== "owner" && membership?.role !== "editor")) };
     }),
   });
 }
@@ -109,5 +104,5 @@ export async function POST(request: Request) {
     category: payload.category ?? "予定", notes: payload.notes ?? "", completed: false,
   };
   await getDb().insert(events).values(event);
-  return Response.json({ event: { ...event, attachments: [], readOnly: false } }, { status: 201 });
+  return Response.json({ event: { ...event, readOnly: false } }, { status: 201 });
 }

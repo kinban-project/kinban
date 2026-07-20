@@ -18,12 +18,6 @@ import MonthlyWorkPanel from "./monthly-work-panel";
 import { localApiFetch } from "./local-api";
 import { displayShiftTime } from "./shift-time";
 
-type Attachment = {
-  id: string;
-  filename: string;
-  size: number;
-  contentType: string;
-};
 type EventItem = {
   id: string;
   title: string;
@@ -37,7 +31,6 @@ type EventItem = {
   groupId?: string | null;
   groupName?: string | null;
   readOnly?: boolean;
-  attachments?: Attachment[];
 };
 type FormState = {
   title: string;
@@ -61,8 +54,6 @@ function ModalClose({ onClose }: { onClose: () => void }) {
 
 const today = new Date();
 const todayKey = keyForDate(today);
-const MAX_FILE_BYTES = 1024 * 1024;
-const SAFE_IMAGE_BYTES = 900 * 1024;
 const monthNames = [
   "1月",
   "2月",
@@ -131,41 +122,6 @@ function emptyForm(date: string): FormState {
   };
 }
 
-async function prepareAttachment(file: File) {
-  if (!file.type.startsWith("image/") || file.size <= MAX_FILE_BYTES)
-    return { file, optimized: false };
-  try {
-    const bitmap = await createImageBitmap(file);
-    const canvas = document.createElement("canvas");
-    const scale = Math.min(1, 1600 / bitmap.width, 1600 / bitmap.height);
-    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-    canvas
-      .getContext("2d")
-      ?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    bitmap.close();
-    let quality = 0.82;
-    let blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, "image/jpeg", quality),
-    );
-    while (blob && blob.size > SAFE_IMAGE_BYTES && quality > 0.45) {
-      quality -= 0.1;
-      blob = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob(resolve, "image/jpeg", quality),
-      );
-    }
-    if (!blob || blob.size >= file.size) return { file, optimized: false };
-    return {
-      file: new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", {
-        type: "image/jpeg",
-      }),
-      optimized: true,
-    };
-  } catch {
-    return { file, optimized: false };
-  }
-}
-
 export default function Home() {
   const [cursor, setCursor] = useState(
     new Date(today.getFullYear(), today.getMonth(), 1),
@@ -199,7 +155,6 @@ export default function Home() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [groupId, setGroupId] = useState("");
   const [form, setForm] = useState<FormState>(emptyForm(todayKey));
-  const [attachment, setAttachment] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const notificationTargetRef = useRef<string | null>(null);
@@ -282,7 +237,6 @@ export default function Home() {
     setEditingId(null);
     setGroupId("");
     setForm(emptyForm(date));
-    setAttachment(null);
     setEditorOpen(true);
   }
   function openDayAgenda(date: string) {
@@ -312,7 +266,6 @@ export default function Home() {
       category: event.category,
       notes: event.notes,
     });
-    setAttachment(null);
     setEditorOpen(true);
   }
 
@@ -330,7 +283,6 @@ export default function Home() {
         groupId: groupId || null,
         completed:
           events.find((item) => item.id === editingId)?.completed ?? false,
-        attachments: events.find((item) => item.id === editingId)?.attachments,
       };
     else if (editingId) {
       const response = await localApiFetch(`/api/calendar/${editingId}`, {
@@ -354,25 +306,7 @@ export default function Home() {
             .error ?? "予定を保存できませんでした",
         );
     }
-    if (saved && attachment && !saved.id.startsWith("demo-")) {
-      const prepared = await prepareAttachment(attachment);
-      if (prepared.file.size > MAX_FILE_BYTES)
-        setNotice("添付ファイルの保存に失敗しました。1MB以下にしてください。");
-      else {
-        const body = new FormData();
-        body.append("file", prepared.file);
-        body.append("eventId", saved.id);
-        const upload = await localApiFetch("/api/files", {
-          method: "POST",
-          body,
-        });
-        if (!upload.ok)
-          setNotice(
-            `添付ファイルの保存に失敗しました（HTTP ${upload.status}）。`,
-          );
-        else await loadCalendar();
-      }
-    } else if (saved)
+    if (saved)
       setEvents((current) => [
         ...current.filter((item) => item.id !== saved!.id),
         saved!,
@@ -380,7 +314,6 @@ export default function Home() {
     if (saved) {
       setSelectedDate(saved.date);
       setEditorOpen(false);
-      setAttachment(null);
     }
     setSaving(false);
   }
@@ -445,7 +378,7 @@ export default function Home() {
             <div>
               <strong>デモ用サイトです</strong>
               <p>
-                予告なく終了する可能性があります。登録した予定や添付ファイルが漏洩する可能性もあります。
+                予告なく終了する可能性があります。登録した情報が漏洩する可能性もあります。
               </p>
               <p>重要な情報は登録しないでください。</p>
             </div>
@@ -744,21 +677,6 @@ export default function Home() {
                 }
               />
             </label>
-            <label className="file-input">
-              添付ファイル
-              <input
-                type="file"
-                accept="image/*,.pdf,.txt,.doc,.docx,.xls,.xlsx"
-                onChange={(event) =>
-                  setAttachment(event.target.files?.[0] ?? null)
-                }
-              />
-              <span>
-                {attachment
-                  ? `⌕ ${attachment.name}`
-                  : "ファイルを選択（1MBまで）"}
-              </span>
-            </label>
             <div className="modal-footer">
               <span>
                 {process.env.NEXT_PUBLIC_LOCAL_MODE === "true"
@@ -882,33 +800,6 @@ export default function Home() {
             </div>
             {detailEvent.notes && (
               <div className="detail-notes">{detailEvent.notes}</div>
-            )}
-            {detailEvent.attachments?.length ? (
-              <div className="detail-files">
-                <p className="eyebrow">ATTACHMENTS</p>
-                {detailEvent.attachments.map((file) => (
-                  <div className="file-preview" key={file.id}>
-                    {file.contentType.startsWith("image/") ? (
-                      <img src={`/api/files/${file.id}`} alt={file.filename} />
-                    ) : (
-                      <span className="file-icon">⌕</span>
-                    )}
-                    <div>
-                      <strong>{file.filename}</strong>
-                      <small>{Math.round(file.size / 1024)}KB</small>
-                    </div>
-                    <a
-                      href={`/api/files/${file.id}`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      開く
-                    </a>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="no-files">添付ファイルはありません</div>
             )}
             {detailEvent.readOnly ? (
               <p className="settings-copy">
@@ -1115,7 +1006,7 @@ export default function Home() {
               </button>
             </div>
             <p className="settings-copy">
-              予定と添付ファイルは、アカウントごとに分けて保存されます。
+              予定は、アカウントごとに分けて保存されます。
             </p>
             {userEmail ? (
               <ProfilePanel email={userEmail} />

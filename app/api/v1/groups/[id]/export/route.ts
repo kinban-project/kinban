@@ -4,7 +4,6 @@ import {
   accountProfiles,
   announcementReads,
   announcementReplies,
-  attachments,
   auditLogs,
   events,
   groupAnnouncements,
@@ -74,9 +73,8 @@ export async function GET(_request: Request, context: Context) {
   const emails = [...new Set(members.map((member) => member.userEmail))];
   const planIds = plans.map((plan) => plan.id);
   const announcementIds = announcements.map((announcement) => announcement.id);
-  const eventIds = groupEvents.map((event) => event.id);
 
-  const [profiles, slots, periods, assignments, requests, submissions, reads, replies, attachmentsForEvents] = await Promise.all([
+  const [profiles, slots, periods, assignments, requests, submissions, reads, replies] = await Promise.all([
     emails.length ? db.select().from(accountProfiles).where(inArray(accountProfiles.userEmail, emails)) : [],
     planIds.length ? db.select().from(shiftSlots).where(inArray(shiftSlots.planId, planIds)) : [],
     planIds.length ? db.select().from(shiftRequestPeriods).where(inArray(shiftRequestPeriods.planId, planIds)) : [],
@@ -85,7 +83,6 @@ export async function GET(_request: Request, context: Context) {
     [],
     announcementIds.length ? db.select().from(announcementReads).where(inArray(announcementReads.announcementId, announcementIds)) : [],
     announcementIds.length ? db.select().from(announcementReplies).where(inArray(announcementReplies.announcementId, announcementIds)) : [],
-    eventIds.length ? db.select().from(attachments).where(inArray(attachments.eventId, eventIds)) : [],
   ]);
 
   const slotIds = slots.map((slot) => slot.id);
@@ -119,7 +116,6 @@ export async function GET(_request: Request, context: Context) {
     announcementReplies: replies,
     auditLogs: logs,
     events: groupEvents,
-    attachments: attachmentsForEvents,
     workRecords: records,
     workBreaks: breaks,
     monthlyWorkClaims: monthlyClaims,

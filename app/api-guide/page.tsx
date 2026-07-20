@@ -5,18 +5,83 @@ import McpGuide from "./mcp-guide";
 
 export const dynamic = "force-dynamic";
 const API_BASE = "https://my-day-calendar.chita256.chatgpt.site";
-function Code({ children }: { children: string }) { return <pre><code>{children}</code></pre>; }
+
+function Code({ children }: { children: string }) {
+  return <pre><code>{children}</code></pre>;
+}
 
 export default async function ApiGuidePage() {
   const user = await getChatGPTUser();
-  return <main className="guide-shell"><header className="guide-header"><Link href="/" className="guide-back">← 勤番 KINBAN</Link><p className="eyebrow">DEVELOPER GUIDE</p><h1>勤番 KINBAN API</h1><p>勤番に保存した予定を、AIや外部アプリから安全に読み書きするためのAPIです。すべてのエンドポイントはJSONを返します。</p></header><section className="guide-grid"><article className="guide-card guide-main">
-    <p className="eyebrow">START HERE</p><h2>まず知っておくこと</h2><p>APIはログイン中のアカウントに発行したAPIキーで認証します。リクエストには毎回、次のヘッダーを付けてください。</p><Code>{`Authorization: Bearer md_あなたのAPIキー`}</Code>{user ? <ApiKeyPanel /> : <div className="guide-login"><p>APIキーを発行するにはChatGPTでログインしてください。</p><a className="primary-button guide-button" href="/signin-with-chatgpt?return_to=/api-guide">ChatGPTでログイン</a></div>}<div className="guide-warning"><strong>APIキーについて</strong><p>発行ボタンを押すと、キー本体はその場で一度だけ表示されます。後から再表示できないため、安全な場所に保存してください。紛失した場合は無効化して新しいキーを発行します。</p></div>
-    <p className="eyebrow section-label">DATA MODEL</p><h2>タスクの項目</h2><div className="spec-table"><div className="spec-row spec-head"><span>項目</span><span>必須</span><span>説明</span></div><div className="spec-row"><code>title</code><span>必須</span><span>予定のタイトル。空文字は不可。</span></div><div className="spec-row"><code>date</code><span>必須</span><span><code>YYYY-MM-DD</code>形式。</span></div><div className="spec-row"><code>startTime</code><span>任意</span><span><code>HH:mm</code>形式。未指定は空文字。</span></div><div className="spec-row"><code>endTime</code><span>任意</span><span><code>HH:mm</code>形式。未指定は空文字。</span></div><div className="spec-row"><code>category</code><span>任意</span><span><code>仕事</code>・<code>生活</code>・<code>予定</code>。未指定は<code>仕事</code>。</span></div><div className="spec-row"><code>notes</code><span>任意</span><span>画面上の「メモ」に対応します。</span></div><div className="spec-row"><code>completed</code><span>任意</span><span><code>true</code>で完了。登録時はfalse。</span></div></div><div className="guide-note"><strong>日時とタイムゾーン</strong><p>日付と時刻は分けて送ります。タイムゾーン指定は現在サポートしておらず、日本時間（Asia/Tokyo）として扱います。</p></div>
-    <p className="eyebrow section-label">ENDPOINTS</p><h2>1. 一覧取得</h2><div className="endpoint-title"><code>GET /api/v1/tasks</code><span>予定一覧を取得</span></div><p>自分のアカウントに紐づく予定だけが返ります。<code>from</code>と<code>to</code>は両端を含む期間指定です。</p><div className="param-list"><span><code>from</code> 任意・YYYY-MM-DD</span><span><code>to</code> 任意・YYYY-MM-DD</span><span><code>limit</code> 任意・1〜100、初期値100</span><span><code>offset</code> 任意・0以上、初期値0</span></div><Code>{`curl "${API_BASE}/api/v1/tasks?from=2026-07-01&to=2026-07-31&limit=20&offset=0" -H "Authorization: Bearer md_あなたのAPIキー"`}</Code><p className="success-label">成功時：200 OK</p><Code>{`{ "data": [{ "id": "task-id", "title": "資料作成", "date": "2026-07-18", "startTime": "10:00", "endTime": "11:00", "category": "仕事", "notes": "第1版を作る", "completed": false, "attachments": [] }], "pagination": { "limit": 20, "offset": 0, "total": 1, "hasMore": false } }`}</Code>
-    <h2>2. 詳細取得</h2><div className="endpoint-title"><code>GET /api/v1/tasks/:id</code><span>1件の予定と添付ファイルを取得</span></div><Code>{`curl "${API_BASE}/api/v1/tasks/task-id" -H "Authorization: Bearer md_あなたのAPIキー"`}</Code><p className="success-label">成功時：200 OK　対象がない場合：404 Not Found</p>
-    <h2>3. 登録</h2><div className="endpoint-title"><code>POST /api/v1/tasks</code><span>予定を登録</span></div><p>必須項目は<code>title</code>と<code>date</code>です。カテゴリやメモは<code>category</code>と<code>notes</code>を追加します。</p><Code>{`curl -X POST "${API_BASE}/api/v1/tasks" -H "Authorization: Bearer md_あなたのAPIキー" -H "Content-Type: application/json" -d '{"title":"資料作成","date":"2026-07-18","startTime":"10:00","endTime":"11:00","category":"仕事","notes":"第1版を作る"}'`}</Code><p className="success-label">成功時：201 Created</p><Code>{`{ "data": { "id": "new-task-id", "title": "資料作成", "date": "2026-07-18", "startTime": "10:00", "endTime": "11:00", "category": "仕事", "notes": "第1版を作る", "completed": false, "attachments": [] } }`}</Code>
-    <h2>4. 変更</h2><div className="endpoint-title"><code>PATCH /api/v1/tasks/:id</code><span>指定した項目だけを変更</span></div><p>変更できる項目は<code>title</code>、<code>date</code>、<code>startTime</code>、<code>endTime</code>、<code>category</code>、<code>notes</code>、<code>completed</code>です。</p><Code>{`curl -X PATCH "${API_BASE}/api/v1/tasks/task-id" -H "Authorization: Bearer md_あなたのAPIキー" -H "Content-Type: application/json" -d '{"notes":"第2版に更新","completed":true}'`}</Code><p className="success-label">成功時：200 OK　対象がない場合：404 Not Found</p>
-    <h2>5. 削除</h2><div className="endpoint-title"><code>DELETE /api/v1/tasks/:id</code><span>指定した予定を削除</span></div><Code>{`curl -X DELETE "${API_BASE}/api/v1/tasks/task-id" -H "Authorization: Bearer md_あなたのAPIキー"`}</Code><p className="success-label">成功時：200 OK</p><div className="guide-warning"><strong>削除の注意</strong><p>削除した予定は元に戻せません。予定に添付ファイルがある場合、添付ファイルも削除されます。削除前に詳細取得やユーザー確認を挟むことをおすすめします。</p></div>
-    <McpGuide /><p className="eyebrow section-label">ERRORS &amp; LIMITS</p><h2>エラーと制限</h2><div className="spec-table error-table"><div className="spec-row spec-head"><span>ステータス</span><span>意味</span><span>返却例</span></div><div className="spec-row"><code>400</code><span>入力不正</span><span><code>{`{"error":"title and date are required"}`}</code></span></div><div className="spec-row"><code>401</code><span>キーなし・無効</span><span><code>{`{"error":"Invalid API token."}`}</code></span></div><div className="spec-row"><code>404</code><span>対象なし</span><span><code>{`{"error":"Task not found"}`}</code></span></div><div className="spec-row"><code>500</code><span>サーバー側エラー</span><span>時間を置いて再試行</span></div></div><p>一覧取得には<code>limit</code>と<code>offset</code>の簡易ページングがあります。現在、勤番独自のAPI利用回数制限はありませんが、SitesやCloudflareなど実行環境側の制限は適用されます。</p>
-  </article><aside className="guide-card guide-side"><p className="eyebrow">REFERENCE</p><h2>ベースURL</h2><Code>{API_BASE}</Code><h2>認証</h2><p>すべてのAPIリクエストにBearerトークンが必要です。APIキーは発行したアカウントの予定だけを操作できます。</p><h2>APIキーの管理</h2><ol className="guide-steps"><li>勤番にChatGPTでログイン</li><li>「APIキーを発行」を押す</li><li>表示されたキーを安全に保存</li><li>紛失・漏えい時は「無効化」を押す</li><li>必要なら新しいキーを発行</li></ol><h2>名前の対応</h2><div className="guide-note"><p>画面では「メモ」と表示されますが、APIの項目名は<code>notes</code>です。カテゴリは現在、<code>仕事</code>・<code>生活</code>・<code>予定</code>の3種類です。</p></div><h2>未対応</h2><ul><li>添付ファイルのAPIアップロード</li><li>Webhook・通知</li><li>APIキーごとの個別レート制限</li><li>タイムゾーン指定</li></ul><Link href="/" className="guide-back guide-home-link">← カレンダーへ戻る</Link></aside></section></main>;
+  return (
+    <main className="guide-shell">
+      <header className="guide-header">
+        <Link href="/" className="guide-back">← 勤番 KINBAN</Link>
+        <p className="eyebrow">DEVELOPER GUIDE</p>
+        <h1>勤番 KINBAN API</h1>
+        <p>勤番に保存した予定を、AIや外部アプリから安全に読み書きするためのAPIです。すべてのエンドポイントはJSONを返します。</p>
+      </header>
+      <section className="guide-grid">
+        <article className="guide-card guide-main">
+          <p className="eyebrow">START HERE</p>
+          <h2>まず知っておくこと</h2>
+          <p>APIはログイン中のアカウントに発行したAPIキーで認証します。</p>
+          <Code>{`Authorization: Bearer md_あなたのAPIキー`}</Code>
+          {user ? <ApiKeyPanel /> : <div className="guide-login"><p>APIキーを発行するにはChatGPTでログインしてください。</p><a className="primary-button guide-button" href="/signin-with-chatgpt?return_to=/api-guide">ChatGPTでログイン</a></div>}
+          <div className="guide-warning"><strong>APIキーについて</strong><p>キー本体は発行時に一度だけ表示されます。紛失・漏えい時は無効化して新しいキーを発行してください。</p></div>
+
+          <p className="eyebrow section-label">DATA MODEL</p>
+          <h2>タスクの項目</h2>
+          <div className="spec-table">
+            <div className="spec-row spec-head"><span>項目</span><span>必須</span><span>説明</span></div>
+            <div className="spec-row"><code>title</code><span>必須</span><span>予定のタイトル。</span></div>
+            <div className="spec-row"><code>date</code><span>必須</span><span><code>YYYY-MM-DD</code>形式。</span></div>
+            <div className="spec-row"><code>startTime</code><span>任意</span><span><code>HH:mm</code>形式。</span></div>
+            <div className="spec-row"><code>endTime</code><span>任意</span><span><code>HH:mm</code>形式。</span></div>
+            <div className="spec-row"><code>category</code><span>任意</span><span><code>仕事</code>・<code>生活</code>・<code>予定</code>。</span></div>
+            <div className="spec-row"><code>notes</code><span>任意</span><span>画面上の「メモ」に対応します。</span></div>
+            <div className="spec-row"><code>completed</code><span>任意</span><span><code>true</code>で完了。</span></div>
+          </div>
+          <div className="guide-note"><strong>日時とタイムゾーン</strong><p>日付と時刻は分けて送ります。現在は日本時間（Asia/Tokyo）として扱います。</p></div>
+
+          <p className="eyebrow section-label">ENDPOINTS</p>
+          <h2>1. 一覧取得</h2>
+          <div className="endpoint-title"><code>GET /api/v1/tasks</code><span>予定一覧を取得</span></div>
+          <p><code>from</code>と<code>to</code>は両端を含む期間指定です。<code>limit</code>と<code>offset</code>でページングできます。</p>
+          <Code>{`curl "${API_BASE}/api/v1/tasks?from=2026-07-01&to=2026-07-31&limit=20&offset=0" -H "Authorization: Bearer md_あなたのAPIキー"`}</Code>
+          <p className="success-label">成功時：200 OK</p>
+          <Code>{`{ "data": [{ "id": "task-id", "title": "資料作成", "date": "2026-07-18", "startTime": "10:00", "endTime": "11:00", "category": "仕事", "notes": "第1版を作る", "completed": false }], "pagination": { "limit": 20, "offset": 0, "total": 1, "hasMore": false } }`}</Code>
+
+          <h2>2. 詳細取得</h2>
+          <div className="endpoint-title"><code>GET /api/v1/tasks/:id</code><span>1件の予定を取得</span></div>
+          <Code>{`curl "${API_BASE}/api/v1/tasks/task-id" -H "Authorization: Bearer md_あなたのAPIキー"`}</Code>
+          <p className="success-label">成功時：200 OK　対象がない場合：404 Not Found</p>
+
+          <h2>3. 登録</h2>
+          <div className="endpoint-title"><code>POST /api/v1/tasks</code><span>予定を登録</span></div>
+          <p>必須項目は<code>title</code>と<code>date</code>です。カテゴリやメモは<code>category</code>と<code>notes</code>を追加します。</p>
+          <Code>{`curl -X POST "${API_BASE}/api/v1/tasks" -H "Authorization: Bearer md_あなたのAPIキー" -H "Content-Type: application/json" -d '{"title":"資料作成","date":"2026-07-18","startTime":"10:00","endTime":"11:00","category":"仕事","notes":"第1版を作る"}'`}</Code>
+          <p className="success-label">成功時：201 Created</p>
+          <Code>{`{ "data": { "id": "new-task-id", "title": "資料作成", "date": "2026-07-18", "startTime": "10:00", "endTime": "11:00", "category": "仕事", "notes": "第1版を作る", "completed": false } }`}</Code>
+
+          <h2>4. 変更</h2>
+          <div className="endpoint-title"><code>PATCH /api/v1/tasks/:id</code><span>指定した項目だけを変更</span></div>
+          <p>変更できる項目は<code>title</code>、<code>date</code>、<code>startTime</code>、<code>endTime</code>、<code>category</code>、<code>notes</code>、<code>completed</code>です。</p>
+          <Code>{`curl -X PATCH "${API_BASE}/api/v1/tasks/task-id" -H "Authorization: Bearer md_あなたのAPIキー" -H "Content-Type: application/json" -d '{"notes":"第2版に更新","completed":true}'`}</Code>
+          <p className="success-label">成功時：200 OK　対象がない場合：404 Not Found</p>
+
+          <h2>5. 削除</h2>
+          <div className="endpoint-title"><code>DELETE /api/v1/tasks/:id</code><span>指定した予定を削除</span></div>
+          <Code>{`curl -X DELETE "${API_BASE}/api/v1/tasks/task-id" -H "Authorization: Bearer md_あなたのAPIキー"`}</Code>
+          <p className="success-label">成功時：200 OK</p>
+          <div className="guide-warning"><strong>削除の注意</strong><p>削除した予定は元に戻せません。削除前に詳細取得やユーザー確認を挟んでください。</p></div>
+
+          <McpGuide />
+          <p className="eyebrow section-label">ERRORS &amp; LIMITS</p>
+          <h2>エラーと制限</h2>
+          <div className="spec-table error-table"><div className="spec-row spec-head"><span>ステータス</span><span>意味</span><span>返却例</span></div><div className="spec-row"><code>400</code><span>入力不正</span><span><code>{`{"error":"title and date are required"}`}</code></span></div><div className="spec-row"><code>401</code><span>キーなし・無効</span><span><code>{`{"error":"Invalid API token."}`}</code></span></div><div className="spec-row"><code>404</code><span>対象なし</span><span><code>{`{"error":"Task not found"}`}</code></span></div><div className="spec-row"><code>500</code><span>サーバー側エラー</span><span>時間を置いて再試行</span></div></div>
+        </article>
+        <aside className="guide-card guide-side"><p className="eyebrow">REFERENCE</p><h2>ベースURL</h2><Code>{API_BASE}</Code><h2>認証</h2><p>すべてのAPIリクエストにBearerトークンが必要です。</p><h2>APIキーの管理</h2><ol className="guide-steps"><li>ChatGPTでログイン</li><li>APIキーを発行</li><li>キーを安全に保存</li><li>紛失・漏えい時は無効化</li></ol><h2>未対応</h2><ul><li>Webhook・通知</li><li>APIキーごとの個別レート制限</li><li>タイムゾーン指定</li></ul><Link href="/" className="guide-back guide-home-link">← カレンダーへ戻る</Link></aside>
+      </section>
+    </main>
+  );
 }

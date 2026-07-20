@@ -17,7 +17,7 @@ export default function ExportGuide() {
   -H "Authorization: Bearer md_あなたのAPIキー"`}</code></pre>
       <p>
         グループ、メンバー、基本設定、勤務枠、希望、割り当て、勤務記録・休憩、お知らせ、既読状況、操作ログ、
-        グループ予定、添付ファイルのメタ情報を含みます。添付ファイル本体は含みません。
+        グループ予定、勤務枠、割り当て、勤務申告などの運用データを含みます。
       </p>
       <div className="guide-warning">
         <strong>取り扱いに注意</strong>

@@ -33,7 +33,6 @@
 - vinext
 - Cloudflare Workers
 - Cloudflare D1
-- Cloudflare R2
 - Drizzle ORM
 - OpenAI Sites
 
@@ -93,7 +92,7 @@ APIキーは画面から発行し、Bearerトークンとして使用します�
 ## データと注意事項
 
 - D1のスキーマは `db/schema.ts`、マイグレーションは `drizzle/` にあります。
-- 添付ファイルはR2に保存します。
+- 個人予定やグループの運用データはD1に保存します。
 - ローカルの `.env`、`dist/`、一時ファイル、個人用資料はGitに含めません。
 - 本リポジトリは試作・デモ用途を前提としています。本番運用ではバックアップ、権限、個人情報保護、監査要件を別途確認してください。
 
