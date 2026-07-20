@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { getDb } from "../../../db";
-import { accountProfiles, events, groupJoinRequests, groupMembers, groups as groupTable, shiftAssignments, shiftSlots } from "../../../db/schema";
+import { accountProfiles, assistantMessages, assistantReadStates, events, groupJoinRequests, groupMembers, groups as groupTable, shiftAssignments, shiftSlots } from "../../../db/schema";
 import { getMembership } from "../groups/group-access";
 import { toPublicMember } from "../groups/member-dto";
 
@@ -25,6 +25,8 @@ export async function GET() {
   const [profile] = await db.select().from(accountProfiles).where(eq(accountProfiles.userEmail, user.email)).limit(1);
   const groupTableRows = memberships.length ? await db.select().from(groupTable).where(inArray(groupTable.id, memberships.map((item) => item.groupId))) : [];
   const pendingMemberRequests = memberships.length ? await db.select().from(groupJoinRequests).where(inArray(groupJoinRequests.groupId, memberships.map((item) => item.groupId))) : [];
+  const assistantMessagesRows = memberships.length ? await db.select().from(assistantMessages).where(inArray(assistantMessages.groupId, memberships.map((item) => item.groupId))) : [];
+  const assistantReadRows = memberships.length ? await db.select().from(assistantReadStates).where(and(eq(assistantReadStates.readerEmail, user.email), inArray(assistantReadStates.groupId, memberships.map((item) => item.groupId)))) : [];
   const visibleGroupIds = memberships.filter((item) => item.showInPersonal).map((item) => item.groupId);
   const personalDisplayName = memberships.find((item) => item.userEmail === user.email)?.displayName?.trim() || profile?.nickname?.trim() || user.email.split("@")[0];
   const personalRows = await db.select().from(events).where(eq(events.ownerEmail, user.email));
@@ -76,7 +78,18 @@ export async function GET() {
     .sort((a, b) => `${b.date}${b.startTime}`.localeCompare(`${a.date}${a.startTime}`));
   return Response.json({
     email: user.email,
-    groups: memberships.map((membership) => ({ ...toPublicMember(membership, false), name: groupTableRows.find((group) => group.id === membership.groupId)?.name ?? membership.groupId, pendingMemberRequests: groupTableRows.find((group) => group.id === membership.groupId)?.ownerEmail === user.email ? pendingMemberRequests.filter((request) => request.groupId === membership.groupId && request.status === "pending").length : 0 })),
+    groups: memberships.map((membership) => {
+      const manager = membership.role === "owner" || membership.role === "editor";
+      const readState = assistantReadRows.find((row) => row.groupId === membership.groupId && row.memberEmail === (manager ? "*" : user.email));
+      const lastReadAt = readState?.lastReadAt ?? "";
+      const unreadAssistant = assistantMessagesRows.some((message) => {
+        if (message.groupId !== membership.groupId || message.createdAt <= lastReadAt) return false;
+        return manager
+          ? message.senderType === "member" && message.memberEmail !== user.email
+          : message.memberEmail === user.email && (message.senderType === "assistant" || message.senderType === "system");
+      });
+      return { ...toPublicMember(membership, false), name: groupTableRows.find((group) => group.id === membership.groupId)?.name ?? membership.groupId, unreadAssistant, pendingMemberRequests: groupTableRows.find((group) => group.id === membership.groupId)?.ownerEmail === user.email ? pendingMemberRequests.filter((request) => request.groupId === membership.groupId && request.status === "pending").length : 0 };
+    }),
     events: rows.map((event) => {
       const membership = event.groupId ? memberships.find((item) => item.groupId === event.groupId) : null;
       const groupName = event.groupId ? groupTableRows.find((group) => group.id === event.groupId)?.name ?? event.groupId : null;

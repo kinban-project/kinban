@@ -184,6 +184,17 @@ export const assistantContexts = sqliteTable("assistant_contexts", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const assistantReadStates = sqliteTable("assistant_read_states", {
+  id: text("id").primaryKey(),
+  groupId: text("group_id").notNull(),
+  readerEmail: text("reader_email").notNull(),
+  memberEmail: text("member_email").notNull(),
+  lastReadAt: text("last_read_at").notNull().default(""),
+}, (table) => [
+  uniqueIndex("assistant_read_state_reader_conversation_idx")
+    .on(table.groupId, table.readerEmail, table.memberEmail),
+]);
+
 export const assistantAnnouncementDrafts = sqliteTable("assistant_announcement_drafts", {
   id: text("id").primaryKey(),
   groupId: text("group_id").notNull(),

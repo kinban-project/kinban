@@ -4,6 +4,7 @@ import { getDb } from "../../../../../db";
 import {
   assistantAnnouncementDrafts,
   assistantMessages,
+  assistantReadStates,
   groupAnnouncements,
   groupAssistants,
   groupMembers,
@@ -83,6 +84,9 @@ export async function GET(
       ),
     )
     .orderBy(asc(assistantMessages.createdAt));
+  const readerConversation = isManager(membership.role) ? "*" : user.email;
+  const now = new Date().toISOString();
+  await db.insert(assistantReadStates).values({ id: crypto.randomUUID(), groupId: id, readerEmail: user.email, memberEmail: readerConversation, lastReadAt: now }).onConflictDoUpdate({ target: [assistantReadStates.groupId, assistantReadStates.readerEmail, assistantReadStates.memberEmail], set: { lastReadAt: now } });
   const members = isManager(membership.role)
     ? await db
         .select({

@@ -7,6 +7,7 @@ type Group = {
   name?: string;
   role: string;
   unreadAnnouncements?: number;
+  unreadAssistant?: boolean;
   pendingMemberRequests?: number;
   nextRequestCloseDate?: string | null;
 };
@@ -130,6 +131,7 @@ export default function GroupMenu({
       {groups.map((group) => {
         const manager = group.role === "owner" || group.role === "editor";
         const unread = group.unreadAnnouncements ?? 0;
+        const unreadAssistant = Boolean(group.unreadAssistant);
         const pendingMembers = group.pendingMemberRequests ?? 0;
         return (
           <div className="group-menu-row" key={group.groupId}>
@@ -166,6 +168,7 @@ export default function GroupMenu({
               >
                 お知らせ・連絡
                 {unread > 0 && <span className="unread-badge">{unread}</span>}
+                {unreadAssistant && <span className="assistant-unread-dot" title="KINBANアシスタントに未読があります" aria-label="KINBANアシスタントに未読があります" />}
               </button>
               <WorkDeclareButton groupId={group.groupId} onClick={() => onWorkDeclare(group.groupId)} />
               {manager && (

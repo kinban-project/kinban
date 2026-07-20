@@ -46,6 +46,7 @@ type GroupMembership = {
   role: string;
   showInPersonal: boolean;
   unreadAnnouncements?: number;
+  unreadAssistant?: boolean;
 };
 
 function ModalClose({ onClose }: { onClose: () => void }) {
@@ -925,6 +926,8 @@ export default function Home() {
             <AnnouncementsPanel
               groupId={menuGroupId}
               initialTab={announcementsTab}
+              assistantUnread={groups.find((group) => group.groupId === menuGroupId)?.unreadAssistant ?? false}
+              onAssistantRead={() => setGroups((current) => current.map((group) => group.groupId === menuGroupId ? { ...group, unreadAssistant: false } : group))}
               manager={editableGroups.some(
                 (group) => group.groupId === menuGroupId,
               )}
