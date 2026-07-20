@@ -198,9 +198,10 @@ button { cursor: pointer; }
   .agenda-item { grid-template-columns: 43px 20px 1fr; gap: 8px; padding: 15px 0; }
   .calendar-card { padding: 16px 8px; border-radius: 18px; }
   .week-row { margin-top: 18px; }
-  .day-cell { min-height: 58px; padding: 5px; }
-  .day-number { margin-bottom: 3px; }
-  .event-dot { display: block; height: 5px; padding: 0; margin: 3px 0 0; font-size: 0; border-radius: 999px; }
+  .day-cell { min-height: 58px; padding: 4px 3px; }
+  .day-number { margin-bottom: 2px; font-size: 10px; }
+  .event-dot { display: block; overflow: hidden; padding: 2px 3px; margin: 2px 0 0; border-radius: 3px; font-size: 8px; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }
+  .event-more { display: block; margin-top: 2px; color: var(--muted); font-size: 8px; line-height: 1; text-align: right; }
   .group-menu { margin-top: 8px; }
   .group-menu-global { display: flex; gap: 4px; }
   .group-menu-row { gap: 6px; padding: 9px 10px; }

@@ -608,6 +608,7 @@ export default function Home() {
           <div className="calendar-grid">
             {days.map((day) => {
               const key = keyForDate(day);
+              const dayEvents = events.filter((item) => item.date === key);
               return (
                 <button
                   className={`day-cell ${day.getMonth() !== cursor.getMonth() ? "muted" : ""} ${key === selectedDate ? "selected" : ""} ${key === todayKey ? "today" : ""}`}
@@ -615,17 +616,19 @@ export default function Home() {
                   onClick={() => openDayAgenda(key)}
                 >
                   <span className="day-number">{day.getDate()}</span>
-                  {events
-                    .filter((item) => item.date === key)
+                  {dayEvents
                     .slice(0, 2)
                     .map((item) => (
                       <span
                         className={`event-dot ${item.category === "生活" ? "green" : item.category === "予定" ? "yellow" : ""}`}
                         key={item.id}
                       >
-                        {item.title}
+                        {displayShiftTime(item.startTime)} {item.title}
                       </span>
                     ))}
+                  {dayEvents.length > 2 && (
+                    <span className="event-more">+{dayEvents.length - 2}</span>
+                  )}
                 </button>
               );
             })}
