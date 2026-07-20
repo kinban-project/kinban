@@ -78,7 +78,7 @@ export default function DemoPage() {
                 <h2>{scenario.name}</h2>
                 <p>{scenario.description}</p>
               </div>
-              <a className="text-link" href={`/qa/seed-scenarios/${scenario.detail}.html`}>
+              <a className="text-link" href={`/demo-scenarios/${scenario.detail}.html`}>
                 シナリオ詳細 →
               </a>
             </div>
