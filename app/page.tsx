@@ -623,7 +623,7 @@ export default function Home() {
                         className={`event-dot ${item.category === "生活" ? "green" : item.category === "予定" ? "yellow" : ""}`}
                         key={item.id}
                       >
-                        {displayShiftTime(item.startTime)} {item.title}
+                        {displayShiftTime(item.startTime)} {item.title.length > 10 ? `${item.title.slice(0, 10)}…` : item.title}
                       </span>
                     ))}
                   {dayEvents.length > 2 && (
