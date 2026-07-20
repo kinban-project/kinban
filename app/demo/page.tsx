@@ -17,13 +17,19 @@ const scenarios = [
   {
     id: "nightclub",
     name: "ナイトクラブ",
-    description: "スタッフとキャストを分け、深夜・延長・遅刻理由などを扱う例です。",
+    description: "A店スタッフとA店キャストを分け、深夜・延長・遅刻理由などを扱う例です。",
     detail: "nightclub",
     users: [
       ["night-manager", "店長", "代表管理者"],
-      ["night-staff-leader", "スタッフリーダー", "管理者"],
-      ["night-cast-a", "キャストA", "メンバー"],
       ["night-staff-a", "スタッフA", "メンバー"],
+      ["night-staff-b", "スタッフB", "メンバー"],
+      ["night-staff-c", "スタッフC", "メンバー"],
+      ["night-cast-a", "キャストA", "メンバー"],
+      ["night-cast-b", "キャストB", "メンバー"],
+      ["night-cast-c", "キャストC", "メンバー"],
+      ["night-cast-d", "キャストD", "メンバー"],
+      ["night-cast-e", "キャストE", "メンバー"],
+      ["night-cast-f", "キャストF", "メンバー"],
     ],
   },
   {

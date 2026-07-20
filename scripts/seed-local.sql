@@ -70,6 +70,26 @@ INSERT INTO group_members (id, group_id, user_email, display_name, admin_note, r
   ('seed-member-08', 'seed-group-store', 'member08@local.test', 'パートA', '週3日程度。', 'member', 'active', 1),
   ('seed-member-09', 'seed-group-store', 'member09@local.test', 'パートB', '曜日相談可。', 'member', 'active', 1);
 
+-- 管理者メモ: 同じシフトに入れると会話が長くなりやすいため、主婦A・主婦Bは可能なら別日に配置する。
+UPDATE group_members
+SET admin_note = '平日日中を希望。主婦Bとは会話が弾みやすいため、可能なら同じシフトを避ける。'
+WHERE id = 'seed-member-04';
+UPDATE group_members
+SET admin_note = '平日日中を希望。主婦Aとは会話が弾みやすいため、可能なら同じシフトを避ける。'
+WHERE id = 'seed-member-05';
+
+-- 飲食店の担当適性: 店長・副店長・フリーターAはホール／厨房の両方、学生・主婦・パートはホール、フリーターBは厨房。
+UPDATE group_members SET admin_note = '代表管理者。ホール・厨房の両方を担当可能。' WHERE id = 'seed-member-owner';
+UPDATE group_members SET admin_note = '日々の承認担当。ホール・厨房の両方を担当可能。' WHERE id = 'seed-member-01';
+UPDATE group_members SET admin_note = '土日と夕方を希望。22時以降は不可。担当はホール。' WHERE id = 'seed-member-02';
+UPDATE group_members SET admin_note = '平日夕方を希望。試験期間は短時間。担当はホール。' WHERE id = 'seed-member-03';
+UPDATE group_members SET admin_note = '平日日中を希望。主婦Bとは会話が弾みやすいため、可能なら同じシフトを避ける。担当はホール。' WHERE id = 'seed-member-04';
+UPDATE group_members SET admin_note = '平日日中を希望。主婦Aとは会話が弾みやすいため、可能なら同じシフトを避ける。担当はホール。' WHERE id = 'seed-member-05';
+UPDATE group_members SET admin_note = '夕方以降を中心に希望。ホール・厨房の両方を担当可能。' WHERE id = 'seed-member-06';
+UPDATE group_members SET admin_note = '深夜帯も対応可能。担当は厨房。' WHERE id = 'seed-member-07';
+UPDATE group_members SET admin_note = '週3日程度。担当はホール。' WHERE id = 'seed-member-08';
+UPDATE group_members SET admin_note = '曜日相談可。担当はホール。' WHERE id = 'seed-member-09';
+
 INSERT INTO group_preferences (id, group_id, user_email, min_days, max_days, min_hours, max_hours, weekend_policy, free_comment) VALUES
   ('seed-pref-owner', 'seed-group-store', 'tanaka@local.test', 5, 6, 40, 60, 'any', '店舗運営のため曜日・時間は柔軟に調整可能。'),
   ('seed-pref-01', 'seed-group-store', 'member01@local.test', 5, 6, 40, 60, 'any', '副店長。全時間帯を調整可能。'),
@@ -300,6 +320,206 @@ INSERT INTO announcement_reads (id, announcement_id, user_email) VALUES
 INSERT INTO announcement_replies (id, announcement_id, user_email, body) VALUES
   ('seed-reply-01', 'seed-announcement-01', 'member02@local.test', '確認しました。'),
   ('seed-reply-02', 'seed-announcement-02', 'member04@local.test', '6月30日分を確認しました。');
+
+-- Night club scenario: one store is represented by two existing groups, staff and cast.
+INSERT INTO account_profiles (user_email, nickname) VALUES
+  ('night-manager@local.test', '店長'),
+  ('night-staff-a@local.test', 'スタッフA'), ('night-staff-b@local.test', 'スタッフB'), ('night-staff-c@local.test', 'スタッフC'),
+  ('night-cast-a@local.test', 'キャストA'), ('night-cast-b@local.test', 'キャストB'), ('night-cast-c@local.test', 'キャストC'),
+  ('night-cast-d@local.test', 'キャストD'), ('night-cast-e@local.test', 'キャストE'), ('night-cast-f@local.test', 'キャストF');
+
+INSERT INTO groups (id, name, description, owner_email) VALUES
+  ('seed-group-night-staff', 'A店スタッフ', 'ナイトクラブのスタッフ勤務を管理するサンプルグループ', 'night-manager@local.test'),
+  ('seed-group-night-cast', 'A店キャスト', 'ナイトクラブのキャスト勤務を管理するサンプルグループ', 'night-manager@local.test');
+INSERT INTO group_assistants (group_id, display_name, role, status, can_create_shifts, can_publish_shifts, can_review_daily_work, can_review_monthly_work, can_create_announcements) VALUES
+  ('seed-group-night-staff', 'KINBANアシスタント', 'editor', 'active', true, true, true, false, true),
+  ('seed-group-night-cast', 'KINBANアシスタント', 'editor', 'active', true, true, true, false, true);
+INSERT INTO group_members (id, group_id, user_email, display_name, admin_note, role, status, show_in_personal) VALUES
+  ('seed-night-staff-manager', 'seed-group-night-staff', 'night-manager@local.test', '店長', 'A店スタッフとA店キャストの両方を管理。シフトには入らない。', 'owner', 'active', 1),
+  ('seed-night-staff-a', 'seed-group-night-staff', 'night-staff-a@local.test', 'スタッフA', 'スタッフ専任。', 'member', 'active', 1),
+  ('seed-night-staff-b', 'seed-group-night-staff', 'night-staff-b@local.test', 'スタッフB', 'スタッフ専任。', 'member', 'active', 1),
+  ('seed-night-staff-c', 'seed-group-night-staff', 'night-staff-c@local.test', 'スタッフC', 'スタッフ専任。', 'member', 'active', 1),
+  ('seed-night-cast-manager', 'seed-group-night-cast', 'night-manager@local.test', '店長', 'A店スタッフとA店キャストの両方を管理。シフトには入らない。', 'owner', 'active', 1),
+  ('seed-night-cast-a', 'seed-group-night-cast', 'night-cast-a@local.test', 'キャストA', '同伴で遅刻することがある。理由を備考に残す。', 'member', 'active', 1),
+  ('seed-night-cast-b', 'seed-group-night-cast', 'night-cast-b@local.test', 'キャストB', '通常勤務。延長営業にも対応可能。', 'member', 'active', 1),
+  ('seed-night-cast-c', 'seed-group-night-cast', 'night-cast-c@local.test', 'キャストC', '週末中心。', 'member', 'active', 1),
+  ('seed-night-cast-d', 'seed-group-night-cast', 'night-cast-d@local.test', 'キャストD', '通常勤務。', 'member', 'active', 1),
+  ('seed-night-cast-e', 'seed-group-night-cast', 'night-cast-e@local.test', 'キャストE', '金土中心。', 'member', 'active', 1),
+  ('seed-night-cast-f', 'seed-group-night-cast', 'night-cast-f@local.test', 'キャストF', '祝日前の増員候補。', 'member', 'active', 1);
+INSERT INTO group_preferences (id, group_id, user_email, min_days, max_days, min_hours, max_hours, weekend_policy, free_comment) VALUES
+  ('seed-night-staff-pref-manager', 'seed-group-night-staff', 'night-manager@local.test', 0, 0, 0, 0, 'any', '店長は管理専任でシフトには入らない。'),
+  ('seed-night-staff-pref-a', 'seed-group-night-staff', 'night-staff-a@local.test', 3, 5, 24, 45, 'any', 'スタッフ専任。'),
+  ('seed-night-staff-pref-b', 'seed-group-night-staff', 'night-staff-b@local.test', 3, 5, 24, 45, 'any', 'スタッフ専任。'),
+  ('seed-night-staff-pref-c', 'seed-group-night-staff', 'night-staff-c@local.test', 2, 4, 16, 36, 'any', 'スタッフ専任。'),
+  ('seed-night-cast-pref-manager', 'seed-group-night-cast', 'night-manager@local.test', 0, 0, 0, 0, 'any', '店長は管理専任でシフトには入らない。'),
+  ('seed-night-cast-pref-a', 'seed-group-night-cast', 'night-cast-a@local.test', 3, 5, 24, 40, 'any', '同伴で開始が遅れる場合は理由を申告。'),
+  ('seed-night-cast-pref-b', 'seed-group-night-cast', 'night-cast-b@local.test', 4, 5, 32, 40, 'any', '延長営業にも対応可能。'),
+  ('seed-night-cast-pref-c', 'seed-group-night-cast', 'night-cast-c@local.test', 3, 4, 24, 32, 'any', '週末中心。'),
+  ('seed-night-cast-pref-d', 'seed-group-night-cast', 'night-cast-d@local.test', 3, 5, 24, 40, 'any', '通常勤務。'),
+  ('seed-night-cast-pref-e', 'seed-group-night-cast', 'night-cast-e@local.test', 2, 4, 16, 32, 'prefer_off', '金土中心。'),
+  ('seed-night-cast-pref-f', 'seed-group-night-cast', 'night-cast-f@local.test', 2, 4, 16, 32, 'prefer_off', '祝日前の勤務を希望。');
+
+INSERT INTO shift_plans (id, group_id, name, start_date, end_date, opening_time, closing_time, slot_minutes, default_required_count, notes, status, created_by) VALUES
+  ('seed-night-staff-plan-july', 'seed-group-night-staff', 'A店スタッフ 7月シフト', '2026-07-17', '2026-07-23', '17:00', '26:00', 60, 1, '月曜は休業。営業日はスタッフを17:00〜26:00に1名配置。店長は割り当てない。', 'published', 'night-manager@local.test'),
+  ('seed-night-cast-plan-july', 'seed-group-night-cast', 'A店キャスト 7月シフト', '2026-07-17', '2026-07-23', '18:00', '26:00', 60, 1, '平日は18:00〜26:00を1名、20:00〜22:00を1名。休日前は18:00〜26:00を2名、20:00〜24:00を2名。', 'published', 'night-manager@local.test');
+
+WITH RECURSIVE dates(date) AS (SELECT '2026-07-17' UNION ALL SELECT date(date, '+1 day') FROM dates WHERE date < '2026-07-23')
+INSERT INTO shift_slots (id, plan_id, date, start_time, end_time, required_count, role)
+SELECT 'slot-night-staff-' || lower(hex(randomblob(8))), 'seed-night-staff-plan-july', date, '17:00', '26:00', 1, 'スタッフ' FROM dates
+WHERE strftime('%w', date) <> '1';
+
+WITH RECURSIVE dates(date) AS (SELECT '2026-07-17' UNION ALL SELECT date(date, '+1 day') FROM dates WHERE date < '2026-07-23'),
+defs(start_time, end_time, normal_count, busy_count) AS (
+  SELECT '18:00', '26:00', 1, 2
+  UNION ALL SELECT '20:00', '22:00', 1, 2
+)
+INSERT INTO shift_slots (id, plan_id, date, start_time, end_time, required_count, role)
+SELECT 'slot-night-cast-' || lower(hex(randomblob(8))), 'seed-night-cast-plan-july', dates.date, defs.start_time, defs.end_time,
+  CASE WHEN dates.date IN ('2026-07-17', '2026-07-18', '2026-07-19') THEN defs.busy_count ELSE defs.normal_count END, 'キャスト'
+FROM dates CROSS JOIN defs
+WHERE strftime('%w', dates.date) <> '1';
+INSERT INTO shift_slots (id, plan_id, date, start_time, end_time, required_count, role)
+SELECT 'slot-night-cast-late-' || lower(hex(randomblob(8))), 'seed-night-cast-plan-july', dates.date, '20:00', '24:00', 2, 'キャスト'
+FROM (SELECT '2026-07-17' AS date UNION ALL SELECT '2026-07-18' UNION ALL SELECT '2026-07-19') dates;
+
+WITH assignees(date, user_email) AS (VALUES
+  ('2026-07-17', 'night-staff-a@local.test'), ('2026-07-18', 'night-staff-b@local.test'), ('2026-07-19', 'night-staff-c@local.test'),
+  ('2026-07-20', 'night-staff-a@local.test'), ('2026-07-21', 'night-staff-b@local.test'), ('2026-07-22', 'night-staff-c@local.test'), ('2026-07-23', 'night-staff-a@local.test'))
+INSERT INTO shift_assignments (id, slot_id, user_email)
+SELECT lower(hex(randomblob(16))), slots.id, assignees.user_email FROM shift_slots slots JOIN assignees ON assignees.date = slots.date
+WHERE slots.plan_id = 'seed-night-staff-plan-july';
+WITH assignees(date, start_time, end_time, user_email) AS (VALUES
+  ('2026-07-17', '18:00', '26:00', 'night-cast-a@local.test'), ('2026-07-17', '18:00', '26:00', 'night-cast-b@local.test'), ('2026-07-17', '20:00', '22:00', 'night-cast-c@local.test'), ('2026-07-17', '20:00', '22:00', 'night-cast-d@local.test'), ('2026-07-17', '20:00', '24:00', 'night-cast-e@local.test'), ('2026-07-17', '20:00', '24:00', 'night-cast-f@local.test'),
+  ('2026-07-18', '18:00', '26:00', 'night-cast-b@local.test'), ('2026-07-18', '18:00', '26:00', 'night-cast-c@local.test'), ('2026-07-18', '20:00', '22:00', 'night-cast-d@local.test'), ('2026-07-18', '20:00', '22:00', 'night-cast-e@local.test'), ('2026-07-18', '20:00', '24:00', 'night-cast-a@local.test'), ('2026-07-18', '20:00', '24:00', 'night-cast-f@local.test'),
+  ('2026-07-19', '18:00', '26:00', 'night-cast-c@local.test'), ('2026-07-19', '18:00', '26:00', 'night-cast-d@local.test'), ('2026-07-19', '20:00', '22:00', 'night-cast-e@local.test'), ('2026-07-19', '20:00', '22:00', 'night-cast-f@local.test'), ('2026-07-19', '20:00', '24:00', 'night-cast-a@local.test'), ('2026-07-19', '20:00', '24:00', 'night-cast-b@local.test'),
+  ('2026-07-20', '18:00', '26:00', 'night-cast-d@local.test'), ('2026-07-20', '20:00', '22:00', 'night-cast-e@local.test'),
+  ('2026-07-21', '18:00', '26:00', 'night-cast-e@local.test'), ('2026-07-21', '20:00', '22:00', 'night-cast-f@local.test'),
+  ('2026-07-22', '18:00', '26:00', 'night-cast-f@local.test'), ('2026-07-22', '20:00', '22:00', 'night-cast-a@local.test'),
+  ('2026-07-23', '18:00', '26:00', 'night-cast-a@local.test'), ('2026-07-23', '20:00', '22:00', 'night-cast-b@local.test'))
+INSERT INTO shift_assignments (id, slot_id, user_email)
+SELECT lower(hex(randomblob(16))), slots.id, assignees.user_email FROM shift_slots slots JOIN assignees
+  ON assignees.date = slots.date AND assignees.start_time = slots.start_time AND assignees.end_time = slots.end_time
+WHERE slots.plan_id = 'seed-night-cast-plan-july';
+
+INSERT INTO shift_request_periods (id, group_id, plan_id, name, opens_on, closes_on, status, created_by) VALUES
+  ('seed-night-staff-request-july', 'seed-group-night-staff', 'seed-night-staff-plan-july', 'A店スタッフ 7月希望', '2026-07-10', '2026-07-15', 'closed', 'night-manager@local.test'),
+  ('seed-night-cast-request-july', 'seed-group-night-cast', 'seed-night-cast-plan-july', 'A店キャスト 7月希望', '2026-07-10', '2026-07-15', 'closed', 'night-manager@local.test');
+INSERT INTO group_announcements (id, group_id, created_by, title, body) VALUES
+  ('seed-night-staff-announcement-01', 'seed-group-night-staff', 'night-manager@local.test', 'A店スタッフの勤務について', 'スタッフは17:00〜26:00の勤務枠です。開始・終了・休憩の打刻を忘れずに行ってください。'),
+  ('seed-night-cast-announcement-01', 'seed-group-night-cast', 'night-manager@local.test', 'A店キャストの勤務について', '休日前は増員枠があります。同伴などで遅れる場合は勤務申告の備考に理由を残してください。');
+
+-- Regional hospital scenario: weekday outpatient coverage, thin holiday/night emergency coverage.
+INSERT INTO account_profiles (user_email, nickname) VALUES
+  ('hospital-director@local.test', '院長'),
+  ('hospital-doctor-senior@local.test', 'ベテラン医師'),
+  ('hospital-resident@local.test', '研修医'),
+  ('hospital-nurse-chief@local.test', '看護師長'),
+  ('hospital-nurse-senior@local.test', 'ベテラン看護師'),
+  ('hospital-nurse-mid@local.test', '中堅看護師'),
+  ('hospital-nurse-junior-a@local.test', '若手看護師A'),
+  ('hospital-nurse-junior-b@local.test', '若手看護師B'),
+  ('hospital-nurse-night@local.test', '夜勤看護師'),
+  ('hospital-reception-a@local.test', '受付A'),
+  ('hospital-reception-b@local.test', '受付B'),
+  ('hospital-aide-a@local.test', '看護助手A'),
+  ('hospital-aide-b@local.test', '看護助手B');
+
+INSERT INTO groups (id, name, description, owner_email) VALUES
+  ('seed-group-hospital', '地域病院サンプル', '医師・看護師・受付別の病院勤務テスト用グループ', 'hospital-director@local.test');
+
+INSERT INTO group_assistants (group_id, display_name, role, status, can_create_shifts, can_publish_shifts, can_review_daily_work, can_review_monthly_work, can_create_announcements) VALUES
+  ('seed-group-hospital', 'KINBANアシスタント', 'editor', 'active', true, true, true, false, true);
+
+INSERT INTO group_members (id, group_id, user_email, display_name, admin_note, role, status, show_in_personal) VALUES
+  ('seed-hospital-director', 'seed-group-hospital', 'hospital-director@local.test', '院長', '代表管理者。医師・看護師・受付の全体を確認する。', 'owner', 'active', 1),
+  ('seed-hospital-doctor-senior', 'seed-group-hospital', 'hospital-doctor-senior@local.test', 'ベテラン医師', '医師。研修医の指導担当。研修医と同じ勤務帯に入れる。', 'member', 'active', 1),
+  ('seed-hospital-resident', 'seed-group-hospital', 'hospital-resident@local.test', '研修医', '医師。単独勤務不可。原則としてベテラン医師と組ませる。', 'member', 'active', 1),
+  ('seed-hospital-nurse-chief', 'seed-group-hospital', 'hospital-nurse-chief@local.test', '看護師長', '看護師。平日日勤中心。配置と新人フォローを担当。', 'member', 'active', 1),
+  ('seed-hospital-nurse-senior', 'seed-group-hospital', 'hospital-nurse-senior@local.test', 'ベテラン看護師', '看護師。夜間は資格者として最低1名必要。', 'member', 'active', 1),
+  ('seed-hospital-nurse-mid', 'seed-group-hospital', 'hospital-nurse-mid@local.test', '中堅看護師', '看護師。平日日勤と休日夜間の双方に対応。', 'member', 'active', 1),
+  ('seed-hospital-nurse-junior-a', 'seed-group-hospital', 'hospital-nurse-junior-a@local.test', '若手看護師A', '看護師。日勤中心。ベテランまたは中堅と組ませる。', 'member', 'active', 1),
+  ('seed-hospital-nurse-junior-b', 'seed-group-hospital', 'hospital-nurse-junior-b@local.test', '若手看護師B', '看護師。平日日勤中心。単独の夜勤配置は避ける。', 'member', 'active', 1),
+  ('seed-hospital-nurse-night', 'seed-group-hospital', 'hospital-nurse-night@local.test', '夜勤看護師', '看護師。夜勤対応。休日夜間の固定候補。', 'member', 'active', 1),
+  ('seed-hospital-reception-a', 'seed-group-hospital', 'hospital-reception-a@local.test', '受付A', '受付。平日日勤のみ。夜間・休日夜間は配置しない。', 'member', 'active', 1),
+  ('seed-hospital-reception-b', 'seed-group-hospital', 'hospital-reception-b@local.test', '受付B', '受付。平日日勤のみ。受付Aの交代要員。', 'member', 'active', 1),
+  ('seed-hospital-aide-a', 'seed-group-hospital', 'hospital-aide-a@local.test', '看護助手A', '看護助手。補助業務。医師・看護師の必要人数には含めない。', 'member', 'active', 1),
+  ('seed-hospital-aide-b', 'seed-group-hospital', 'hospital-aide-b@local.test', '看護助手B', '看護助手。補助業務。医療資格者枠には含めない。', 'member', 'active', 1);
+
+INSERT INTO group_preferences (id, group_id, user_email, min_days, max_days, min_hours, max_hours, weekend_policy, free_comment) VALUES
+  ('seed-hospital-pref-director', 'seed-group-hospital', 'hospital-director@local.test', 4, 5, 32, 40, 'any', '全体確認。医師・看護師・受付の不足を優先して確認。'),
+  ('seed-hospital-pref-senior-doctor', 'seed-group-hospital', 'hospital-doctor-senior@local.test', 3, 5, 24, 40, 'any', '研修医と同じ勤務帯を優先。'),
+  ('seed-hospital-pref-resident', 'seed-group-hospital', 'hospital-resident@local.test', 3, 4, 24, 32, 'any', '単独勤務不可。指導医との組み合わせが必要。'),
+  ('seed-hospital-pref-nurse-senior', 'seed-group-hospital', 'hospital-nurse-senior@local.test', 3, 5, 24, 40, 'any', '夜勤対応可。夜間は資格者を最低1名配置。'),
+  ('seed-hospital-pref-reception-a', 'seed-group-hospital', 'hospital-reception-a@local.test', 3, 5, 24, 40, 'prefer_off', '平日日勤のみ。'),
+  ('seed-hospital-pref-aide-a', 'seed-group-hospital', 'hospital-aide-a@local.test', 2, 4, 16, 32, 'any', '看護助手。補助枠として配置。');
+
+INSERT INTO shift_plans (id, group_id, name, start_date, end_date, opening_time, closing_time, slot_minutes, default_required_count, notes, status, created_by) VALUES
+  ('seed-hospital-plan-august', 'seed-group-hospital', '8月第1週 病棟シフト', '2026-08-03', '2026-08-09', '08:30', '30:00', 60, 1, '平日日勤を厚め、休日夜間を薄めにする。研修医単独不可。夜勤はベテラン看護師または中堅以上を1名以上配置。受付は平日日勤のみ。', 'published', 'hospital-director@local.test');
+
+WITH RECURSIVE dates(date) AS (
+  SELECT '2026-08-03' UNION ALL SELECT date(date, '+1 day') FROM dates WHERE date < '2026-08-09'
+), slot_defs(start_time, end_time, role) AS (
+  VALUES ('08:30', '17:30', '医師'), ('08:30', '17:30', '看護師'), ('08:30', '17:30', '受付'),
+         ('21:00', '30:00', '医師'), ('21:00', '30:00', '看護師')
+)
+INSERT INTO shift_slots (id, plan_id, date, start_time, end_time, required_count, role)
+SELECT 'slot-hospital-' || lower(hex(randomblob(8))), 'seed-hospital-plan-august', dates.date, slot_defs.start_time, slot_defs.end_time,
+  CASE
+    WHEN slot_defs.start_time = '08:30' AND slot_defs.role = '医師' AND strftime('%w', dates.date) BETWEEN '1' AND '5' THEN 2
+    WHEN slot_defs.start_time = '08:30' AND slot_defs.role = '看護師' AND strftime('%w', dates.date) BETWEEN '1' AND '5' THEN 3
+    WHEN slot_defs.start_time = '08:30' AND slot_defs.role = '看護師' THEN 2
+    WHEN slot_defs.start_time = '08:30' AND slot_defs.role = '受付' THEN 1
+    WHEN slot_defs.start_time = '21:00' AND slot_defs.role = '医師' THEN 1
+    ELSE 2
+  END,
+  slot_defs.role
+FROM dates JOIN slot_defs ON 1 = 1
+WHERE slot_defs.start_time = '21:00'
+   OR (slot_defs.start_time = '08:30' AND slot_defs.role <> '受付')
+   OR (slot_defs.start_time = '08:30' AND slot_defs.role = '受付' AND strftime('%w', dates.date) BETWEEN '1' AND '5');
+
+WITH assignees(date, start_time, role, user_email) AS (VALUES
+  ('2026-08-03', '08:30', '医師', 'hospital-doctor-senior@local.test'),
+  ('2026-08-03', '08:30', '医師', 'hospital-resident@local.test'),
+  ('2026-08-03', '08:30', '看護師', 'hospital-nurse-chief@local.test'),
+  ('2026-08-03', '08:30', '看護師', 'hospital-nurse-senior@local.test'),
+  ('2026-08-03', '08:30', '看護師', 'hospital-nurse-junior-a@local.test'),
+  ('2026-08-03', '08:30', '受付', 'hospital-reception-a@local.test'),
+  ('2026-08-08', '08:30', '医師', 'hospital-doctor-senior@local.test'),
+  ('2026-08-08', '08:30', '看護師', 'hospital-nurse-mid@local.test'),
+  ('2026-08-08', '08:30', '看護師', 'hospital-nurse-junior-b@local.test'),
+  ('2026-08-08', '21:00', '医師', 'hospital-doctor-senior@local.test'),
+  ('2026-08-08', '21:00', '看護師', 'hospital-nurse-senior@local.test'),
+  ('2026-08-08', '21:00', '看護師', 'hospital-nurse-night@local.test'),
+  ('2026-08-09', '21:00', '医師', 'hospital-doctor-senior@local.test'),
+  ('2026-08-09', '21:00', '看護師', 'hospital-nurse-night@local.test'))
+INSERT INTO shift_assignments (id, slot_id, user_email)
+SELECT lower(hex(randomblob(16))), slots.id, assignees.user_email
+FROM shift_slots slots JOIN assignees
+  ON assignees.date = slots.date AND assignees.start_time = slots.start_time AND assignees.role = slots.role
+WHERE slots.plan_id = 'seed-hospital-plan-august';
+
+INSERT INTO work_records (id, group_id, plan_id, slot_id, user_email, scheduled_date, scheduled_start_time, scheduled_end_time, started_at, ended_at, claimed_start_at, claimed_end_at, claimed_break_minutes, status, employee_note, manager_note, approved_by, approved_at)
+SELECT 'wr-hospital-' || lower(hex(randomblob(8))), 'seed-group-hospital', slots.plan_id, slots.id, assignments.user_email, slots.date, slots.start_time, slots.end_time,
+  slots.date || 'T' || slots.start_time || ':00+09:00',
+  CASE WHEN slots.end_time = '30:00' THEN date(slots.date, '+1 day') || 'T06:00:00+09:00' ELSE slots.date || 'T' || slots.end_time || ':00+09:00' END,
+  slots.date || 'T' || slots.start_time || ':05:00+09:00',
+  CASE WHEN slots.end_time = '30:00' THEN date(slots.date, '+1 day') || 'T06:05:00+09:00' ELSE slots.date || 'T' || slots.end_time || ':05:00+09:00' END,
+  CASE WHEN assignments.user_email = 'hospital-nurse-night@local.test' THEN 60 ELSE 45 END,
+  CASE WHEN assignments.user_email = 'hospital-resident@local.test' THEN 'submitted'
+       WHEN assignments.user_email = 'hospital-nurse-night@local.test' AND slots.date = '2026-08-09' THEN 'rejected'
+       ELSE 'approved' END,
+  CASE WHEN assignments.user_email = 'hospital-resident@local.test' THEN '研修医。ベテラン医師と同じ勤務帯で勤務。' ELSE '' END,
+  CASE WHEN assignments.user_email = 'hospital-nurse-night@local.test' AND slots.date = '2026-08-09' THEN '休日夜間の休憩時間を確認してください。' ELSE '' END,
+  CASE WHEN assignments.user_email = 'hospital-resident@local.test' THEN NULL ELSE 'hospital-director@local.test' END,
+  CASE WHEN assignments.user_email = 'hospital-resident@local.test' THEN NULL ELSE '2026-08-10T09:00:00.000Z' END
+FROM shift_slots slots JOIN shift_assignments assignments ON assignments.slot_id = slots.id
+WHERE slots.plan_id = 'seed-hospital-plan-august';
+
+INSERT INTO shift_request_periods (id, group_id, plan_id, name, opens_on, closes_on, status, created_by) VALUES
+  ('seed-hospital-request-august', 'seed-group-hospital', 'seed-hospital-plan-august', '8月第2週勤務希望', '2026-07-25', '2026-07-30', 'closed', 'hospital-director@local.test');
+INSERT INTO group_announcements (id, group_id, created_by, title, body) VALUES
+  ('seed-hospital-announcement-01', 'seed-group-hospital', 'hospital-director@local.test', '休日夜間の体制について', '休日夜間は受付なし。緊急時は看護師が初期対応し、必要に応じて医師へ連絡してください。研修医単独の配置は行いません。');
 
 INSERT INTO audit_logs (id, group_id, user_email, action, entity_type, entity_id, summary, details, created_at) VALUES
   ('seed-audit-01', 'seed-group-store', 'tanaka@local.test', 'shift.publish', 'shiftPlan', 'seed-plan-second-half', '7月後半シフトを公開', '{"status":"published"}', '2026-07-16T08:00:00.000Z'),
