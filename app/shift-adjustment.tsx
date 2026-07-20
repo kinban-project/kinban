@@ -60,6 +60,12 @@ type Preference = {
   minHours: number;
   maxHours: number;
 };
+type AssignmentIssue = {
+  id: string;
+  kind: "shortage" | "excess" | "overlap";
+  slotIds: string[];
+  message: string;
+};
 
 function hours(start: string, end: string) {
   return Math.max(
@@ -107,6 +113,7 @@ export default function ShiftAdjustment({
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [showAllWarnings, setShowAllWarnings] = useState(false);
+  const [warningFilter, setWarningFilter] = useState<"all" | "warnings">("all");
   const [viewMode, setViewMode] = useState<"preview" | "list" | "calendar">("preview");
   const selectedGroupName = groups.find((group) => group.id === groupId)?.name;
   async function loadGroups() {
@@ -168,48 +175,69 @@ export default function ShiftAdjustment({
       ].sort((a, b) => a.startTime.localeCompare(b.startTime)),
     [detail],
   );
-  const dates = useMemo(
-    () => [...new Set((detail?.slots ?? []).map((slot) => slot.date))].sort(),
-    [detail],
-  );
-  const assignmentWarnings = useMemo(() => {
+  const assignmentIssues = useMemo<AssignmentIssue[]>(() => {
     if (!detail) return [];
-    const warnings: string[] = [];
+    const issues = new Map<string, AssignmentIssue>();
     for (const slot of detail.slots) {
-      const count = new Set(assignments[slot.id] ?? []).size;
-      if (count < slot.requiredCount)
-        warnings.push(
-          `${slot.date} ${slot.startTime}：必要人数${slot.requiredCount}人に対して${count}人です`,
-        );
-      if (count > slot.requiredCount)
-        warnings.push(
-          `${slot.date} ${slot.startTime}：必要人数を${count - slot.requiredCount}人超えています`,
-        );
+      const assignedCount = new Set(assignments[slot.id] ?? []).size;
+      if (assignedCount < slot.requiredCount) {
+        issues.set(`shortage:${slot.id}`, {
+          id: `shortage:${slot.id}`,
+          kind: "shortage",
+          slotIds: [slot.id],
+          message: `${slot.date} ${displayShiftTime(slot.startTime)} ${slot.role || "共通"}：必要人数${slot.requiredCount}人に対して${assignedCount}人です`,
+        });
+      }
+      if (assignedCount > slot.requiredCount) {
+        issues.set(`excess:${slot.id}`, {
+          id: `excess:${slot.id}`,
+          kind: "excess",
+          slotIds: [slot.id],
+          message: `${slot.date} ${displayShiftTime(slot.startTime)} ${slot.role || "共通"}：${assignedCount - slot.requiredCount}人超過しています`,
+        });
+      }
     }
     const assignedSlots = detail.slots.flatMap((slot) =>
-      [...new Set(assignments[slot.id] ?? [])].map((userEmail) => ({
-        slot,
-        userEmail,
-      })),
+      [...new Set(assignments[slot.id] ?? [])].map((userEmail) => ({ slot, userEmail })),
     );
-    for (let index = 0; index < assignedSlots.length; index += 1)
-      for (
-        let nextIndex = index + 1;
-        nextIndex < assignedSlots.length;
-        nextIndex += 1
-      ) {
+    for (let index = 0; index < assignedSlots.length; index += 1) {
+      for (let nextIndex = index + 1; nextIndex < assignedSlots.length; nextIndex += 1) {
         const left = assignedSlots[index];
         const right = assignedSlots[nextIndex];
-        if (
-          left.userEmail === right.userEmail &&
-          overlaps(left.slot, right.slot)
-        )
-          warnings.push(
-            `${left.slot.date} ${left.userEmail}：${left.slot.role || "共通"}と${right.slot.role || "共通"}の時間帯が重複しています`,
-          );
+        if (left.userEmail !== right.userEmail || !overlaps(left.slot, right.slot)) continue;
+        const [firstId, secondId] = [left.slot.id, right.slot.id].sort();
+        const member = detail.members.find((row) => row.userEmail === left.userEmail);
+        const memberName = member?.displayName || left.userEmail.split("@")[0];
+        issues.set(`overlap:${left.userEmail}:${firstId}:${secondId}`, {
+          id: `overlap:${left.userEmail}:${firstId}:${secondId}`,
+          kind: "overlap",
+          slotIds: [left.slot.id, right.slot.id],
+          message: `${left.slot.date} ${memberName}：${left.slot.role || "共通"}と${right.slot.role || "共通"}の時間帯が重複しています`,
+        });
       }
-    return [...new Set(warnings)];
+    }
+    return [...issues.values()];
   }, [detail, assignments]);
+  const warningSlotIds = useMemo(
+    () => new Set(assignmentIssues.flatMap((issue) => issue.slotIds)),
+    [assignmentIssues],
+  );
+  const visibleSlots = useMemo(
+    () => (warningFilter === "warnings" ? (detail?.slots ?? []).filter((slot) => warningSlotIds.has(slot.id)) : (detail?.slots ?? [])),
+    [detail, warningFilter, warningSlotIds],
+  );
+  const dates = useMemo(
+    () => [...new Set(visibleSlots.map((slot) => slot.date))].sort(),
+    [visibleSlots],
+  );
+  const warningSummary = useMemo(
+    () => ({
+      shortage: assignmentIssues.filter((issue) => issue.kind === "shortage").length,
+      excess: assignmentIssues.filter((issue) => issue.kind === "excess").length,
+      overlap: assignmentIssues.filter((issue) => issue.kind === "overlap").length,
+    }),
+    [assignmentIssues],
+  );
   const memberSummary = useMemo(() => {
     if (!detail) return [];
     return detail.members.map((member) => {
@@ -298,8 +326,13 @@ export default function ShiftAdjustment({
   }
   function renderSlot(slot: Slot) {
     const assignedCount = new Set(assignments[slot.id] ?? []).size;
+    const isShortage = assignedCount < slot.requiredCount;
+    const isExcess = assignedCount > slot.requiredCount;
+    const hasOverlap = assignmentIssues.some(
+      (issue) => issue.kind === "overlap" && issue.slotIds.includes(slot.id),
+    );
     return (
-      <div className={`assignment-calendar-slot ${assignedCount < slot.requiredCount ? "is-shortage" : ""}`} key={slot.id}>
+      <div className={`assignment-calendar-slot ${isShortage ? "is-shortage" : ""} ${isExcess ? "is-excess" : ""} ${hasOverlap ? "has-overlap" : ""}`} key={slot.id}>
         <strong>
           {slot.role || "共通"}
           <small>{assignedCount}/{slot.requiredCount}人</small>
@@ -315,8 +348,8 @@ export default function ShiftAdjustment({
     const nextStatus = detail.plan.status === "published" ? "published" : status;
     const publishedUpdate = detail.plan.status === "published";
     const reason = publishedUpdate ? window.prompt("公開済みシフトの変更理由（任意）") ?? "" : "";
-    const warningText = assignmentWarnings.length
-      ? `\n\n未解消の警告が${assignmentWarnings.length}件あります。`
+    const warningText = assignmentIssues.length
+      ? `\n\n未解消の警告が${assignmentIssues.length}件あります。`
       : "";
     if (
       nextStatus === "published" &&
@@ -343,8 +376,8 @@ export default function ShiftAdjustment({
     if (response.ok) await openPlan(detail.plan.id);
   }
   const renderedWarnings = showAllWarnings
-    ? assignmentWarnings
-    : assignmentWarnings.slice(0, 5);
+    ? assignmentIssues
+    : assignmentIssues.slice(0, 5);
   return (
     <section className="shift-adjustment-card">
       <div className="shift-builder-head">
@@ -424,17 +457,24 @@ export default function ShiftAdjustment({
               <i className="pref-unavailable">勤務不可</i>
             </span>
           </div>
-          {assignmentWarnings.length > 0 && (
+          <div className="assignment-warning-filter" aria-label="割り当て警告の表示">
+            <div className="assignment-warning-filter-buttons">
+              <button type="button" className={warningFilter === "all" ? "active" : ""} onClick={() => setWarningFilter("all")}>すべて {detail.slots.length}枠</button>
+              <button type="button" className={warningFilter === "warnings" ? "active" : ""} onClick={() => setWarningFilter("warnings")}>警告あり {assignmentIssues.length}件</button>
+            </div>
+            <span>未充足 {warningSummary.shortage}・過剰配置 {warningSummary.excess}・時間重複 {warningSummary.overlap}</span>
+          </div>
+          {assignmentIssues.length > 0 && (
             <div className="assignment-warnings" role="alert">
               <strong>
-                割り当てを確認してください（{assignmentWarnings.length}件）
+                割り当てを確認してください（{assignmentIssues.length}件）
               </strong>
               <ul>
                 {renderedWarnings.map((warning) => (
-                  <li key={warning}>{warning}</li>
+                  <li key={warning.id}>{warning.message}</li>
                 ))}
               </ul>
-              {assignmentWarnings.length > 5 && (
+              {assignmentIssues.length > 5 && (
                 <button
                   type="button"
                   className="warning-toggle"
@@ -442,19 +482,23 @@ export default function ShiftAdjustment({
                 >
                   {showAllWarnings
                     ? "一部を隠す"
-                    : `すべて表示（残り${assignmentWarnings.length - 5}件）`}
+                    : `すべて表示（残り${assignmentIssues.length - 5}件）`}
                 </button>
               )}
             </div>
           )}
+          {warningFilter === "warnings" && visibleSlots.length === 0 ? (
+            <p className="assignment-warning-empty">割り当て警告はありません。</p>
+          ) : <>
           {viewMode === "preview" && (
             <div className="assignment-preview-wrap">
               <table className="assignment-preview-table">
                 <thead><tr><th>日付</th>{timeColumns.map((time) => <th key={`${time.startTime}|${time.endTime}`}>{displayShiftTime(time.startTime)}<small>{displayShiftTime(time.endTime)}</small></th>)}</tr></thead>
-                <tbody>{dates.map((date) => <tr key={date}><th>{date}</th>{timeColumns.map((time) => <td key={`${date}|${time.startTime}|${time.endTime}`}>{detail.slots.filter((slot) => slot.date === date && slot.startTime === time.startTime && slot.endTime === time.endTime).map((slot) => {
+                <tbody>{dates.map((date) => <tr key={date}><th>{date}</th>{timeColumns.map((time) => <td key={`${date}|${time.startTime}|${time.endTime}`}>{visibleSlots.filter((slot) => slot.date === date && slot.startTime === time.startTime && slot.endTime === time.endTime).map((slot) => {
                   const names = [...new Set(assignments[slot.id] ?? [])].map((email) => detail.members.find((member) => member.userEmail === email)?.displayName || email.split("@")[0]);
                   const assignedCount = names.length;
-                  return <div className={`assignment-preview-slot ${assignedCount < slot.requiredCount ? "is-shortage" : ""} ${assignedCount > slot.requiredCount ? "is-excess" : ""}`} key={slot.id}><div><strong>{slot.role || "共通"}</strong><span>{assignedCount}/{slot.requiredCount}人</span></div><p>{names.length ? names.join("、") : "未割当"}</p></div>;
+                  const hasOverlap = assignmentIssues.some((issue) => issue.kind === "overlap" && issue.slotIds.includes(slot.id));
+                  return <div className={`assignment-preview-slot ${assignedCount < slot.requiredCount ? "is-shortage" : ""} ${assignedCount > slot.requiredCount ? "is-excess" : ""} ${hasOverlap ? "has-overlap" : ""}`} key={slot.id}><div><strong>{slot.role || "共通"}</strong><span>{assignedCount}/{slot.requiredCount}人</span></div><p>{names.length ? names.join("、") : "未割当"}</p></div>;
                 })}</td>)}</tr>)}</tbody>
               </table>
             </div>
@@ -472,17 +516,18 @@ export default function ShiftAdjustment({
                   </tr>
                 </thead>
                 <tbody>
-                  {detail.slots.map((slot) => {
+                  {visibleSlots.map((slot) => {
                     const assignedCount = new Set(assignments[slot.id] ?? []).size;
-                    return <tr className={assignedCount < slot.requiredCount ? "assignment-row-shortage" : ""} key={slot.id}>
+                    const hasOverlap = assignmentIssues.some((issue) => issue.kind === "overlap" && issue.slotIds.includes(slot.id));
+                    return <tr className={`${assignedCount < slot.requiredCount ? "assignment-row-shortage" : ""} ${assignedCount > slot.requiredCount ? "assignment-row-excess" : ""} ${hasOverlap ? "assignment-row-overlap" : ""}`} key={slot.id}>
                       <td>{slot.date}</td>
                       <td>
                         {displayShiftTime(slot.startTime)}〜
                         {displayShiftTime(slot.endTime)}
                       </td>
                       <td>{slot.role || "共通"}</td>
-                      <td><span className={assignedCount < slot.requiredCount ? "assignment-count shortage" : "assignment-count"}>{assignedCount}/{slot.requiredCount}人</span></td>
-                      <td className={assignedCount < slot.requiredCount ? "assignment-members-cell shortage" : "assignment-members-cell"}>
+                      <td><span className={assignedCount < slot.requiredCount ? "assignment-count shortage" : assignedCount > slot.requiredCount ? "assignment-count excess" : "assignment-count"}>{assignedCount}/{slot.requiredCount}人</span></td>
+                      <td className={`${assignedCount < slot.requiredCount ? "assignment-members-cell shortage" : "assignment-members-cell"} ${hasOverlap ? "overlap" : ""}`}>
                         <div className="assignment-members">
                           {detail.members.map((member) =>
                             renderMember(slot, member),
@@ -514,7 +559,7 @@ export default function ShiftAdjustment({
                       <th>{date}</th>
                       {timeColumns.map((time) => (
                         <td key={`${date}|${time.startTime}|${time.endTime}`}>
-                          {detail.slots
+                          {visibleSlots
                             .filter(
                               (slot) =>
                                 slot.date === date &&
@@ -529,7 +574,7 @@ export default function ShiftAdjustment({
                 </tbody>
               </table>
             </div>
-          ) : null}
+          ) : null}</>}
           <div className="member-summary">
             <h3>勤務状況サマリ</h3>
             {memberSummary.map((row) => (
