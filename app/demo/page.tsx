@@ -67,8 +67,9 @@ export default function DemoPage() {
           業種ごとのサンプルシナリオとユーザーを選んで、シフト作成・勤務希望・勤務申告などの画面を確認できます。
         </p>
         <div className="demo-disclaimer">
-          <strong>デモ用のサンプルデータです</strong>
-          <span>表示名を選ぶと、そのユーザーとしてホーム画面を開きます。</span>
+          <strong>体験版のサンプルデータです</strong>
+          <span>表示名を選ぶと、そのユーザーとしてホーム画面を開けます。ユーザーは自由に切り替えできます。</span>
+          <span>データは予告なくリセットされる場合があります。重要な情報は登録しないでください。</span>
         </div>
       </section>
       <DemoClockPanel />

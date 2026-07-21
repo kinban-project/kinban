@@ -414,26 +414,9 @@ export default function Home() {
           <span className="brand-pill">シフト、勤怠管理をひとつに。</span>
         </button>
         <div className="top-actions">
-          <details className="demo-notice">
-            <summary>⚠ デモ用</summary>
-            <div>
-              <strong>デモ用サイトです</strong>
-              <p>
-                予告なく終了する可能性があります。登録した情報が漏洩する可能性もあります。
-              </p>
-              <p>重要な情報は登録しないでください。</p>
-            </div>
-          </details>
           <a className="ghost-button" href="/demo">
-            デモを試す
+            体験版（ユーザー切替）
           </a>
-          <span className="sync-label">
-            {process.env.NEXT_PUBLIC_LOCAL_MODE === "true"
-              ? "ローカル開発モード"
-              : userEmail
-                ? "ChatGPTでログイン中"
-                : "サンプル表示中"}
-          </span>
           {userEmail ? (
             <button
               className="ghost-button"
