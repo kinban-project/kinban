@@ -1,5 +1,7 @@
 "use client";
 
+import DemoClockPanel from "./demo-clock-panel";
+
 const scenarios = [
   {
     id: "store",
@@ -69,6 +71,7 @@ export default function DemoPage() {
           <span>表示名を選ぶと、そのユーザーとしてホーム画面を開きます。</span>
         </div>
       </section>
+      <DemoClockPanel />
       <div className="demo-scenario-list">
         {scenarios.map((scenario) => (
           <section className="demo-scenario" key={scenario.id}>

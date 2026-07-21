@@ -138,6 +138,8 @@ function emptyForm(date: string): FormState {
 }
 
 export default function Home() {
+  const [todayDate, setTodayDate] = useState(today);
+  const [todayKeyState, setTodayKeyState] = useState(todayKey);
   const [cursor, setCursor] = useState(
     new Date(today.getFullYear(), today.getMonth(), 1),
   );
@@ -235,6 +237,19 @@ export default function Home() {
     }
     setEvents(data.events);
     const memberships = data.groups ?? [];
+    if (memberships.some((group) => group.groupId.startsWith("seed-group-"))) {
+      const clockResponse = await fetch("/api/demo-clock", { cache: "no-store" });
+      if (clockResponse.ok) {
+        const clock = (await clockResponse.json()) as { currentAt?: string };
+        if (clock.currentAt) {
+          const nextToday = new Date(clock.currentAt);
+          setTodayDate(nextToday);
+          setTodayKeyState(keyForDate(nextToday));
+          setSelectedDate(keyForDate(nextToday));
+          setCursor(new Date(nextToday.getFullYear(), nextToday.getMonth(), 1));
+        }
+      }
+    }
     const withUnread = await Promise.all(
       memberships.map(async (group) => {
         const announcementResponse = await localApiFetch(
@@ -277,8 +292,8 @@ export default function Home() {
     setCursor(new Date(current.getFullYear(), current.getMonth(), 1));
   }
   function showTodayAgenda() {
-    setSelectedDate(todayKey);
-    setCursor(new Date(today.getFullYear(), today.getMonth(), 1));
+    setSelectedDate(todayKeyState);
+    setCursor(new Date(todayDate.getFullYear(), todayDate.getMonth(), 1));
   }
   function openEdit(event: EventItem) {
     setDetailEvent(null);
@@ -515,7 +530,7 @@ export default function Home() {
             <div className="month-actions">
               <button
                 onClick={() =>
-                  setCursor(new Date(today.getFullYear(), today.getMonth(), 1))
+                  setCursor(new Date(todayDate.getFullYear(), todayDate.getMonth(), 1))
                 }
               >
                 今日
@@ -553,7 +568,7 @@ export default function Home() {
                 .sort(compareEvents);
               return (
                 <button
-                  className={`day-cell ${day.getMonth() !== cursor.getMonth() ? "muted" : ""} ${key === selectedDate ? "selected" : ""} ${key === todayKey ? "today" : ""}`}
+                  className={`day-cell ${day.getMonth() !== cursor.getMonth() ? "muted" : ""} ${key === selectedDate ? "selected" : ""} ${key === todayKeyState ? "today" : ""}`}
                   key={key}
                   onClick={() => openDayAgenda(key)}
                 >

@@ -120,7 +120,7 @@ export const assistantMessages = sqliteTable("assistant_messages", {
   id: text("id").primaryKey(),
   groupId: text("group_id").notNull(),
   memberEmail: text("member_email").notNull(),
-  senderType: text("sender_type", { enum: ["member", "assistant", "system"] })
+  senderType: text("sender_type", { enum: ["member", "manager", "assistant", "system"] })
     .notNull()
     .default("member"),
   senderEmail: text("sender_email"),
@@ -182,6 +182,14 @@ export const assistantContexts = sqliteTable("assistant_contexts", {
   issuedBy: text("issued_by").notNull(),
   expiresAt: text("expires_at").notNull(),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const demoClocks = sqliteTable("demo_clocks", {
+  scope: text("scope").primaryKey(),
+  currentAt: text("current_at").notNull(),
+  updatedAt: text("updated_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
 });
 
 export const assistantReadStates = sqliteTable("assistant_read_states", {

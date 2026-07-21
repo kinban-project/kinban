@@ -16,6 +16,7 @@ import {
   workRecords,
 } from "../../../../../db/schema";
 import { getMembership } from "../../group-access";
+import { getDemoNow, jstDate } from "../../../../demo-clock";
 
 export const dynamic = "force-dynamic";
 
@@ -25,10 +26,6 @@ const chunk = <T>(items: T[], size: number) =>
   Array.from({ length: Math.ceil(items.length / size) }, (_, index) =>
     items.slice(index * size, (index + 1) * size),
   );
-
-function todayJst() {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(new Date());
-}
 
 function monthKey(date: string) {
   return date.slice(0, 7);
@@ -52,7 +49,7 @@ export async function GET(_request: Request, context: Context) {
   const [group] = await db.select().from(groups).where(eq(groups.id, groupId)).limit(1);
   if (!group) return Response.json({ error: "グループが見つかりません" }, { status: 404 });
 
-  const today = todayJst();
+  const today = jstDate(await getDemoNow(groupId));
   const currentMonth = monthKey(today);
   const previousMonthKey = previousMonth(currentMonth);
   const [members, plans, periods, announcements, reads] = await Promise.all([

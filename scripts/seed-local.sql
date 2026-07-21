@@ -32,6 +32,10 @@ DELETE FROM group_members;
 DELETE FROM groups;
 DELETE FROM account_profiles;
 DELETE FROM api_tokens;
+DELETE FROM demo_clocks;
+
+INSERT INTO demo_clocks (scope, current_at) VALUES
+  ('public-demo', '2026-07-21T09:00:00+09:00');
 
 INSERT INTO account_profiles (user_email, nickname) VALUES
   ('tanaka@local.test', '店長'),

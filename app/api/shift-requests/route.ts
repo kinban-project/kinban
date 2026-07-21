@@ -6,6 +6,7 @@ import { getMembership } from "../groups/group-access";
 import { recordAudit } from "../../audit-log";
 import { shiftRequestDeadlinePassed } from "../../shift-request-deadline";
 import { isPreferenceStatus, preferenceStatuses } from "../../preference-status";
+import { getDemoNow } from "../../demo-clock";
 
 export const dynamic = "force-dynamic";
 const editable = (role: string) => role === "owner" || role === "editor";
@@ -20,9 +21,10 @@ export async function GET(request: Request) {
   const membership = await getMembership(groupId, user.email);
   if (!membership) return Response.json({ error: "グループのメンバーではありません" }, { status: 403 });
   const db = getDb();
+  const demoNow = await getDemoNow(groupId);
   const [group] = await db.select().from(groups).where(eq(groups.id, groupId)).limit(1);
   const allPeriods = await db.select().from(shiftRequestPeriods).where(eq(shiftRequestPeriods.groupId, groupId));
-  const periods = editable(membership.role) ? allPeriods : allPeriods.filter((item) => item.status === "open" && !shiftRequestDeadlinePassed(item.closesOn));
+  const periods = editable(membership.role) ? allPeriods : allPeriods.filter((item) => item.status === "open" && !shiftRequestDeadlinePassed(item.closesOn, demoNow));
   const plans = await db.select().from(shiftPlans).where(eq(shiftPlans.groupId, groupId));
   const members = await db.select().from(groupMembers).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.status, "active")));
   const availability = await db.select().from(shiftAvailability).where(and(eq(shiftAvailability.groupId, groupId), editable(membership.role) ? undefined : eq(shiftAvailability.userEmail, user.email)));
@@ -44,6 +46,7 @@ export async function POST(request: Request) {
   const membership = await getMembership(groupId, user.email);
   if (!membership) return Response.json({ error: "グループのメンバーではありません" }, { status: 403 });
   const db = getDb();
+  const demoNow = await getDemoNow(groupId);
 
   if (body.action === "save-base") {
     const entries = body.entries ?? [];
@@ -77,7 +80,7 @@ export async function POST(request: Request) {
     const [period] = await db.select().from(shiftRequestPeriods).where(and(eq(shiftRequestPeriods.id, body.periodId), eq(shiftRequestPeriods.groupId, groupId))).limit(1);
     if (!period) return Response.json({ error: "希望受付が見つかりません" }, { status: 404 });
     if (period.status !== "open") return Response.json({ error: "この受付期間は締め切られています" }, { status: 409 });
-    if (shiftRequestDeadlinePassed(period.closesOn)) {
+    if (shiftRequestDeadlinePassed(period.closesOn, demoNow)) {
       await db.update(shiftRequestPeriods).set({ status: "closed" }).where(eq(shiftRequestPeriods.id, period.id));
       return Response.json({ error: "シフト希望の締切日時を過ぎています。", status: "closed" }, { status: 409 });
     }
@@ -87,7 +90,7 @@ export async function POST(request: Request) {
     const invalidIndex = requests.findIndex((item) => !valid.has(`${item.date}|${item.startTime}|${item.endTime}`) || !preferences.has(item.preference));
     if (invalidIndex >= 0) return Response.json({ error: `requests[${invalidIndex}] does not match a shift slot or has an invalid preference status` }, { status: 400 });
     const rows = requests.map((item) => ({ id: crypto.randomUUID(), periodId: period.id, userEmail: user.email, date: item.date, startTime: item.startTime, endTime: item.endTime, preference: item.preference, note: item.note?.trim() ?? "" }));
-    const savedAt = new Date().toISOString();
+    const savedAt = demoNow.toISOString();
     const [submission] = await db.select().from(shiftRequestSubmissions).where(and(eq(shiftRequestSubmissions.periodId, period.id), eq(shiftRequestSubmissions.userEmail, user.email))).limit(1);
     const requestComment = body.requestComment?.trim().slice(0, 500) ?? "";
     const submissionStatement = submission

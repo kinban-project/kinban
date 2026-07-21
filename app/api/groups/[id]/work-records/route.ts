@@ -14,6 +14,7 @@ import { recordAudit } from "../../../../audit-log";
 import { attendanceExpired } from "../../../../attendance-expired";
 import { shiftDateTime } from "../../../../shift-time";
 import { sendBusinessPush } from "../../../../notification-events";
+import { getDemoNow, jstDate } from "../../../../demo-clock";
 
 export const dynamic = "force-dynamic";
 
@@ -26,12 +27,6 @@ const chunk = <T>(items: T[], size: number) =>
 
 function error(message: string, status: number) {
   return Response.json({ error: message }, { status });
-}
-
-function todayJst() {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(
-    new Date(),
-  );
 }
 
 function jstIso(date: string, time: string) {
@@ -74,6 +69,7 @@ export async function GET(request: Request, context: Context) {
   const current = await contextData(groupId, user.email);
   if ("error" in current) return current.error;
   const { db, group, membership } = current;
+  const demoNow = await getDemoNow(groupId);
   const manager = managerRoles.has(membership.role);
   const query = new URL(request.url).searchParams;
   const requestedUser = query.get("userEmail")?.trim() ?? "";
@@ -129,7 +125,7 @@ export async function GET(request: Request, context: Context) {
     attendanceExpired:
       record.status === "working" &&
       !record.endedAt &&
-      attendanceExpired(record.startedAt),
+      attendanceExpired(record.startedAt, demoNow),
   }));
   const recordIds = records.map((record) => record.id);
   const breaks = recordIds.length
@@ -195,6 +191,8 @@ export async function POST(request: Request, context: Context) {
   const current = await contextData(groupId, user.email);
   if ("error" in current) return current.error;
   const { db, membership } = current;
+  const demoNow = await getDemoNow(groupId);
+  const nowIso = demoNow.toISOString();
   const body = (await request.json().catch(() => ({}))) as {
     action?: string;
     recordId?: string;
@@ -258,7 +256,7 @@ export async function POST(request: Request, context: Context) {
       .limit(1);
     if (existing[0] && existing[0].status !== "rejected")
       return Response.json({ ok: true, record: existing[0] });
-    const now = new Date().toISOString();
+    const now = nowIso;
     const row = {
       id: crypto.randomUUID(),
       groupId,
@@ -312,7 +310,7 @@ export async function POST(request: Request, context: Context) {
       .limit(1);
     if (existing[0] && existing[0].status !== "rejected")
       return Response.json({ ok: true, record: existing[0] });
-    const now = new Date().toISOString();
+    const now = nowIso;
     const row = {
       id: crypto.randomUUID(),
       groupId,
@@ -342,7 +340,7 @@ export async function POST(request: Request, context: Context) {
   }
 
   if (body.action === "start") {
-    const now = new Date().toISOString();
+    const now = nowIso;
     const openRecords = await db
       .select()
       .from(workRecords)
@@ -355,7 +353,7 @@ export async function POST(request: Request, context: Context) {
         ),
       );
     const expiredIds = openRecords
-      .filter((record) => attendanceExpired(record.startedAt))
+      .filter((record) => attendanceExpired(record.startedAt, demoNow))
       .map((record) => record.id);
     if (expiredIds.length) {
       await db
@@ -363,7 +361,7 @@ export async function POST(request: Request, context: Context) {
         .set({ activeKey: null, updatedAt: now })
         .where(inArray(workRecords.id, expiredIds));
     }
-    if (openRecords.some((record) => !attendanceExpired(record.startedAt)))
+    if (openRecords.some((record) => !attendanceExpired(record.startedAt, demoNow)))
       return error(
         "勤務中の記録が残っています。先に勤務終了を記録してください。",
         409,
@@ -373,7 +371,7 @@ export async function POST(request: Request, context: Context) {
         "通常の勤務開始ではシフトを指定できません。勤務申告のシフト通り操作を利用してください。",
         400,
       );
-    const scheduledDate = todayJst();
+    const scheduledDate = jstDate(demoNow);
     const scheduledStartTime = "";
     const scheduledEndTime = "";
     const planId: string | null = null;
@@ -440,7 +438,7 @@ export async function POST(request: Request, context: Context) {
       const row = {
         id: crypto.randomUUID(),
         workRecordId: record.id,
-        startedAt: new Date().toISOString(),
+        startedAt: nowIso,
       };
       await db.insert(workBreaks).values(row);
       await recordAudit({
@@ -454,7 +452,7 @@ export async function POST(request: Request, context: Context) {
       return Response.json({ ok: true, break: row });
     }
     if (!openBreak) return error("No active break was found.", 409);
-    const endedAt = new Date().toISOString();
+    const endedAt = nowIso;
     await db
       .update(workBreaks)
       .set({ endedAt })
@@ -486,7 +484,7 @@ export async function POST(request: Request, context: Context) {
     if (!record) return error("Work record not found.", 404);
     if (record.endedAt)
       return error("This work record has already ended.", 409);
-    const endedAt = new Date().toISOString();
+    const endedAt = nowIso;
     await db
       .update(workRecords)
       .set({
@@ -595,7 +593,7 @@ export async function PATCH(request: Request, context: Context) {
         status: resetDailyApproval ? "unsubmitted" : record.status,
         approvedBy: resetDailyApproval ? null : record.approvedBy,
         approvedAt: resetDailyApproval ? null : record.approvedAt,
-        updatedAt: new Date().toISOString(),
+        updatedAt: nowIso,
       })
       .where(eq(workRecords.id, record.id));
     return Response.json({ ok: true, recordId: record.id });
@@ -625,7 +623,7 @@ export async function PATCH(request: Request, context: Context) {
       record.status === "submitted" ||
       record.status === "approved" ||
       record.status === "rejected";
-    const now = new Date().toISOString();
+    const now = nowIso;
     await current.db
       .update(workRecords)
       .set({
@@ -683,7 +681,7 @@ export async function PATCH(request: Request, context: Context) {
         { error: warnings.join(" "), warning: true },
         { status: 409 },
       );
-    const now = new Date().toISOString();
+    const now = nowIso;
     await current.db
       .update(workRecords)
       .set({ status: "submitted", updatedAt: now })
@@ -726,7 +724,7 @@ export async function PATCH(request: Request, context: Context) {
         "All records must be approved before closing the month.",
         409,
       );
-    const now = new Date().toISOString();
+    const now = nowIso;
     await current.db
       .update(workRecords)
       .set(
@@ -776,7 +774,7 @@ export async function PATCH(request: Request, context: Context) {
       "This month has been closed. Reopen it before changing records.",
       409,
     );
-  const now = new Date().toISOString();
+  const now = nowIso;
   await current.db
     .update(workRecords)
     .set({
