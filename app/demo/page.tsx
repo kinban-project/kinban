@@ -24,14 +24,7 @@ const scenarios = [
     users: [
       ["night-manager", "店長", "代表管理者"],
       ["night-staff-a", "スタッフA", "メンバー"],
-      ["night-staff-b", "スタッフB", "メンバー"],
-      ["night-staff-c", "スタッフC", "メンバー"],
       ["night-cast-a", "キャストA", "メンバー"],
-      ["night-cast-b", "キャストB", "メンバー"],
-      ["night-cast-c", "キャストC", "メンバー"],
-      ["night-cast-d", "キャストD", "メンバー"],
-      ["night-cast-e", "キャストE", "メンバー"],
-      ["night-cast-f", "キャストF", "メンバー"],
     ],
   },
   {
@@ -42,9 +35,7 @@ const scenarios = [
     users: [
       ["hospital-director", "院長", "代表管理者"],
       ["hospital-doctor-senior", "ベテラン医師", "メンバー"],
-      ["hospital-resident", "研修医", "メンバー"],
       ["hospital-nurse-chief", "看護師長", "メンバー"],
-      ["hospital-nurse-senior", "ベテラン看護師", "メンバー"],
       ["hospital-reception-a", "受付A", "メンバー"],
     ],
   },
