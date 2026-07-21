@@ -1,7 +1,7 @@
 import { eq, inArray } from "drizzle-orm";
 import { getChatGPTUser } from "../../../chatgpt-auth";
 import { getDb } from "../../../../db";
-import { assistantAnnouncementDrafts, assistantMessageExecutions, assistantMessages, events, groupAssistants, groupJoinRequests, groupMembers, groupPreferences, groups, shiftAvailability } from "../../../../db/schema";
+import { assistantAnnouncementDrafts, assistantMessageExecutions, assistantMessages, events, groupAssistants, groupJoinRequests, groupMembers, groupPreferences, groups, shiftAvailability, shiftSwapCandidates, shiftSwapRequests } from "../../../../db/schema";
 import { getGroup, getMembership } from "../group-access";
 import { recordAudit } from "../../../audit-log";
 import { canViewAdminNote, toPublicMember } from "../member-dto";
@@ -54,6 +54,8 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
     db.delete(events).where(eq(events.groupId, id)),
     db.delete(groupJoinRequests).where(eq(groupJoinRequests.groupId, id)),
     db.delete(assistantAnnouncementDrafts).where(eq(assistantAnnouncementDrafts.groupId, id)),
+    db.delete(shiftSwapCandidates).where(eq(shiftSwapCandidates.groupId, id)),
+    db.delete(shiftSwapRequests).where(eq(shiftSwapRequests.groupId, id)),
     db.delete(assistantMessageExecutions).where(eq(assistantMessageExecutions.groupId, id)),
     db.delete(assistantMessages).where(eq(assistantMessages.groupId, id)),
     db.delete(groupAssistants).where(eq(groupAssistants.groupId, id)),

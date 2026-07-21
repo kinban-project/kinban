@@ -8,6 +8,8 @@ import {
   groupAnnouncements,
   groupAssistants,
   groupMembers,
+  shiftSwapRequests,
+  shiftSwapCandidates,
 } from "../../../../../db/schema";
 import { recordAudit } from "../../../../audit-log";
 import { getMembership } from "../../group-access";
@@ -44,7 +46,7 @@ export async function GET(
       ? requestedMember
       : user.email;
   const db = getDb();
-  const [target, assistant, drafts] = await Promise.all([
+  const [target, assistant, drafts, swapRequests] = await Promise.all([
     db
       .select({ userEmail: groupMembers.userEmail })
       .from(groupMembers)
@@ -67,6 +69,13 @@ export async function GET(
           .from(assistantAnnouncementDrafts)
           .where(eq(assistantAnnouncementDrafts.groupId, id))
           .orderBy(asc(assistantAnnouncementDrafts.createdAt))
+      : Promise.resolve([]),
+    isManager(membership.role)
+      ? db
+          .select()
+          .from(shiftSwapRequests)
+          .where(eq(shiftSwapRequests.groupId, id))
+          .orderBy(asc(shiftSwapRequests.createdAt))
       : Promise.resolve([]),
   ]);
   if (!target[0])
@@ -98,11 +107,21 @@ export async function GET(
           and(eq(groupMembers.groupId, id), eq(groupMembers.status, "active")),
         )
     : [];
+  const swapCandidates = isManager(membership.role) && swapRequests.length
+    ? await db
+        .select()
+        .from(shiftSwapCandidates)
+        .where(inArray(shiftSwapCandidates.requestId, swapRequests.map((request) => request.id)))
+    : [];
   return Response.json({
     assistant: assistant[0] ?? null,
     messages,
     members,
     drafts,
+    swapRequests: swapRequests.map((request) => ({
+      ...request,
+      candidates: swapCandidates.filter((candidate) => candidate.requestId === request.id),
+    })),
     currentEmail: user.email,
     selectedMember: memberEmail,
     manager: isManager(membership.role),
@@ -146,7 +165,9 @@ export async function POST(
     id: messageId,
     groupId: id,
     memberEmail: user.email,
-    senderType: "member",
+    // 管理者からの画面メッセージは、MCPのキュー処理でも管理者指示として
+    // 扱えるように発信者のグループ権限を保存する。
+    senderType: isManager(membership.role) ? "manager" : "member",
     senderEmail: user.email,
     body: text,
     status: "pending",
@@ -320,6 +341,11 @@ export async function PATCH(
           claimId: null,
         })
         .where(eq(assistantMessages.id, draft.sourceMessageId));
+      if (draft.swapRequestId)
+        await db
+          .update(shiftSwapRequests)
+          .set({ status: "cancelled", managerNote, reviewedBy: user.email, updatedAt: now })
+          .where(and(eq(shiftSwapRequests.id, draft.swapRequestId), inArray(shiftSwapRequests.status, ["needs_review", "open", "candidate_review"])));
       await recordAudit({
         groupId: id,
         userEmail: user.email,
@@ -392,6 +418,19 @@ export async function PATCH(
           category: "shift_replacement",
         })
         .onConflictDoNothing(),
+      ...(draft.swapRequestId
+        ? [
+            db
+              .update(shiftSwapRequests)
+              .set({
+                status: "open",
+                announcementId,
+                reviewedBy: user.email,
+                updatedAt: now,
+              })
+              .where(eq(shiftSwapRequests.id, draft.swapRequestId)),
+          ]
+        : []),
       db
         .update(assistantMessages)
         .set({

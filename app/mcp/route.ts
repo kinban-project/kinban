@@ -29,6 +29,8 @@ import {
   groupPreferences,
   groups,
   shiftAssignments,
+  shiftSwapCandidates,
+  shiftSwapRequests,
   shiftAvailability,
   shiftPlans,
   shiftRequestPeriods,
@@ -41,7 +43,7 @@ import { canViewAdminNote, toPublicMember } from "../api/groups/member-dto";
 import { shiftRequestDeadlinePassed } from "../shift-request-deadline";
 import { isPreferenceStatus, preferenceStatuses } from "../preference-status";
 import { recordAudit } from "../audit-log";
-import { shiftDateTime } from "../shift-time";
+import { shiftDateTime, shiftTimeToMinutes } from "../shift-time";
 import {
   getMcpWorkRecords,
   mcpClock,
@@ -74,6 +76,7 @@ const assistantTools = new Set([
   "get_group_members",
   "list_shift_plans",
   "get_shift_plan",
+  "check_shift_assignments",
   "get_shift_request_overview",
   "get_work_records",
   "list_announcements",
@@ -86,6 +89,9 @@ const assistantTools = new Set([
   "defer_assistant_message",
   "complete_assistant_message",
   "create_shift_swap_announcement_draft",
+  "list_shift_swap_requests",
+  "respond_shift_swap_candidate",
+  "confirm_shift_swap",
   "create_shift_plan",
   "delete_draft_shift_plan",
   "update_slot_counts",
@@ -93,6 +99,7 @@ const assistantTools = new Set([
   "submit_work_record",
   "review_monthly_work",
   "create_announcement",
+  "delete_announcement",
   "send_member_message",
 ]);
 const chunk = <T>(items: T[], size: number) => {
@@ -118,8 +125,10 @@ function assistantGroupError(
 ) {
   if (identity instanceof Response || identity.tokenType !== "assistant")
     return null;
+  if (!groupId)
+    return "groupId is required. Use the exact groupId returned by list_groups.";
   if (identity.groupId !== groupId)
-    return "This assistant token is restricted to its issued group.";
+    return `Assistant key is restricted to groupId "${identity.groupId}"; received "${groupId}".`;
   return null;
 }
 
@@ -154,12 +163,15 @@ const assistantManagementTools = new Set([
   "delete_draft_shift_plan",
   "update_slot_counts",
   "set_shift_assignments",
+  "confirm_shift_swap",
   "submit_work_record",
   "review_monthly_work",
   "create_announcement",
+  "delete_announcement",
   "send_member_message",
 ]);
 const assistantExecutionLeaseMs = 60 * 1000;
+const assistantClaimLeaseMs = 10 * 60 * 1000;
 function assistantExecutionTarget(name: string, args: Args) {
   if (name === "create_shift_plan")
     return `${text(args.name)}|${text(args.startDate)}|${text(args.endDate)}`;
@@ -169,9 +181,36 @@ function assistantExecutionTarget(name: string, args: Args) {
     return `${text(args.recordId)}|${text(args.status)}`;
   if (name === "create_announcement")
     return `${text(args.title)}|${text(args.body)}`;
+  if (name === "delete_announcement") return text(args.announcementId);
   if (name === "send_member_message")
     return `${text(args.recipientEmail)}|${text(args.body)}`;
+  if (name === "confirm_shift_swap")
+    return `${text(args.requestId)}|${text(args.replacementEmail)}`;
   return text(args.planId);
+}
+async function renewAssistantClaim(
+  db: ReturnType<typeof getDb>,
+  groupId: string,
+  messageId: string,
+  activeClaimId: string,
+) {
+  const claimExpiresAt = new Date(
+    Date.now() + assistantClaimLeaseMs,
+  ).toISOString();
+  const [message] = await db
+    .update(assistantMessages)
+    .set({ claimExpiresAt })
+    .where(
+      and(
+        eq(assistantMessages.id, messageId),
+        eq(assistantMessages.groupId, groupId),
+        inArray(assistantMessages.senderType, ["member", "manager"]),
+        eq(assistantMessages.status, "processing"),
+        eq(assistantMessages.claimId, activeClaimId),
+      ),
+    )
+    .returning();
+  return message;
 }
 async function assistantPermissionError(
   db: ReturnType<typeof getDb>,
@@ -186,39 +225,36 @@ async function assistantPermissionError(
   const restricted = assistantGroupError(identity, groupId);
   if (restricted) return restricted;
   const messageId = text(sourceMessageId);
-  if (!messageId)
-    return "sourceMessageId from an active manager is required for this assistant operation.";
+  const [assistant] = await db
+    .select()
+    .from(groupAssistants)
+    .where(eq(groupAssistants.groupId, groupId))
+    .limit(1);
+  if (assistant?.status !== "active") return "KINBAN assistant is inactive.";
+  if (!assistant[permission])
+    return "This group has disabled the AI assistant permission for this operation.";
+
+  // A group-bound assistant key is issued only by an active manager. When the
+  // manager talks to the assistant directly, the key owner is the authority;
+  // member-originated queue messages still need the claim checks below.
+  if (!messageId) {
+    const issuer = await membership(db, groupId, identity.email);
+    if (!issuer || issuer.status !== "active" || !editorRoles.has(issuer.role))
+      return "Direct assistant operations require the assistant key owner to be an active manager.";
+    return null;
+  }
   const activeClaimId = text(claimId);
   if (!activeClaimId)
     return "claimId from the current message claim is required for this assistant operation.";
-  const now = new Date().toISOString();
-  const [assistant, source] = await Promise.all([
-    db
-      .select()
-      .from(groupAssistants)
-      .where(eq(groupAssistants.groupId, groupId))
-      .limit(1),
-    db
-      .select()
-      .from(assistantMessages)
-      .where(
-        and(
-          eq(assistantMessages.id, messageId),
-          eq(assistantMessages.groupId, groupId),
-          eq(assistantMessages.senderType, "member"),
-          eq(assistantMessages.status, "processing"),
-          eq(assistantMessages.claimId, activeClaimId),
-          gt(assistantMessages.claimExpiresAt, now),
-        ),
-      )
-      .limit(1),
-  ]);
-  if (assistant[0]?.status !== "active") return "KINBAN assistant is inactive.";
-  if (!assistant[0]?.[permission])
-    return "This group has disabled the AI assistant permission for this operation.";
-  if (!source[0])
+  const source = await renewAssistantClaim(
+    db,
+    groupId,
+    messageId,
+    activeClaimId,
+  );
+  if (!source)
     return "sourceMessageId must identify a currently claimed human manager message in this group.";
-  const sender = await membership(db, groupId, source[0].memberEmail);
+  const sender = await membership(db, groupId, source.memberEmail);
   if (!sender || sender.status !== "active" || !editorRoles.has(sender.role))
     return "The claimed message sender is not an active manager.";
   return null;
@@ -415,6 +451,16 @@ const tools = [
     },
   },
   {
+    name: "check_shift_assignments",
+    description:
+      "Validate a shift plan without saving. Reports shortages, excess staffing, duplicate overlapping assignments, inactive members, preference conflicts, and member day/hour range warnings.",
+    inputSchema: {
+      type: "object",
+      required: ["planId"],
+      properties: { planId: { type: "string" } },
+    },
+  },
+  {
     name: "get_audit_logs",
     description:
       "List audited group operations for an editor or owner. Supports action, userEmail, search, date range, and limit.",
@@ -435,7 +481,7 @@ const tools = [
   {
     name: "get_work_records",
     description:
-      "List work records and breaks for the authenticated member, or one member for a manager. Supports from, to, status, and userEmail filters.",
+      "List work records and breaks for the authenticated member, or all members for an active manager. For an assistant key, groupId must exactly match the groupId returned by list_groups and the key needs work:read scope. Supports from, to, status, and userEmail filters.",
     inputSchema: {
       type: "object",
       required: ["groupId"],
@@ -468,7 +514,7 @@ const tools = [
   {
     name: "submit_work_record",
     description:
-      "Submit one daily work record, or approve/reject it when called by a manager. Assistant approval/rejection requires sourceMessageId and claimId from the currently claimed manager instruction.",
+      "Submit one daily work record, or approve/reject it when called by a manager. Direct calls with an assistant key issued to an active manager may omit sourceMessageId and claimId; member-message processing must provide the current claim.",
     inputSchema: {
       type: "object",
       required: ["groupId", "recordId", "status"],
@@ -498,7 +544,7 @@ const tools = [
   {
     name: "review_monthly_work",
     description:
-      "Approve, reject, or reopen a member's monthly work claim. Assistant calls require sourceMessageId and claimId from the currently claimed manager instruction.",
+      "Approve, reject, or reopen a member's monthly work claim. Direct calls with an assistant key issued to an active manager may omit sourceMessageId and claimId; member-message processing must provide the current claim.",
     inputSchema: {
       type: "object",
       required: ["groupId", "month", "userEmail", "action"],
@@ -516,7 +562,7 @@ const tools = [
   {
     name: "create_shift_plan",
     description:
-      "Create a work-slot plan and request period. Assistant calls require sourceMessageId and claimId from a currently claimed manager message plus the group's shift-creation permission.",
+      "Create a work-slot plan and request period. Direct manager-key calls may omit sourceMessageId and claimId; member-message processing must provide the current manager claim and the group's shift-creation permission.",
     inputSchema: {
       type: "object",
       required: ["groupId", "name", "startDate", "endDate"],
@@ -531,7 +577,17 @@ const tools = [
         notes: { type: "string" },
         reason: { type: "string" },
         slotRules: { type: "array" },
-        requestPeriod: { type: "object" },
+        requestPeriod: {
+          type: "object",
+          description:
+            "Optional shift-request window. If supplied, all three fields are required.",
+          required: ["opensOn", "closesOn"],
+          properties: {
+            name: { type: "string" },
+            opensOn: { type: "string", description: "YYYY-MM-DD" },
+            closesOn: { type: "string", description: "YYYY-MM-DD" },
+          },
+        },
         confirm: { type: "boolean" },
         sourceMessageId: { type: "string" },
         claimId: { type: "string" },
@@ -541,7 +597,7 @@ const tools = [
   {
     name: "delete_draft_shift_plan",
     description:
-      "Delete a draft plan and its slots. Published plans cannot be deleted. Assistant calls require sourceMessageId and claimId from a currently claimed manager message.",
+      "Delete a draft plan and its slots. Published plans cannot be deleted. Direct manager-key calls may omit sourceMessageId and claimId; member-message processing must provide the current claim.",
     inputSchema: {
       type: "object",
       required: ["planId"],
@@ -556,7 +612,7 @@ const tools = [
   {
     name: "update_slot_counts",
     description:
-      "Adjust required counts or close/reopen dates in a draft plan. Assistant calls require sourceMessageId and claimId from a currently claimed manager message.",
+      "Adjust required counts or close/reopen dates in a draft plan. Direct manager-key calls may omit sourceMessageId and claimId; member-message processing must provide the current claim.",
     inputSchema: {
       type: "object",
       required: ["planId", "confirm", "expectedVersion"],
@@ -584,7 +640,7 @@ const tools = [
   {
     name: "get_shift_request_overview",
     description:
-      "Get all active members' shift requests and period-specific comments for AI shift assignment.",
+      "Get all active members' shift requests and period-specific comments for AI shift assignment. This is the manager-AI tool for group-wide request reading; get_shift_requests is only for the authenticated member. groupId must be copied from list_groups.",
     inputSchema: {
       type: "object",
       required: ["groupId", "periodId"],
@@ -626,7 +682,7 @@ const tools = [
   {
     name: "set_shift_assignments",
     description:
-      "Replace assignments and optionally publish a plan. Assistant calls require sourceMessageId and claimId from a currently claimed manager message plus the matching shift permission.",
+      "Replace assignments and optionally publish a plan. Direct manager-key calls may omit sourceMessageId and claimId; member-message processing must provide the current claim and matching shift permission.",
     inputSchema: {
       type: "object",
       required: ["planId", "assignments", "expectedVersion"],
@@ -644,7 +700,7 @@ const tools = [
   },
   {
     name: "list_announcements",
-    description: "List group announcements, read states, and replies.",
+    description: "List group announcements, read states, and replies. Assistant keys can only read their issued group and need announcement:read scope.",
     inputSchema: {
       type: "object",
       required: ["groupId"],
@@ -664,7 +720,7 @@ const tools = [
   {
     name: "claim_next_assistant_message",
     description:
-      "Claim one pending assistant message. Use the returned message.id and claimId together for replies, state changes, and permitted manager operations.",
+      "Claim one pending assistant message for 10 minutes. Use the returned message.id and claimId together for replies, state changes, and permitted manager operations. If the claim has expired but another worker has not reclaimed the message, the same claimId can continue and will be renewed; a different claimId always wins.",
     inputSchema: {
       type: "object",
       required: ["groupId"],
@@ -770,6 +826,56 @@ const tools = [
     },
   },
   {
+    name: "list_shift_swap_requests",
+    description:
+      "List shift replacement requests, candidate responses, and current safety status for a group. Manager-only operational read.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId"],
+      properties: {
+        groupId: { type: "string" },
+        status: { type: "string", enum: ["needs_review", "open", "candidate_review", "confirmed", "failed", "cancelled"] },
+        requestId: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "respond_shift_swap_candidate",
+    description:
+      "Record the currently claimed member's availability for an open shift replacement request. This never changes assignments or publishes an announcement.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId", "requestId", "messageId", "claimId", "status"],
+      properties: {
+        groupId: { type: "string" },
+        requestId: { type: "string" },
+        messageId: { type: "string" },
+        claimId: { type: "string" },
+        status: { type: "string", enum: ["available", "unavailable"] },
+        note: { type: "string", maxLength: 500 },
+      },
+    },
+  },
+  {
+    name: "confirm_shift_swap",
+    description:
+      "Confirm one replacement candidate for a published shift after direct manager instruction. Rechecks the latest plan version, active membership, overlap, preference conflicts, and slot coverage before changing the assignment.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId", "requestId", "replacementEmail", "expectedVersion", "confirm"],
+      properties: {
+        groupId: { type: "string" },
+        requestId: { type: "string" },
+        replacementEmail: { type: "string" },
+        expectedVersion: { type: "number" },
+        managerNote: { type: "string", maxLength: 500 },
+        confirm: { type: "boolean" },
+        sourceMessageId: { type: "string" },
+        claimId: { type: "string" },
+      },
+    },
+  },
+  {
     name: "mark_announcement_read",
     description: "Mark a group announcement as read.",
     inputSchema: {
@@ -781,7 +887,7 @@ const tools = [
   {
     name: "create_announcement",
     description:
-      "Create a group announcement. Assistant calls require sourceMessageId and claimId from a currently claimed manager message plus announcement permission.",
+      "Create a group announcement. Direct manager-key calls may omit sourceMessageId and claimId; member-message processing must provide the current manager claim and announcement permission.",
     inputSchema: {
       type: "object",
       required: ["groupId", "title", "body"],
@@ -796,9 +902,25 @@ const tools = [
     },
   },
   {
+    name: "delete_announcement",
+    description:
+      "Delete one group announcement and its replies/read states. This is irreversible and requires confirm:true plus manager permission. Direct manager-key calls may omit sourceMessageId and claimId.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId", "announcementId"],
+      properties: {
+        groupId: { type: "string" },
+        announcementId: { type: "string" },
+        confirm: { type: "boolean" },
+        sourceMessageId: { type: "string" },
+        claimId: { type: "string" },
+      },
+    },
+  },
+  {
     name: "send_member_message",
     description:
-      "Send a new private message to one active member of the same group. The recipient receives it in the KINBAN assistant conversation and, when configured, as a Web Push notification. Requires confirm:true; assistant calls also require sourceMessageId and claimId from a claimed manager instruction plus announcement permission.",
+      "Send a new private message to one active member of the same group. The recipient receives it in the KINBAN assistant conversation and, when configured, as a Web Push notification. Requires confirm:true; direct manager-key calls may omit sourceMessageId and claimId, while member-message processing must provide the claimed manager instruction and announcement permission.",
     inputSchema: {
       type: "object",
       required: ["groupId", "recipientEmail", "body"],
@@ -837,6 +959,24 @@ const tools = [
 
 function text(value: unknown, fallback = "") {
   return typeof value === "string" ? value.trim() : fallback;
+}
+function textEncodingIssue(value: unknown, label: string) {
+  if (typeof value !== "string" || !value) return null;
+  const questionMarks = (value.match(/\?/g) ?? []).length;
+  const replacementCharacter = value.includes("\uFFFD");
+  const repeatedQuestionMarks = /\?{2,}/.test(value);
+  if (replacementCharacter || (questionMarks >= 3 && repeatedQuestionMarks))
+    return `Text encoding check failed for ${label}. Send the MCP request as UTF-8 and retry.`;
+  return null;
+}
+function firstTextEncodingIssue(
+  fields: Array<[label: string, value: unknown]>,
+) {
+  for (const [label, value] of fields) {
+    const issue = textEncodingIssue(value, label);
+    if (issue) return issue;
+  }
+  return null;
 }
 function rpc(id: RpcRequest["id"], value: unknown) {
   return Response.json({
@@ -980,8 +1120,12 @@ export async function POST(request: Request) {
         permission = "canReviewMonthlyWork";
       else if (name === "create_announcement")
         permission = "canCreateAnnouncements";
+      else if (name === "delete_announcement")
+        permission = "canCreateAnnouncements";
       else if (name === "send_member_message")
         permission = "canCreateAnnouncements";
+      else if (name === "confirm_shift_swap")
+        permission = "canPublishShifts";
       const permissionError = await assistantPermissionError(
         db,
         identity,
@@ -991,8 +1135,18 @@ export async function POST(request: Request) {
         args.claimId,
       );
       if (permissionError) return rpcError(payload.id, permissionError);
-      const messageId = text(args.sourceMessageId);
+      const sourceMessageId = text(args.sourceMessageId);
+      // Keep direct manager operations idempotent without adding a migration:
+      // the token itself is the stable instruction namespace when no queued
+      // member message is being processed.
       const target = assistantExecutionTarget(name, args);
+      const directInvocationId =
+        typeof payload.id === "string" || typeof payload.id === "number"
+          ? String(payload.id)
+          : target;
+      const messageId =
+        sourceMessageId ||
+        `direct:${identity.tokenId}:${groupId}:${directInvocationId}`;
       const executionId = crypto.randomUUID();
       const executionLeaseId = crypto.randomUUID();
       const executionNow = new Date().toISOString();
@@ -1092,7 +1246,8 @@ export async function POST(request: Request) {
         summary: `MCPで管理者指示を実行: ${name}`,
         details: {
           source: "mcp",
-          sourceMessageId: messageId,
+          sourceMessageId: sourceMessageId || null,
+          executionMode: sourceMessageId ? "claimed_manager_message" : "direct_manager_key",
           operation: name,
           target,
         },
@@ -1122,9 +1277,9 @@ export async function POST(request: Request) {
         "defer_assistant_message",
         "complete_assistant_message",
         "create_shift_swap_announcement_draft",
+        "respond_shift_swap_candidate",
       ].includes(name)
     ) {
-      const now = new Date().toISOString();
       const [claimed] = await db
         .select({ id: assistantMessages.id })
         .from(assistantMessages)
@@ -1132,10 +1287,9 @@ export async function POST(request: Request) {
           and(
             eq(assistantMessages.id, text(args.messageId)),
             eq(assistantMessages.groupId, text(args.groupId)),
-            eq(assistantMessages.senderType, "member"),
+            inArray(assistantMessages.senderType, ["member", "manager"]),
             eq(assistantMessages.status, "processing"),
             eq(assistantMessages.claimId, text(args.claimId)),
-            gt(assistantMessages.claimExpiresAt, now),
           ),
         )
         .limit(1);
@@ -1177,6 +1331,11 @@ export async function POST(request: Request) {
     if (name === "submit_work_record") {
       const groupId = text(args.groupId);
       const status = text(args.status);
+      const encodingIssue = textEncodingIssue(
+        args.managerNote,
+        "work-record manager note",
+      );
+      if (encodingIssue) return rpcError(payload.id, encodingIssue);
       const result = await mcpDailyReview(
         db,
         groupId,
@@ -1202,6 +1361,11 @@ export async function POST(request: Request) {
     }
     if (name === "review_monthly_work") {
       const groupId = text(args.groupId);
+      const encodingIssue = textEncodingIssue(
+        args.managerNote,
+        "monthly-work manager note",
+      );
+      if (encodingIssue) return rpcError(payload.id, encodingIssue);
       const result = await mcpReviewMonthly(
         db,
         groupId,
@@ -1663,13 +1827,30 @@ export async function POST(request: Request) {
         );
       if (!(await membership(db, groupId, identity.email)))
         return rpcError(payload.id, "Group membership required");
-      return rpc(
-        payload.id,
-        await db
+      const [plans, requestPeriods] = await Promise.all([
+        db
           .select()
           .from(shiftPlans)
           .where(eq(shiftPlans.groupId, groupId))
           .orderBy(desc(shiftPlans.startDate)),
+        db
+          .select()
+          .from(shiftRequestPeriods)
+          .where(eq(shiftRequestPeriods.groupId, groupId))
+          .orderBy(desc(shiftRequestPeriods.opensOn)),
+      ]);
+      return rpc(
+        payload.id,
+        plans.map((plan) => {
+          const linkedPeriods = requestPeriods.filter(
+            (period) => period.planId === plan.id,
+          );
+          return {
+            ...plan,
+            requestPeriodId: linkedPeriods[0]?.id ?? null,
+            requestPeriods: linkedPeriods,
+          };
+        }),
       );
     }
     if (name === "get_shift_plan") {
@@ -1705,6 +1886,289 @@ export async function POST(request: Request) {
         plan: found.plan,
         slots,
         assignments: allAssignments,
+      });
+    }
+    if (name === "check_shift_assignments") {
+      const found = await planFor(db, text(args.planId), identity.email);
+      if ("error" in found) return rpcError(payload.id, found.error);
+      const restricted = assistantGroupError(identity, found.plan.groupId);
+      if (restricted) return rpcError(payload.id, restricted);
+      if (
+        identity.tokenType === "assistant" &&
+        !hasScope(identity, "shift:read")
+      )
+        return rpcError(
+          payload.id,
+          "Assistant token scope does not allow shift reads.",
+        );
+      const slots = await db
+        .select()
+        .from(shiftSlots)
+        .where(eq(shiftSlots.planId, found.plan.id));
+      const slotIds = slots.map((slot) => slot.id);
+      const assignmentChunks = await Promise.all(
+        chunk(slotIds, 50).map((ids) =>
+          ids.length
+            ? db
+                .select()
+                .from(shiftAssignments)
+                .where(inArray(shiftAssignments.slotId, ids))
+            : Promise.resolve([]),
+        ),
+      );
+      const assignments = assignmentChunks.flat();
+      const members = await db
+        .select()
+        .from(groupMembers)
+        .where(eq(groupMembers.groupId, found.plan.groupId));
+      const memberByEmail = new Map(
+        members.map((member) => [member.userEmail, member]),
+      );
+      const memberEmails = members.map((member) => member.userEmail);
+      const [period] = await db
+        .select()
+        .from(shiftRequestPeriods)
+        .where(
+          and(
+            eq(shiftRequestPeriods.groupId, found.plan.groupId),
+            eq(shiftRequestPeriods.planId, found.plan.id),
+          ),
+        )
+        .orderBy(desc(shiftRequestPeriods.opensOn))
+        .limit(1);
+      const [requests, submissions, preferences, availability] =
+        await Promise.all([
+          period
+            ? db
+                .select()
+                .from(shiftRequests)
+                .where(eq(shiftRequests.periodId, period.id))
+            : Promise.resolve([]),
+          period
+            ? db
+                .select()
+                .from(shiftRequestSubmissions)
+                .where(eq(shiftRequestSubmissions.periodId, period.id))
+            : Promise.resolve([]),
+          memberEmails.length
+            ? db
+                .select()
+                .from(groupPreferences)
+                .where(
+                  and(
+                    eq(groupPreferences.groupId, found.plan.groupId),
+                    inArray(groupPreferences.userEmail, memberEmails),
+                  ),
+                )
+            : Promise.resolve([]),
+          memberEmails.length
+            ? db
+                .select()
+                .from(shiftAvailability)
+                .where(
+                  and(
+                    eq(shiftAvailability.groupId, found.plan.groupId),
+                    inArray(shiftAvailability.userEmail, memberEmails),
+                  ),
+                )
+            : Promise.resolve([]),
+        ]);
+      const memberName = (email: string) =>
+        memberByEmail.get(email)?.displayName?.trim() || email.split("@")[0];
+      const assignedBySlot = new Map<string, string[]>();
+      for (const assignment of assignments) {
+        const current = assignedBySlot.get(assignment.slotId) ?? [];
+        if (!current.includes(assignment.userEmail))
+          current.push(assignment.userEmail);
+        assignedBySlot.set(assignment.slotId, current);
+      }
+      const issues: Array<Record<string, unknown>> = [];
+      for (const slot of slots) {
+        const assigned = assignedBySlot.get(slot.id) ?? [];
+        if (assigned.length < slot.requiredCount)
+          issues.push({
+            type: "shortage",
+            severity: "error",
+            slotId: slot.id,
+            date: slot.date,
+            startTime: slot.startTime,
+            endTime: slot.endTime,
+            role: slot.role,
+            required: slot.requiredCount,
+            assigned: assigned.length,
+            message: `${slot.date} ${slot.startTime}-${slot.endTime} ${slot.role || "共通"}: 必要${slot.requiredCount}名に対して${assigned.length}名`,
+          });
+        if (assigned.length > slot.requiredCount)
+          issues.push({
+            type: "excess",
+            severity: "warning",
+            slotId: slot.id,
+            date: slot.date,
+            startTime: slot.startTime,
+            endTime: slot.endTime,
+            role: slot.role,
+            required: slot.requiredCount,
+            assigned: assigned.length,
+            message: `${slot.date} ${slot.startTime}-${slot.endTime} ${slot.role || "共通"}: 必要数を${assigned.length - slot.requiredCount}名超過`,
+          });
+        for (const email of assigned) {
+          const member = memberByEmail.get(email);
+          if (!member || member.status !== "active")
+            issues.push({
+              type: "inactive_member",
+              severity: "error",
+              slotId: slot.id,
+              memberEmail: email,
+              memberName: memberName(email),
+              message: `${memberName(email)}は有効なメンバーではありません`,
+            });
+        }
+      }
+      const startOf = (slot: typeof slots[number]) => {
+        const base = Date.parse(`${slot.date}T00:00:00Z`) / 60000;
+        return base + shiftTimeToMinutes(slot.startTime);
+      };
+      const endOf = (slot: typeof slots[number]) => {
+        const base = Date.parse(`${slot.date}T00:00:00Z`) / 60000;
+        return base + shiftTimeToMinutes(slot.endTime);
+      };
+      const assignedSlots = [...assignedBySlot.entries()].flatMap(
+        ([slotId, emails]) => {
+          const slot = slots.find((row) => row.id === slotId);
+          return slot
+            ? emails.map((userEmail) => ({ slot, userEmail }))
+            : [];
+        },
+      );
+      for (let index = 0; index < assignedSlots.length; index += 1) {
+        for (let next = index + 1; next < assignedSlots.length; next += 1) {
+          const left = assignedSlots[index];
+          const right = assignedSlots[next];
+          if (left.userEmail !== right.userEmail) continue;
+          if (startOf(left.slot) >= endOf(right.slot) || startOf(right.slot) >= endOf(left.slot)) continue;
+          issues.push({
+            type: "overlap",
+            severity: "error",
+            slotIds: [left.slot.id, right.slot.id],
+            memberEmail: left.userEmail,
+            memberName: memberName(left.userEmail),
+            message: `${memberName(left.userEmail)}に重複する時間帯があります: ${left.slot.date} ${left.slot.role || "共通"} / ${right.slot.role || "共通"}`,
+          });
+        }
+      }
+      const preferenceFor = (slot: typeof slots[number], email: string) => {
+        const exact = requests.find(
+          (request) =>
+            request.userEmail === email &&
+            request.date === slot.date &&
+            request.startTime === slot.startTime &&
+            request.endTime === slot.endTime,
+        );
+        if (exact) return exact.preference;
+        const weekday = new Date(`${slot.date}T00:00:00Z`).getUTCDay();
+        const rows = availability.filter(
+          (entry) => entry.userEmail === email && entry.dayOfWeek === weekday,
+        );
+        if (!rows.length) return "possible";
+        const start = shiftTimeToMinutes(slot.startTime);
+        const end = shiftTimeToMinutes(slot.endTime);
+        const match = rows.find(
+          (entry) =>
+            (!entry.startTime && !entry.endTime) ||
+            (shiftTimeToMinutes(entry.startTime) <= start &&
+              shiftTimeToMinutes(entry.endTime) >= end),
+        );
+        return match?.status ?? "unavailable";
+      };
+      for (const { slot, userEmail } of assignedSlots) {
+        const preference = preferenceFor(slot, userEmail);
+        if (preference === "off" || preference === "unavailable")
+          issues.push({
+            type: "preference_conflict",
+            severity: "warning",
+            slotId: slot.id,
+            date: slot.date,
+            memberEmail: userEmail,
+            memberName: memberName(userEmail),
+            preference,
+            message: `${memberName(userEmail)}は${preference === "off" ? "休み希望" : "勤務不可"}です`,
+          });
+      }
+      for (const member of members.filter((row) => row.status === "active")) {
+        const memberSlots = assignedSlots
+          .filter((row) => row.userEmail === member.userEmail)
+          .map((row) => row.slot);
+        const days = new Set(memberSlots.map((slot) => slot.date)).size;
+        const totalMinutes = memberSlots.reduce(
+          (sum, slot) => sum + Math.max(0, endOf(slot) - startOf(slot)),
+          0,
+        );
+        const preference = preferences.find(
+          (row) => row.userEmail === member.userEmail,
+        );
+        if (
+          preference &&
+          (days < preference.minDays ||
+            days > preference.maxDays ||
+            totalMinutes < preference.minHours * 60 ||
+            totalMinutes > preference.maxHours * 60)
+        )
+          issues.push({
+            type: "member_range",
+            severity: "warning",
+            memberEmail: member.userEmail,
+            memberName: memberName(member.userEmail),
+            days,
+            totalMinutes,
+            minDays: preference.minDays,
+            maxDays: preference.maxDays,
+            minHours: preference.minHours,
+            maxHours: preference.maxHours,
+            message: `${memberName(member.userEmail)}の勤務日数・時間が基本設定の範囲外です`,
+          });
+      }
+      const errors = issues.filter((issue) => issue.severity === "error");
+      const warnings = issues.filter((issue) => issue.severity === "warning");
+      return rpc(payload.id, {
+        ok: errors.length === 0,
+        canPublish: errors.length === 0,
+        plan: {
+          id: found.plan.id,
+          name: found.plan.name,
+          status: found.plan.status,
+          version: found.plan.version,
+        },
+        requestPeriod: period ?? null,
+        summary: {
+          slotCount: slots.length,
+          assignmentCount: assignedSlots.length,
+          errorCount: errors.length,
+          warningCount: warnings.length,
+        },
+        errors,
+        warnings,
+        memberSummaries: members
+          .filter((member) => member.status === "active")
+          .map((member) => {
+            const memberSlots = assignedSlots
+              .filter((row) => row.userEmail === member.userEmail)
+              .map((row) => row.slot);
+            return {
+              userEmail: member.userEmail,
+              displayName: memberName(member.userEmail),
+              days: new Set(memberSlots.map((slot) => slot.date)).size,
+              totalMinutes: memberSlots.reduce(
+                (sum, slot) => sum + Math.max(0, endOf(slot) - startOf(slot)),
+                0,
+              ),
+              requestSavedAt:
+                submissions.find((row) => row.userEmail === member.userEmail)
+                  ?.savedAt ?? null,
+              requestComment:
+                submissions.find((row) => row.userEmail === member.userEmail)
+                  ?.requestComment ?? "",
+            };
+          }),
       });
     }
     if (name === "get_audit_logs") {
@@ -1748,6 +2212,16 @@ export async function POST(request: Request) {
           ? args.slotRules
           : [{ role: "", requiredCount: 1 }]
       ) as Array<Record<string, unknown>>;
+      const encodingIssue = firstTextEncodingIssue([
+        ["plan name", args.name],
+        ["plan notes", args.notes],
+        ...rules.map((rule) => ["slot role", rule.role] as [string, unknown]),
+        [
+          "request period name",
+          (args.requestPeriod as Record<string, unknown> | undefined)?.name,
+        ],
+      ]);
+      if (encodingIssue) return rpcError(payload.id, encodingIssue);
       if (
         !text(args.name) ||
         !startDate ||
@@ -1762,6 +2236,23 @@ export async function POST(request: Request) {
       };
       if (parse(closingTime) <= parse(openingTime))
         return rpcError(payload.id, "closingTime must be after openingTime");
+      const requestPeriodProvided =
+        args.requestPeriod !== undefined && args.requestPeriod !== null;
+      const period =
+        args.requestPeriod &&
+        typeof args.requestPeriod === "object" &&
+        !Array.isArray(args.requestPeriod)
+          ? (args.requestPeriod as Record<string, unknown>)
+          : undefined;
+      if (
+        requestPeriodProvided &&
+        (!period || !text(period.opensOn) || !text(period.closesOn))
+      )
+        return rpcError(
+          payload.id,
+          "requestPeriod requires opensOn and closesOn in YYYY-MM-DD format",
+        );
+      const requestPeriodId = period ? crypto.randomUUID() : null;
       const planId = crypto.randomUUID();
       const dates: string[] = [];
       const cursor = new Date(`${startDate}T00:00:00Z`);
@@ -1806,10 +2297,9 @@ export async function POST(request: Request) {
           db.insert(shiftSlots).values(rows.slice(i * 8, i * 8 + 8)),
         ),
       ]);
-      const period = args.requestPeriod as Record<string, unknown> | undefined;
-      if (period && text(period.opensOn) && text(period.closesOn))
+      if (period && requestPeriodId)
         await db.insert(shiftRequestPeriods).values({
-          id: crypto.randomUUID(),
+          id: requestPeriodId,
           groupId,
           planId,
           name: text(period.name, text(args.name)),
@@ -1827,7 +2317,19 @@ export async function POST(request: Request) {
         summary: `MCPでシフトを作成: ${text(args.name)}`,
         details: { source: "mcp", slotCount: rows.length },
       });
-      return completeManagedExecution({ planId, slotCount: rows.length });
+      return completeManagedExecution({
+        planId,
+        slotCount: rows.length,
+        requestPeriod: period
+          ? {
+              id: requestPeriodId,
+              name: text(period.name, text(args.name)),
+              opensOn: text(period.opensOn),
+              closesOn: text(period.closesOn),
+              status: "open",
+            }
+          : null,
+      });
     }
     if (name === "delete_draft_shift_plan") {
       if (args.confirm !== true) return rpcError(payload.id, mutating);
@@ -2368,7 +2870,7 @@ export async function POST(request: Request) {
       const now = new Date().toISOString();
       const base = and(
         eq(assistantMessages.groupId, groupId),
-        eq(assistantMessages.senderType, "member"),
+        inArray(assistantMessages.senderType, ["member", "manager"]),
       );
       const [pending, activeProcessing, reclaimableProcessing, needsReview] =
         await Promise.all([
@@ -2427,7 +2929,7 @@ export async function POST(request: Request) {
         .where(
           and(
             eq(assistantMessages.groupId, groupId),
-            eq(assistantMessages.senderType, "member"),
+            inArray(assistantMessages.senderType, ["member", "manager"]),
             or(
               eq(assistantMessages.status, "pending"),
               and(
@@ -2441,7 +2943,7 @@ export async function POST(request: Request) {
         .limit(10);
       for (const candidate of candidates) {
         const claimExpiresAt = new Date(
-          Date.now() + 1 * 60 * 1000,
+          Date.now() + assistantClaimLeaseMs,
         ).toISOString();
         const claimId = crypto.randomUUID();
         const [claimed] = await db
@@ -2488,6 +2990,35 @@ export async function POST(request: Request) {
         });
       }
       return rpc(payload.id, { message: null });
+    }
+    if (name === "list_shift_swap_requests") {
+      if (identity.tokenType !== "assistant" || !identity.groupId)
+        return rpcError(payload.id, "An assistant token is required.");
+      const groupId = text(args.groupId);
+      const restricted = assistantGroupError(identity, groupId);
+      if (restricted) return rpcError(payload.id, restricted);
+      if (!hasScope(identity, "shift:read"))
+        return rpcError(payload.id, "Assistant token scope does not allow shift reads.");
+      const manager = await membership(db, groupId, identity.email);
+      if (!manager || manager.status !== "active" || !editorRoles.has(manager.role))
+        return rpcError(payload.id, "Active manager membership required.");
+      const filters = [eq(shiftSwapRequests.groupId, groupId)];
+      const requestId = text(args.requestId);
+      const status = text(args.status);
+      if (requestId) filters.push(eq(shiftSwapRequests.id, requestId));
+      if (["needs_review", "open", "candidate_review", "confirmed", "failed", "cancelled"].includes(status))
+        filters.push(eq(shiftSwapRequests.status, status as typeof shiftSwapRequests.status.enumValues[number]));
+      const requests = await db.select().from(shiftSwapRequests).where(and(...filters)).orderBy(desc(shiftSwapRequests.createdAt));
+      const candidates = requests.length
+        ? await db.select().from(shiftSwapCandidates).where(inArray(shiftSwapCandidates.requestId, requests.map((request) => request.id)))
+        : [];
+      return rpc(payload.id, {
+        ok: true,
+        requests: requests.map((request) => ({
+          ...request,
+          candidates: candidates.filter((candidate) => candidate.requestId === request.id),
+        })),
+      });
     }
     if (name === "create_shift_swap_announcement_draft") {
       if (identity.tokenType !== "assistant" || !identity.groupId)
@@ -2597,7 +3128,6 @@ export async function POST(request: Request) {
               eq(assistantMessages.senderType, "member"),
               eq(assistantMessages.status, "processing"),
               eq(assistantMessages.claimId, text(args.claimId)),
-              gt(assistantMessages.claimExpiresAt, new Date().toISOString()),
             ),
           )
           .returning();
@@ -2637,6 +3167,20 @@ export async function POST(request: Request) {
       const role = slot.role || "勤務";
       const title = `【交代募集】${slot.date.slice(5).replace("-", "/")} ${slot.startTime}〜${slot.endTime} ${role}`;
       const body = `${slot.date} ${slot.startTime}〜${slot.endTime} の${role}で、交代可能な方を募集しています。\n対応可能な方は管理者へご連絡ください。`;
+      const swapRequest = {
+        id: crypto.randomUUID(),
+        groupId,
+        sourceMessageId: messageId,
+        requesterEmail: source[0].memberEmail,
+        planId: plans.find((plan) => plan.id === slot.planId)?.id ?? "",
+        slotId: slot.id,
+        date: slot.date,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        role: slot.role,
+        reason: source[0].body.slice(0, 1000),
+        createdBy: identity.email,
+      };
       const draft = {
         id: crypto.randomUUID(),
         groupId,
@@ -2649,6 +3193,7 @@ export async function POST(request: Request) {
         role: slot.role,
         title,
         body,
+        swapRequestId: swapRequest.id,
         createdBy: identity.email,
       };
       const [reviewRequested] = await db
@@ -2666,7 +3211,6 @@ export async function POST(request: Request) {
             eq(assistantMessages.senderType, "member"),
             eq(assistantMessages.status, "processing"),
             eq(assistantMessages.claimId, text(args.claimId)),
-            gt(assistantMessages.claimExpiresAt, new Date().toISOString()),
           ),
         )
         .returning();
@@ -2675,7 +3219,10 @@ export async function POST(request: Request) {
           payload.id,
           "The message claim is no longer current. Claim the message again before creating a draft.",
         );
-      await db.insert(assistantAnnouncementDrafts).values(draft);
+      await db.batch([
+        db.insert(shiftSwapRequests).values(swapRequest),
+        db.insert(assistantAnnouncementDrafts).values(draft),
+      ]);
       await recordAudit({
         groupId,
         userEmail: identity.email,
@@ -2686,6 +3233,7 @@ export async function POST(request: Request) {
         details: {
           sourceMessageId: messageId,
           slotId: slot.id,
+          swapRequestId: swapRequest.id,
           requesterEmail: source[0].memberEmail,
         },
       });
@@ -2703,7 +3251,109 @@ export async function POST(request: Request) {
       return rpc(payload.id, {
         ok: true,
         draft: { ...draft, status: "needs_review" },
+        swapRequest,
       });
+    }
+    if (name === "respond_shift_swap_candidate") {
+      if (identity.tokenType !== "assistant" || !identity.groupId)
+        return rpcError(payload.id, "An assistant token is required.");
+      const groupId = text(args.groupId);
+      const restricted = assistantGroupError(identity, groupId);
+      if (restricted) return rpcError(payload.id, restricted);
+      if (!hasScope(identity, "assistant:reply") || !hasScope(identity, "shift:read"))
+        return rpcError(payload.id, "Assistant token requires assistant:reply and shift:read scopes.");
+      const messageId = text(args.messageId);
+      const claimId = text(args.claimId);
+      const [source, request] = await Promise.all([
+        db.select().from(assistantMessages).where(and(eq(assistantMessages.id, messageId), eq(assistantMessages.groupId, groupId), eq(assistantMessages.senderType, "member"))).limit(1),
+        db.select().from(shiftSwapRequests).where(and(eq(shiftSwapRequests.id, text(args.requestId)), eq(shiftSwapRequests.groupId, groupId))).limit(1),
+      ]);
+      if (!source[0]) return rpcError(payload.id, "Member message not found.");
+      if (!request[0] || !["open", "candidate_review"].includes(request[0].status))
+        return rpcError(payload.id, "The shift replacement request is not accepting candidates.");
+      const member = await membership(db, groupId, source[0].memberEmail);
+      if (!member || member.status !== "active" || source[0].memberEmail === request[0].requesterEmail)
+        return rpcError(payload.id, "Only another active group member can respond as a candidate.");
+      const current = await db.select().from(shiftSwapCandidates).where(and(eq(shiftSwapCandidates.requestId, request[0].id), eq(shiftSwapCandidates.memberEmail, source[0].memberEmail))).limit(1);
+      const candidateValues = {
+        status: text(args.status) === "available" ? "available" as const : "unavailable" as const,
+        note: text(args.note).slice(0, 500),
+        updatedAt: new Date().toISOString(),
+      };
+      if (current[0]) {
+        await db.update(shiftSwapCandidates).set(candidateValues).where(eq(shiftSwapCandidates.id, current[0].id));
+      } else {
+        await db.insert(shiftSwapCandidates).values({ id: crypto.randomUUID(), requestId: request[0].id, groupId, memberEmail: source[0].memberEmail, ...candidateValues });
+      }
+      await db.update(shiftSwapRequests).set({ status: "candidate_review", updatedAt: candidateValues.updatedAt }).where(and(eq(shiftSwapRequests.id, request[0].id), inArray(shiftSwapRequests.status, ["open", "candidate_review"])));
+      await recordAudit({ groupId, userEmail: identity.email, action: "assistant.shift_swap_candidate.respond", entityType: "shiftSwapRequest", entityId: request[0].id, summary: "A shift replacement candidate response was recorded.", details: { memberEmail: source[0].memberEmail, status: candidateValues.status, sourceMessageId: messageId } });
+      return rpc(payload.id, { ok: true, requestId: request[0].id, memberEmail: source[0].memberEmail, status: candidateValues.status });
+    }
+    if (name === "confirm_shift_swap") {
+      if (args.confirm !== true) return rpcError(payload.id, mutating);
+      const groupId = text(args.groupId);
+      const requestId = text(args.requestId);
+      const replacementEmail = text(args.replacementEmail).toLowerCase();
+      const [swapRequest] = await db.select().from(shiftSwapRequests).where(and(eq(shiftSwapRequests.id, requestId), eq(shiftSwapRequests.groupId, groupId))).limit(1);
+      if (!swapRequest) return rpcError(payload.id, "Shift replacement request not found.");
+      if (!["open", "candidate_review"].includes(swapRequest.status)) return rpcError(payload.id, "This shift replacement request is no longer confirmable.");
+      const [candidate, replacement, found] = await Promise.all([
+        db.select().from(shiftSwapCandidates).where(and(eq(shiftSwapCandidates.requestId, requestId), eq(shiftSwapCandidates.memberEmail, replacementEmail), eq(shiftSwapCandidates.status, "available"))).limit(1),
+        membership(db, groupId, replacementEmail),
+        planFor(db, swapRequest.planId, identity.email),
+      ]);
+      if (!candidate[0]) return rpcError(payload.id, "The selected member has not offered availability for this request.");
+      if (!replacement || replacement.status !== "active") return rpcError(payload.id, "Replacement member is not active.");
+      if ("error" in found) return rpcError(payload.id, found.error);
+      if (found.plan.status !== "published") return rpcError(payload.id, "The published shift plan is no longer available.");
+      const expectedVersion = Number(args.expectedVersion);
+      if (!Number.isInteger(expectedVersion) || expectedVersion !== found.plan.version)
+        return rpcError(payload.id, "Shift plan version conflict. Reload the plan and retry with its latest version.");
+      const [slot] = await db.select().from(shiftSlots).where(and(eq(shiftSlots.id, swapRequest.slotId), eq(shiftSlots.planId, found.plan.id))).limit(1);
+      if (!slot) return rpcError(payload.id, "The assigned slot no longer exists.");
+      const slotAssignments = await db.select().from(shiftAssignments).where(eq(shiftAssignments.slotId, slot.id));
+      if (!slotAssignments.some((assignment) => assignment.userEmail === swapRequest.requesterEmail))
+        return rpcError(payload.id, "The original member is no longer assigned to this slot.");
+      const allSlots = await db.select().from(shiftSlots).where(eq(shiftSlots.planId, found.plan.id));
+      const allAssignments = allSlots.length ? await db.select().from(shiftAssignments).where(inArray(shiftAssignments.slotId, allSlots.map((item) => item.id))) : [];
+      const timeValue = (date: string, time: string) => Date.parse(`${date}T00:00:00Z`) / 60000 + shiftTimeToMinutes(time);
+      const replacementOverlaps = allAssignments.filter((assignment) => assignment.userEmail === replacementEmail && assignment.slotId !== slot.id).some((assignment) => {
+        const other = allSlots.find((item) => item.id === assignment.slotId);
+        return Boolean(other) && timeValue(slot.date, slot.startTime) < timeValue(other.date, other.endTime) && timeValue(other.date, other.startTime) < timeValue(slot.date, slot.endTime);
+      });
+      if (replacementOverlaps) return rpcError(payload.id, "Replacement member already has an overlapping assignment.");
+      const [period] = await db.select().from(shiftRequestPeriods).where(and(eq(shiftRequestPeriods.groupId, groupId), eq(shiftRequestPeriods.planId, found.plan.id))).limit(1);
+      if (period) {
+        const [conflict] = await db.select().from(shiftRequests).where(and(eq(shiftRequests.periodId, period.id), eq(shiftRequests.userEmail, replacementEmail), eq(shiftRequests.date, slot.date), inArray(shiftRequests.preference, ["off", "unavailable"]))).limit(1);
+        if (conflict) return rpcError(payload.id, "Replacement member has an unavailable preference for this slot.");
+      }
+      const now = new Date().toISOString();
+      const [locked] = await db.update(shiftPlans).set({ version: expectedVersion + 1 }).where(and(eq(shiftPlans.id, found.plan.id), eq(shiftPlans.version, expectedVersion), eq(shiftPlans.status, "published"))).returning({ version: shiftPlans.version });
+      if (!locked) return rpcError(payload.id, "Shift plan version conflict. Reload the plan and retry with its latest version.");
+      const remaining = slotAssignments.filter((assignment) => assignment.userEmail !== swapRequest.requesterEmail).map((assignment) => assignment.userEmail);
+      remaining.push(replacementEmail);
+      const [requesterProfile, replacementProfile] = await Promise.all([
+        db.select().from(accountProfiles).where(eq(accountProfiles.userEmail, swapRequest.requesterEmail)).limit(1),
+        db.select().from(accountProfiles).where(eq(accountProfiles.userEmail, replacementEmail)).limit(1),
+      ]);
+      const requesterName = requesterProfile[0]?.nickname || swapRequest.requesterEmail.split("@")[0];
+      const replacementName = replacementProfile[0]?.nickname || replacement.displayName || replacementEmail.split("@")[0];
+      const eventDate = shiftDateTime(slot.date, slot.startTime);
+      const eventEnd = shiftDateTime(slot.date, slot.endTime);
+      await db.batch([
+        db.delete(shiftAssignments).where(eq(shiftAssignments.slotId, slot.id)),
+        ...remaining.map((email) => db.insert(shiftAssignments).values({ id: crypto.randomUUID(), slotId: slot.id, userEmail: email })),
+        db.update(events).set({ notes: `Assigned: ${remaining.map((email) => email === replacementEmail ? replacementName : email === swapRequest.requesterEmail ? requesterName : email).join(", ")}` }).where(and(eq(events.shiftPlanId, found.plan.id), eq(events.date, eventDate.date), eq(events.startTime, eventDate.time), eq(events.endDate, eventEnd.date), eq(events.endTime, eventEnd.time))),
+        db.update(shiftSwapRequests).set({ status: "confirmed", replacementEmail, managerNote: text(args.managerNote).slice(0, 500), reviewedBy: identity.email, confirmedAt: now, version: swapRequest.version + 1, updatedAt: now }).where(and(eq(shiftSwapRequests.id, requestId), inArray(shiftSwapRequests.status, ["open", "candidate_review"]))),
+        db.insert(assistantMessages).values({ id: crypto.randomUUID(), groupId, memberEmail: swapRequest.requesterEmail, senderType: "assistant", senderEmail: identity.email, body: "Your shift replacement has been confirmed. Please review the updated shift.", status: "processed", eventType: "shift_swap_confirmed", eventId: `shift-swap:${requestId}:requester` }).onConflictDoNothing(),
+        db.insert(assistantMessages).values({ id: crypto.randomUUID(), groupId, memberEmail: replacementEmail, senderType: "assistant", senderEmail: identity.email, body: "You have been assigned to the replacement shift. Please review the updated shift.", status: "processed", eventType: "shift_swap_confirmed", eventId: `shift-swap:${requestId}:replacement` }).onConflictDoNothing(),
+      ]);
+      await Promise.all([
+        sendBusinessPush(db, { recipients: [swapRequest.requesterEmail], eventId: `shift-swap:${requestId}:requester`, title: "KINBAN", body: "Your shift replacement has been confirmed.", url: `/?group=${encodeURIComponent(groupId)}&view=shifts`, urgency: "high" }),
+        sendBusinessPush(db, { recipients: [replacementEmail], eventId: `shift-swap:${requestId}:replacement`, title: "KINBAN", body: "You have been assigned to a replacement shift.", url: `/?group=${encodeURIComponent(groupId)}&view=shifts`, urgency: "high" }),
+      ]);
+      await recordAudit({ groupId, userEmail: identity.email, action: "assistant.shift_swap.confirm", entityType: "shiftSwapRequest", entityId: requestId, summary: "A published shift replacement was confirmed.", details: { planId: found.plan.id, slotId: slot.id, requesterEmail: swapRequest.requesterEmail, replacementEmail, version: expectedVersion + 1 } });
+      return completeManagedExecution({ ok: true, status: "confirmed", requestId, planId: found.plan.id, slotId: slot.id, replacementEmail, version: expectedVersion + 1 });
     }
     if (name === "list_assistant_messages") {
       const groupId = text(args.groupId);
@@ -2789,7 +3439,6 @@ export async function POST(request: Request) {
       const replyBody = text(args.body).slice(0, 2000);
       if (!replyBody) return rpcError(payload.id, "body is required");
       const replyId = crypto.randomUUID();
-      const now = new Date().toISOString();
       const [target] = await db
         .update(assistantMessages)
         .set({
@@ -2802,10 +3451,9 @@ export async function POST(request: Request) {
           and(
             eq(assistantMessages.id, messageId),
             eq(assistantMessages.groupId, groupId),
-            eq(assistantMessages.senderType, "member"),
+            inArray(assistantMessages.senderType, ["member", "manager"]),
             eq(assistantMessages.status, "processing"),
             eq(assistantMessages.claimId, text(args.claimId)),
-            gt(assistantMessages.claimExpiresAt, now),
           ),
         )
         .returning();
@@ -2878,7 +3526,6 @@ export async function POST(request: Request) {
           : name === "defer_assistant_message"
             ? "needs_review"
             : "processed";
-      const now = new Date().toISOString();
       const [target] = await db
         .update(assistantMessages)
         .set({
@@ -2891,10 +3538,9 @@ export async function POST(request: Request) {
           and(
             eq(assistantMessages.id, messageId),
             eq(assistantMessages.groupId, groupId),
-            eq(assistantMessages.senderType, "member"),
+            inArray(assistantMessages.senderType, ["member", "manager"]),
             eq(assistantMessages.status, "processing"),
             eq(assistantMessages.claimId, text(args.claimId)),
-            gt(assistantMessages.claimExpiresAt, now),
           ),
         )
         .returning();
@@ -3017,6 +3663,11 @@ export async function POST(request: Request) {
       const member = await membership(db, groupId, identity.email);
       if (!member || !editorRoles.has(member.role))
         return rpcError(payload.id, "Editor membership required");
+      const encodingIssue = firstTextEncodingIssue([
+        ["announcement title", args.title],
+        ["announcement body", args.body],
+      ]);
+      if (encodingIssue) return rpcError(payload.id, encodingIssue);
       const row = {
         id: crypto.randomUUID(),
         groupId,
@@ -3038,11 +3689,40 @@ export async function POST(request: Request) {
       });
       return completeManagedExecution(row);
     }
+    if (name === "delete_announcement") {
+      if (args.confirm !== true) return rpcError(payload.id, mutating);
+      const groupId = text(args.groupId);
+      const announcementId = text(args.announcementId);
+      const member = await membership(db, groupId, identity.email);
+      if (!member || !editorRoles.has(member.role))
+        return rpcError(payload.id, "Editor membership required");
+      const [announcement] = await db
+        .select()
+        .from(groupAnnouncements)
+        .where(and(eq(groupAnnouncements.id, announcementId), eq(groupAnnouncements.groupId, groupId)))
+        .limit(1);
+      if (!announcement) return rpcError(payload.id, "Announcement not found");
+      await db.delete(announcementReads).where(eq(announcementReads.announcementId, announcementId));
+      await db.delete(announcementReplies).where(eq(announcementReplies.announcementId, announcementId));
+      await db.delete(groupAnnouncements).where(eq(groupAnnouncements.id, announcementId));
+      await recordAudit({
+        groupId,
+        userEmail: identity.email,
+        action: "announcement.delete",
+        entityType: "announcement",
+        entityId: announcementId,
+        summary: `MCPでお知らせを削除: ${announcement.title}`,
+        details: { source: "mcp" },
+      });
+      return completeManagedExecution({ ok: true, announcementId });
+    }
     if (name === "send_member_message") {
       if (args.confirm !== true) return rpcError(payload.id, mutating);
       const groupId = text(args.groupId);
       const recipientEmail = text(args.recipientEmail).toLowerCase();
       const body = text(args.body).slice(0, 2000);
+      const encodingIssue = textEncodingIssue(body, "member message body");
+      if (encodingIssue) return rpcError(payload.id, encodingIssue);
       if (!groupId || !recipientEmail || !body)
         return rpcError(payload.id, "groupId, recipientEmail, and body are required");
       const sender = await membership(db, groupId, identity.email);

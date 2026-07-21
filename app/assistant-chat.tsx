@@ -6,8 +6,10 @@ import { localApiFetch } from "./local-api";
 type Assistant = { displayName: string; role: "editor"; status: "active" | "inactive" };
 type Member = { userEmail: string; displayName?: string | null };
 type AnnouncementDraft = { id: string; sourceMessageId: string; requesterEmail: string; date: string; startTime: string; endTime: string; role: string; title: string; body: string; status: "needs_review" | "published" | "rejected"; managerNote: string; announcementId?: string | null; createdAt: string };
-type Message = { id: string; memberEmail: string; senderType: "member" | "assistant" | "system"; body: string; status: "pending" | "processing" | "processed" | "failed" | "needs_review"; createdAt: string };
-type ChatData = { assistant: Assistant | null; messages: Message[]; members: Member[]; drafts?: AnnouncementDraft[]; currentEmail: string; selectedMember: string; manager: boolean };
+type SwapCandidate = { id: string; memberEmail: string; status: "available" | "unavailable"; note: string };
+type SwapRequest = { id: string; requesterEmail: string; date: string; startTime: string; endTime: string; role: string; status: string; replacementEmail?: string | null; candidates: SwapCandidate[] };
+type Message = { id: string; memberEmail: string; senderType: "member" | "manager" | "assistant" | "system"; body: string; status: "pending" | "processing" | "processed" | "failed" | "needs_review"; createdAt: string };
+type ChatData = { assistant: Assistant | null; messages: Message[]; members: Member[]; drafts?: AnnouncementDraft[]; swapRequests?: SwapRequest[]; currentEmail: string; selectedMember: string; manager: boolean };
 
 function memberName(member: Member) {
   return member.displayName?.trim() || member.userEmail.split("@")[0];
@@ -92,6 +94,14 @@ export default function AssistantChat({ groupId, manager = false }: { groupId: s
           </> : <><p>{draft.body}</p>{draft.managerNote && <small>管理メモ: {draft.managerNote}</small>}</>}
         </article>;
       })}
+    </section>}
+    {manager && (data.swapRequests?.length ?? 0) > 0 && <section className="assistant-drafts assistant-swap-requests">
+      <div className="assistant-drafts-head"><strong>Shift replacement requests</strong><small>Manager approval and final assignment are performed by the assistant only after explicit manager instruction.</small></div>
+      {data.swapRequests?.map((request) => <article className={`assistant-draft ${request.status}`} key={request.id}>
+        <div className="assistant-draft-meta"><strong>{request.date} {request.startTime}-{request.endTime} {request.role || "shift"}</strong><span className={`assistant-draft-status ${request.status}`}>{request.status}</span></div>
+        <small>Requester: {memberName(data.members.find((member) => member.userEmail === request.requesterEmail) ?? { userEmail: request.requesterEmail })}</small>
+        {request.candidates.length ? <ul>{request.candidates.map((candidate) => <li key={candidate.id}>{memberName(data.members.find((member) => member.userEmail === candidate.memberEmail) ?? { userEmail: candidate.memberEmail })}: {candidate.status}</li>)}</ul> : <p>No candidate responses yet.</p>}
+      </article>)}
     </section>}
     <div className="assistant-messages" aria-live="polite">
       {data.messages.length ? data.messages.map((item) => <div className={`assistant-message ${item.senderType}`} key={item.id}>

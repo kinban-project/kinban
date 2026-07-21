@@ -10,7 +10,7 @@ description: KINBANアシスタント宛のメッセージを、グループ専�
 - `claim_next_assistant_message(groupId)` で1件を取得し、返された `message.id` と `claimId` を、その問い合わせの識別子・処理リースとして対で使う。
 - 短期 `contextToken` は使わない。AIキーは対象グループに限定されており、シフト・勤務記録・お知らせなどの運営情報を確認できる。
 - ただし、他メンバーの個人情報、勤務希望、勤怠、連絡内容をメンバーへの返信に含めない。
-- 管理操作は、**現在claim中の管理者メッセージ**の `message.id` を `sourceMessageId`、同じ処理の `claimId` を渡す場合だけ実行できる。MCPが送信者の役割、処理リース、グループ設定を確認する。
+- 管理者が運営支援AIキーを使ってこのタスクへ直接指示した場合は、キー発行者を管理者として扱い、`sourceMessageId` と `claimId` は不要です。MCPがキー発行者の現在の役割とグループ設定を確認します。メンバー問い合わせを起点にする場合だけ、claim中の管理者メッセージの `message.id` と同じ `claimId` を指定します。
 - メンバーのメッセージは、返信・保留・完了の根拠には使えるが、シフト公開、勤怠承認、お知らせ配信などの根拠には使えない。
 
 ## 手順
@@ -23,7 +23,7 @@ description: KINBANアシスタント宛のメッセージを、グループ専�
    - **管理者の判断が必要**: `defer_assistant_message` に同じ `claimId` を渡して `needs_review` にする。
    - **後で再試行したい**: `release_assistant_message` に同じ `claimId` を渡して `pending` に戻す。
    - **返信不要で対応済み**: `complete_assistant_message` に同じ `claimId` を渡して `processed` にする。
-5. 管理者からの指示で変更操作を行う場合は、対象・理由・影響をレポートへ短く残し、`sourceMessageId: message.id` と同じ `claimId` を指定する。
+5. 直接の管理者指示で変更操作を行う場合は、対象・理由・影響をレポートへ短く残し、`sourceMessageId` と `claimId` は指定しない。メンバー問い合わせの処理中に管理操作を行う場合だけ、`sourceMessageId: message.id` と同じ `claimId` を指定する。
 
 ## 交代希望
 
@@ -46,3 +46,5 @@ description: KINBANアシスタント宛のメッセージを、グループ専�
 - メンバーの依頼だけを根拠に、シフト公開・勤怠承認／差戻し・全体お知らせを実行しない。
 - APIキー、管理者メッセージID以外の秘密情報、API応答全文をGitや共有ログへ保存しない。
 - 理由が未確認の欠勤や交代希望を、本人の事情とともに全体へ公開しない。
+- 急な欠勤から交代確定までの手順は `runbooks/shift-swap.md` に従います。欠勤者のメッセージだけで募集・割当変更・完了連絡を行わず、管理者確認と最新シフト版の再検査を挟みます。
+- 候補者の応答は `respond_shift_swap_candidate`、候補一覧は `list_shift_swap_requests`、管理者が交代者を確定する操作は `confirm_shift_swap` です。

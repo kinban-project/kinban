@@ -218,6 +218,7 @@ export const assistantAnnouncementDrafts = sqliteTable("assistant_announcement_d
   status: text("status", { enum: ["needs_review", "published", "rejected"] }).notNull().default("needs_review"),
   managerNote: text("manager_note").notNull().default(""),
   announcementId: text("announcement_id"),
+  swapRequestId: text("swap_request_id"),
   createdBy: text("created_by").notNull(),
   reviewedBy: text("reviewed_by"),
   reviewedAt: text("reviewed_at"),
@@ -225,6 +226,48 @@ export const assistantAnnouncementDrafts = sqliteTable("assistant_announcement_d
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [
   index("assistant_announcement_draft_group_status_idx").on(table.groupId, table.status, table.createdAt),
+]);
+
+export const shiftSwapRequests = sqliteTable("shift_swap_requests", {
+  id: text("id").primaryKey(),
+  groupId: text("group_id").notNull(),
+  sourceMessageId: text("source_message_id").notNull().unique(),
+  requesterEmail: text("requester_email").notNull(),
+  planId: text("plan_id").notNull(),
+  slotId: text("slot_id").notNull(),
+  date: text("date").notNull(),
+  startTime: text("start_time").notNull(),
+  endTime: text("end_time").notNull(),
+  role: text("role").notNull().default(""),
+  reason: text("reason").notNull().default(""),
+  status: text("status", {
+    enum: ["needs_review", "open", "candidate_review", "confirmed", "failed", "cancelled"],
+  }).notNull().default("needs_review"),
+  announcementId: text("announcement_id"),
+  replacementEmail: text("replacement_email"),
+  managerNote: text("manager_note").notNull().default(""),
+  createdBy: text("created_by").notNull(),
+  reviewedBy: text("reviewed_by"),
+  confirmedAt: text("confirmed_at"),
+  version: integer("version").notNull().default(1),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("shift_swap_request_group_status_idx").on(table.groupId, table.status, table.createdAt),
+]);
+
+export const shiftSwapCandidates = sqliteTable("shift_swap_candidates", {
+  id: text("id").primaryKey(),
+  requestId: text("request_id").notNull(),
+  groupId: text("group_id").notNull(),
+  memberEmail: text("member_email").notNull(),
+  status: text("status", { enum: ["available", "unavailable"] }).notNull(),
+  note: text("note").notNull().default(""),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("shift_swap_candidate_request_member_idx").on(table.requestId, table.memberEmail),
+  index("shift_swap_candidate_request_idx").on(table.requestId, table.status),
 ]);
 
 export const groupPreferences = sqliteTable("group_preferences", {
