@@ -15,18 +15,29 @@ type Plan = {
   shortageSlotCount?: number;
   shortageMemberCount?: number;
 };
+type DashboardData = {
+  today: string;
+  todaySchedule: Array<{ userEmail: string; displayName: string; startTime: string; endTime: string; role: string; planName: string; status: string }>;
+  requestActionItems: Array<{ planId: string; planName: string; closesOn: string; savedCount: number; memberCount: number; daysUntilClose: number }>;
+  closedBeforePublish: Array<{ planId: string; planName: string; startDate: string; endDate: string }>;
+  coverage: Array<{ planId: string; planName: string; shortageSlotCount: number; shortageMemberCount: number }>;
+  approvals: { dailyPending: number; previousMonthPending: number };
+  announcements: { total: number; unread: number };
+};
 export default function DashboardPanel({ groupId }: Props) {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [members, setMembers] = useState(0);
   const [announcements, setAnnouncements] = useState(0);
   const [groupName, setGroupName] = useState("");
   const [loading, setLoading] = useState(true);
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   useEffect(() => {
     void (async () => {
-      const [p, g, a] = await Promise.all([
+      const [p, g, a, d] = await Promise.all([
         localApiFetch(`/api/shifts?groupId=${groupId}`),
         localApiFetch(`/api/groups/${groupId}`),
         localApiFetch(`/api/groups/${groupId}/announcements`),
+        localApiFetch(`/api/groups/${groupId}/dashboard`),
       ]);
       if (p.ok) setPlans(((await p.json()) as { plans: Plan[] }).plans);
       if (g.ok) {
@@ -40,6 +51,7 @@ export default function DashboardPanel({ groupId }: Props) {
           ((await a.json()) as { announcements?: unknown[] }).announcements
             ?.length ?? 0,
         );
+      if (d.ok) setDashboard((await d.json()) as DashboardData);
       setLoading(false);
     })();
   }, [groupId]);
@@ -105,6 +117,46 @@ export default function DashboardPanel({ groupId }: Props) {
               </div>
             ))}
           </div>
+          {dashboard && (
+            <>
+              <div className="dashboard-action-grid">
+                <article className="dashboard-action-card">
+                  <div className="dashboard-section-head"><h3>今日の勤務状況</h3><small>{dashboard.today}</small></div>
+                  {dashboard.todaySchedule.length ? (
+                    <div className="dashboard-today-list">
+                      {dashboard.todaySchedule.map((item, index) => (
+                        <div key={`${item.userEmail}|${item.startTime}|${index}`}>
+                          <strong>{item.displayName}</strong>
+                          <span>{item.startTime}〜{item.endTime} {item.role || "共通"}</span>
+                          <em className={`dashboard-attendance-status status-${item.status}`}>{item.status}</em>
+                        </div>
+                      ))}
+                    </div>
+                  ) : <p className="dashboard-empty">今日の公開済みシフトはありません。</p>}
+                </article>
+                <article className="dashboard-action-card">
+                  <div className="dashboard-section-head"><h3>要対応</h3><small>管理者向け</small></div>
+                  <div className="dashboard-todo-list">
+                    <div><strong>{dashboard.approvals.dailyPending}</strong><span>日次承認待ち</span></div>
+                    <div><strong>{dashboard.approvals.previousMonthPending}</strong><span>先月の月次承認待ち</span></div>
+                    <div><strong>{dashboard.closedBeforePublish.length}</strong><span>希望締切後・未公開</span></div>
+                    <div><strong>{dashboard.coverage.filter((item) => item.shortageSlotCount > 0).length}</strong><span>不足ありシフト</span></div>
+                  </div>
+                </article>
+              </div>
+              <div className="dashboard-request-list">
+                <div className="dashboard-section-head"><h3>希望受付</h3><small>締切と提出状況</small></div>
+                {dashboard.requestActionItems.length ? dashboard.requestActionItems.map((item) => (
+                  <div key={item.planId} className={item.daysUntilClose <= 2 ? "is-deadline-near" : ""}>
+                    <strong>{item.planName}</strong>
+                    <span>締切 {item.closesOn}</span>
+                    <span>希望保存 {item.savedCount}/{item.memberCount}</span>
+                    <em>{item.daysUntilClose < 0 ? "締切超過" : `あと${item.daysUntilClose}日`}</em>
+                  </div>
+                )) : <p className="dashboard-empty">現在、受付中の希望はありません。</p>}
+              </div>
+            </>
+          )}
         </>
       )}
     </section>
