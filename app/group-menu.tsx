@@ -22,6 +22,7 @@ type Props = {
   onShiftAdjustment: (id: string) => void;
   onMembers: (id: string) => void;
   onAnnouncements: (id: string) => void;
+  onAnnouncementManage: (id: string) => void;
   onDashboard: (id: string) => void;
   onAuditLogs: (id: string) => void;
   onWorkDeclare: (id: string) => void;
@@ -102,6 +103,7 @@ export default function GroupMenu({
   onShiftAdjustment,
   onMembers,
   onAnnouncements,
+  onAnnouncementManage,
   onDashboard,
   onAuditLogs,
   onWorkDeclare,
@@ -199,7 +201,7 @@ export default function GroupMenu({
                     <button
                       className="group-menu-button admin"
                       type="button"
-                      onClick={() => onAnnouncements(group.groupId)}
+                      onClick={() => onAnnouncementManage(group.groupId)}
                     >
                       お知らせ・連絡管理
                     </button>
@@ -244,7 +246,7 @@ export default function GroupMenu({
                           メンバー管理
                           {pendingMembers > 0 && <span className="unread-badge">{pendingMembers}</span>}
                         </button>
-                        <button onClick={() => onAnnouncements(group.groupId)}>
+                        <button onClick={() => onAnnouncementManage(group.groupId)}>
                           お知らせ・連絡管理
                         </button>
                         <button onClick={() => onDashboard(group.groupId)}>

@@ -168,6 +168,7 @@ export default function Home() {
   const [menuGroupId, setMenuGroupId] = useState<string | undefined>();
   const [groupPreferencesOpen, setGroupPreferencesOpen] = useState(false);
   const [announcementsOpen, setAnnouncementsOpen] = useState(false);
+  const [announcementsManager, setAnnouncementsManager] = useState(false);
   const [announcementsTab, setAnnouncementsTab] = useState<"announcements" | "assistant">("announcements");
   const [dashboardOpen, setDashboardOpen] = useState(false);
   const [auditLogsOpen, setAuditLogsOpen] = useState(false);
@@ -452,6 +453,13 @@ export default function Home() {
         onMembers={(groupId) => openGroupTarget(groupId, "members")}
         onAnnouncements={(groupId) => {
           setMenuGroupId(groupId);
+          setAnnouncementsManager(false);
+          setAnnouncementsTab("announcements");
+          setAnnouncementsOpen(true);
+        }}
+        onAnnouncementManage={(groupId) => {
+          setMenuGroupId(groupId);
+          setAnnouncementsManager(true);
           setAnnouncementsTab("announcements");
           setAnnouncementsOpen(true);
         }}
@@ -933,9 +941,7 @@ export default function Home() {
               initialTab={announcementsTab}
               assistantUnread={groups.find((group) => group.groupId === menuGroupId)?.unreadAssistant ?? false}
               onAssistantRead={() => setGroups((current) => current.map((group) => group.groupId === menuGroupId ? { ...group, unreadAssistant: false } : group))}
-              manager={editableGroups.some(
-                (group) => group.groupId === menuGroupId,
-              )}
+              manager={announcementsManager}
             />
           </div>
         </div>
