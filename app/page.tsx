@@ -414,7 +414,7 @@ export default function Home() {
           <span className="brand-pill">シフト、勤怠管理をひとつに。</span>
         </button>
         <div className="top-actions">
-          <a className="ghost-button" href="/demo">
+          <a className="ghost-button demo-entry-button" href="/demo">
             体験版（ユーザー切替）
           </a>
           {userEmail ? (
