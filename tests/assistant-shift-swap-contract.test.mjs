@@ -22,6 +22,10 @@ test("shift replacement is manager-confirmed and version guarded", () => {
   assert.match(mcp, /Shift plan version conflict/);
   assert.match(mcp, /Replacement member already has an overlapping assignment/);
   assert.match(mcp, /has an unavailable preference for this slot/);
+  assert.match(
+    mcp,
+    /chunk\(allSlots\.map\(\(item\) => item\.id\), 50\)/,
+  );
   assert.match(mcp, /shift_swap_confirmed/);
   assert.match(assistantRoute, /status: "open"/);
 });

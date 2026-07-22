@@ -3315,7 +3315,12 @@ export async function POST(request: Request) {
       if (!slotAssignments.some((assignment) => assignment.userEmail === swapRequest.requesterEmail))
         return rpcError(payload.id, "The original member is no longer assigned to this slot.");
       const allSlots = await db.select().from(shiftSlots).where(eq(shiftSlots.planId, found.plan.id));
-      const allAssignments = allSlots.length ? await db.select().from(shiftAssignments).where(inArray(shiftAssignments.slotId, allSlots.map((item) => item.id))) : [];
+      const assignmentChunks = await Promise.all(
+        chunk(allSlots.map((item) => item.id), 50).map((slotIds) =>
+          db.select().from(shiftAssignments).where(inArray(shiftAssignments.slotId, slotIds)),
+        ),
+      );
+      const allAssignments = assignmentChunks.flat();
       const timeValue = (date: string, time: string) => Date.parse(`${date}T00:00:00Z`) / 60000 + shiftTimeToMinutes(time);
       const replacementOverlaps = allAssignments.filter((assignment) => assignment.userEmail === replacementEmail && assignment.slotId !== slot.id).some((assignment) => {
         const other = allSlots.find((item) => item.id === assignment.slotId);
