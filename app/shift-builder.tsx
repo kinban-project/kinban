@@ -380,7 +380,7 @@ export default function ShiftBuilder({
                 required
                 value={form.groupId}
                 onChange={(event) =>
-                  setForm({ ...form, groupId: event.target.value })
+                  setForm((current) => ({ ...current, groupId: event.target.value }))
                 }
               >
                 <option value="">選択してください</option>
@@ -397,7 +397,7 @@ export default function ShiftBuilder({
                 required
                 value={form.name}
                 onChange={(event) =>
-                  setForm({ ...form, name: event.target.value })
+                  setForm((current) => ({ ...current, name: event.target.value }))
                 }
               />
             </label>
@@ -408,15 +408,22 @@ export default function ShiftBuilder({
                   type="date"
                   required
                   value={form.startDate}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      startDate: event.target.value,
-                      requestCloseDate: defaultRequestCloseDate(
-                        event.target.value,
-                      ),
-                    })
-                  }
+                  onChange={(event) => {
+                    const value = event.currentTarget.value;
+                    setForm((current) => ({
+                      ...current,
+                      startDate: value,
+                      requestCloseDate: defaultRequestCloseDate(value),
+                    }));
+                  }}
+                  onInput={(event) => {
+                    const value = event.currentTarget.value;
+                    setForm((current) => ({
+                      ...current,
+                      startDate: value,
+                      requestCloseDate: defaultRequestCloseDate(value),
+                    }));
+                  }}
                 />
               </label>
               <label>
@@ -425,9 +432,14 @@ export default function ShiftBuilder({
                   type="date"
                   required
                   value={form.endDate}
-                  onChange={(event) =>
-                    setForm({ ...form, endDate: event.target.value })
-                  }
+                  onChange={(event) => {
+                    const value = event.currentTarget.value;
+                    setForm((current) => ({ ...current, endDate: value }));
+                  }}
+                  onInput={(event) => {
+                    const value = event.currentTarget.value;
+                    setForm((current) => ({ ...current, endDate: value }));
+                  }}
                 />
               </label>
             </div>
@@ -437,9 +449,14 @@ export default function ShiftBuilder({
                 type="datetime-local"
                 required
                 value={form.requestCloseDate}
-                onChange={(event) =>
-                  setForm({ ...form, requestCloseDate: event.target.value })
-                }
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  setForm((current) => ({ ...current, requestCloseDate: value }));
+                }}
+                onInput={(event) => {
+                  const value = event.currentTarget.value;
+                  setForm((current) => ({ ...current, requestCloseDate: value }));
+                }}
               />
               <small className="field-help">
                 開始日の15日前を初期値にし、現在日時から2日以内にならないようにしています。必要に応じて変更できます。
@@ -471,7 +488,7 @@ export default function ShiftBuilder({
                   <select
                     value={form.openingTime}
                     onChange={(event) =>
-                      setForm({ ...form, openingTime: event.target.value })
+                      setForm((current) => ({ ...current, openingTime: event.target.value }))
                     }
                   >
                     {shiftTimeOptions.slice(0, -1).map((time) => (
@@ -486,7 +503,7 @@ export default function ShiftBuilder({
                   <select
                     value={form.closingTime}
                     onChange={(event) =>
-                      setForm({ ...form, closingTime: event.target.value })
+                      setForm((current) => ({ ...current, closingTime: event.target.value }))
                     }
                   >
                     {shiftTimeOptions.slice(1).map((time) => (
@@ -505,7 +522,7 @@ export default function ShiftBuilder({
                   <select
                     value={form.slotMinutes}
                     onChange={(event) =>
-                      setForm({ ...form, slotMinutes: event.target.value })
+                      setForm((current) => ({ ...current, slotMinutes: event.target.value }))
                     }
                   >
                     <option value="30">30分</option>

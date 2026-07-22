@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { localApiFetch } from "./local-api";
 import { shiftDateTime } from "./shift-time";
 
@@ -44,6 +44,13 @@ type Draft = {
   end: string;
   breakMinutes: number;
   note?: string;
+};
+type ManagerFilters = {
+  month: string;
+  day: string;
+  member: string;
+  status: string;
+  difference: string;
 };
 
 function statusLabel(value: string, ended = false) {
@@ -105,9 +112,9 @@ function withDate(date: string, value: string) {
     parts.find((part) => part.type === type)?.value ?? "";
   return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
 }
-function todayKey() {
+function todayKey(value = new Date()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(
-    new Date(),
+    value,
   );
 }
 const timeOptions = Array.from({ length: 61 }, (_, index) => {
@@ -140,26 +147,44 @@ function TimeSelect({
   disabled?: boolean;
 }) {
   const selected = timeOnly(value, date);
-  const options =
-    selected && !timeOptions.some((option) => option.value === selected)
-      ? [{ value: selected, label: selected }, ...timeOptions]
-      : timeOptions;
+  const [draft, setDraft] = useState(selected);
+  useEffect(() => setDraft(selected), [selected]);
+  const normalized = normalizeTimeInput(draft);
+  const valid = normalized !== null;
+  function commit(next: string) {
+    const nextValue = normalizeTimeInput(next);
+    setDraft(nextValue ?? next);
+    if (nextValue !== null) {
+      onChange(withDate(date, nextValue));
+    }
+  }
   return (
-    <select
-      className="claim-time-select"
+    <input
+      className={`claim-time-select claim-time-input${draft && !valid ? " invalid" : ""}`}
+      type="text"
+      inputMode="numeric"
+      placeholder="HH:mm"
+      pattern="(?:[0-9]|1[0-9]|2[0-9]):[0-5][0-9]|30:00"
       aria-label={label}
-      value={selected}
+      value={draft}
       disabled={disabled}
-      onChange={(event) => onChange(withDate(date, event.target.value))}
-    >
-      <option value="">--:--</option>
-      {options.map((option) => (
-        <option value={option.value} key={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
+      onChange={(event) => commit(event.target.value)}
+      onBlur={() => {
+        if (draft && !valid) setDraft(selected);
+      }}
+    />
   );
+}
+
+function normalizeTimeInput(value: string): string | null {
+  const trimmed = value.trim();
+  const colonMatch = trimmed.match(/^(\d{1,2}):(\d{2})$/);
+  const compactMatch = trimmed.match(/^(\d{4})$/);
+  const hour = colonMatch ? Number(colonMatch[1]) : compactMatch ? Number(trimmed.slice(0, 2)) : NaN;
+  const minute = colonMatch ? Number(colonMatch[2]) : compactMatch ? Number(trimmed.slice(2)) : NaN;
+  if (!Number.isInteger(hour) || !Number.isInteger(minute) || minute < 0 || minute > 59) return null;
+  if (hour < 0 || hour > 29 || (hour === 30 && minute !== 0)) return null;
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 function localDateTime(value?: string | null) {
   if (!value) return "";
@@ -284,17 +309,61 @@ export default function WorkRecordsPanel({
   const [currentUserEmail, setCurrentUserEmail] = useState("");
   const [claimDrafts, setClaimDrafts] = useState<Record<string, Draft>>({});
   const [manualDrafts, setManualDrafts] = useState<Record<string, Draft>>({});
+  const [demoNow, setDemoNow] = useState<Date | null>(null);
   const [month, setMonth] = useState(monthKey(new Date()));
   const [monthlyStatus, setMonthlyStatus] = useState("unsubmitted");
+  const [monthlyManagerNote, setMonthlyManagerNote] = useState("");
   const [monthlyBusy, setMonthlyBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [recordPage, setRecordPage] = useState(1);
   const [recordHasNext, setRecordHasNext] = useState(false);
+  const [managerFilters, setManagerFilters] = useState<ManagerFilters>({
+    month: monthKey(new Date()),
+    day: "all",
+    member: "all",
+    status: "submitted",
+    difference: "all",
+  });
   const [notice, setNotice] = useState("");
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  useEffect(() => {
+    if (!groupId.startsWith("seed-group-")) {
+      setDemoNow(null);
+      return;
+    }
+    let cancelled = false;
+    void fetch("/api/demo-clock", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() as Promise<{ currentAt?: string }> : null))
+      .then((data) => {
+        if (cancelled || !data?.currentAt) return;
+        const next = new Date(data.currentAt);
+        if (Number.isNaN(next.getTime())) return;
+        const nextMonth = monthKey(next);
+        setDemoNow(next);
+        setMonth(nextMonth);
+        setManagerFilters((current) => ({ ...current, month: nextMonth }));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [groupId]);
   async function load() {
     setBusy(true);
-    const response = await localApiFetch(`/api/groups/${groupId}/work-records?page=${recordPage}&pageSize=100`);
+    const params = new URLSearchParams({
+      page: String(recordPage),
+      pageSize: "100",
+    });
+    if (!manager) {
+      params.set("view", "personal");
+    } else {
+      params.set("month", managerFilters.month);
+      if (managerFilters.day !== "all") params.set("day", managerFilters.day);
+      if (managerFilters.member !== "all") params.set("userEmail", managerFilters.member);
+      if (managerFilters.status !== "all") params.set("status", managerFilters.status);
+      if (managerFilters.difference !== "all") params.set("difference", managerFilters.difference);
+    }
+    const response = await localApiFetch(`/api/groups/${groupId}/work-records?${params.toString()}`);
     if (response.ok) {
       const data = (await response.json()) as {
         group?: { name?: string };
@@ -338,20 +407,21 @@ export default function WorkRecordsPanel({
   useEffect(() => {
     void load();
     return () => Object.values(saveTimers.current).forEach(clearTimeout);
-  }, [groupId, recordPage]);
+  }, [groupId, manager, recordPage, managerFilters]);
   async function loadMonthlyStatus() {
     const response = await localApiFetch(
       `/api/groups/${groupId}/monthly-work?month=${month}`,
     );
     if (!response.ok) return;
     const data = (await response.json()) as {
-      claims?: Array<{ userEmail: string; status: string }>;
+      claims?: Array<{ userEmail: string; status: string; managerNote?: string }>;
       currentUserEmail?: string;
     };
     const claim = data.claims?.find(
       (item) => item.userEmail === data.currentUserEmail,
     );
     setMonthlyStatus(claim?.status ?? "unsubmitted");
+    setMonthlyManagerNote(claim?.status === "rejected" ? claim.managerNote ?? "" : "");
   }
   useEffect(() => {
     void loadMonthlyStatus();
@@ -419,6 +489,26 @@ export default function WorkRecordsPanel({
     );
     setBusy(false);
   }
+  const approvalLocked = (record: RecordRow) =>
+    record.status === "submitted" || record.status === "approved";
+  async function startClaimEdit(record: RecordRow) {
+    if (record.monthlyClosedAt) {
+      setNotice("月次承認済みのため、先に管理者へ承認解除を依頼してください。");
+      return;
+    }
+    if (!window.confirm("承認状態を取り下げて、申告を修正できる状態に戻しますか？"))
+      return;
+    setBusy(true);
+    const response = await patch({ action: "start-edit", recordId: record.id });
+    const data = (await response.json().catch(() => ({}))) as { error?: string };
+    setNotice(
+      response.ok
+        ? "未申告に戻しました。内容を修正して申請してください。"
+        : (data.error ?? "申告を修正できませんでした。"),
+    );
+    if (response.ok) await load();
+    setBusy(false);
+  }
   async function review(recordId: string, status: "approved" | "rejected", managerNote = "") {
     const response = await patch({ recordId, status, ...(status === "rejected" ? { managerNote } : {}) });
     setNotice(
@@ -444,12 +534,12 @@ export default function WorkRecordsPanel({
     setBusy(false);
   }
   async function saveClaim(record: RecordRow, draft = claimDrafts[record.id]) {
-    if (!draft?.start) return;
+    if (!draft || (!draft.start && !draft.end && !draft.note?.trim())) return;
     const response = await patch({
       action: "save-claim",
       recordId: record.id,
-      claimedStartAt: draft.start,
-      claimedEndAt: draft.end,
+      ...(draft.start ? { claimedStartAt: draft.start } : {}),
+      ...(draft.end ? { claimedEndAt: draft.end } : {}),
       claimedBreakMinutes: draft.breakMinutes,
       employeeNote: draft.note ?? "",
     });
@@ -471,10 +561,11 @@ export default function WorkRecordsPanel({
       500,
     );
   }
-  async function applySchedule(record: RecordRow) {
+  async function applySchedule(record: RecordRow, slotId?: string) {
     const response = await patch({
       action: "apply-schedule",
       recordId: record.id,
+      ...(slotId ? { slotId } : {}),
     });
     setNotice(
       response.ok
@@ -507,7 +598,7 @@ export default function WorkRecordsPanel({
     if (response.ok) await load();
   }
   async function createManualClaim(date: string, draft: Draft) {
-    if (!draft.start || !draft.end) return;
+    if ((!draft.start || !draft.end) && !draft.note?.trim()) return;
     const response = await localApiFetch(
       `/api/groups/${groupId}/work-records`,
       {
@@ -518,6 +609,8 @@ export default function WorkRecordsPanel({
           scheduledDate: date,
           claimedStartAt: draft.start,
           claimedEndAt: draft.end,
+          claimedBreakMinutes: draft.breakMinutes,
+          employeeNote: draft.note ?? "",
         }),
       },
     );
@@ -534,10 +627,11 @@ export default function WorkRecordsPanel({
   }
   async function submit(record: RecordRow) {
     const draft = claimDrafts[record.id];
-    if (!draft?.start || !draft.end) {
+    if ((!draft?.start || !draft.end) && !draft.note?.trim()) {
       setNotice("開始・終了の申告時間を入力してください。");
       return;
     }
+    await saveClaim(record, draft);
     const response = await patch({
       action: "submit-claim",
       recordId: record.id,
@@ -590,6 +684,16 @@ export default function WorkRecordsPanel({
   );
   const breaksFor = (id: string) =>
     breaks.filter((item) => item.workRecordId === id);
+  const hasDraftChanges = (record: RecordRow, draft?: Draft | null) => {
+    if (!draft) return false;
+    return (
+      (draft.start ?? "") !== localDateTime(record.claimedStartAt ?? record.startedAt) ||
+      (draft.end ?? "") !== localDateTime(record.claimedEndAt ?? record.endedAt) ||
+      (draft.breakMinutes ?? 0) !==
+        (record.claimedBreakMinutes ?? breakMinutes(breaksFor(record.id))) ||
+      (draft.note ?? "") !== (record.employeeNote ?? "")
+    );
+  };
   const activeRecords = records.filter(
     (record) =>
       record.status === "working" &&
@@ -613,7 +717,7 @@ export default function WorkRecordsPanel({
     const date = new Date(year, current - 1 + offset, 1);
     setMonth(monthKey(date));
   }
-  const today = todayKey();
+  const today = todayKey(demoNow ?? new Date());
   const mobileNeedsAction = (date: string) => {
     const record = recordsByDate.get(date);
     const planned = schedulesByDate.get(date);
@@ -663,13 +767,10 @@ export default function WorkRecordsPanel({
       ),
     [days, recordsByDate, claimDrafts],
   );
-  const monthlyIncomplete = records.some(
-    (record) =>
-      record.scheduledDate.startsWith(month) &&
-      (!record.claimedStartAt ||
-        !record.claimedEndAt ||
-        record.status === "working"),
-  );
+  const handleManagerFiltersChange = useCallback((next: ManagerFilters) => {
+    setManagerFilters(next);
+    setRecordPage(1);
+  }, []);
   const monthlyStatusLabel =
     monthlyStatus === "approved"
       ? "月次承認済み"
@@ -702,10 +803,12 @@ export default function WorkRecordsPanel({
           page={recordPage}
           hasNext={recordHasNext}
           onPageChange={setRecordPage}
+          filters={managerFilters}
+          onFiltersChange={handleManagerFiltersChange}
         />
       ) : (
         <>
-          <section className="mobile-clock-card" aria-label="現在の勤務状況">
+          {false && <section className="mobile-clock-card" aria-label="現在の勤務状況">
             <div>
               <span>現在の勤務状況</span>
               {activeClockRecord ? (
@@ -734,7 +837,7 @@ export default function WorkRecordsPanel({
                 勤務開始
               </button>
             )}
-          </section>
+          </section>}
           <div className="work-month-toolbar">
             <button className="small-action" onClick={() => moveMonth(-1)}>
               前月
@@ -745,7 +848,7 @@ export default function WorkRecordsPanel({
               onChange={(event) => setMonth(event.target.value)}
             >
               {Array.from({ length: 13 }, (_, index) => {
-                const date = new Date();
+                const date = demoNow ? new Date(demoNow) : new Date();
                 date.setMonth(date.getMonth() - 6 + index, 1);
                 const key = monthKey(date);
                 return (
@@ -762,6 +865,11 @@ export default function WorkRecordsPanel({
           <p className="work-month-help">
             日付に関係なく当月の勤務記録を表示します。入力内容は変更時に自動保存されます。
           </p>
+          {monthlyStatus === "rejected" && monthlyManagerNote && (
+            <p className="work-rejection-note monthly-rejection-note">
+              月次差戻し理由：{monthlyManagerNote}
+            </p>
+          )}
           <div className="work-records-summary monthly-work-summary">
             <strong>勤務日数 {monthSummary.days}日</strong>
             <span>実働 {formatMinutes(monthSummary.work)}</span>
@@ -772,7 +880,7 @@ export default function WorkRecordsPanel({
             <button
               className="primary-button"
               disabled={
-                monthlyBusy || monthlyIncomplete || monthlyStatus === "approved"
+                monthlyBusy || monthlyStatus === "approved"
               }
               onClick={() => void submitMonthly()}
             >
@@ -785,12 +893,14 @@ export default function WorkRecordsPanel({
               const planned = schedulesByDate.get(date);
               const draft = record ? (claimDrafts[record.id] ?? { start: localDateTime(record.claimedStartAt ?? record.startedAt), end: localDateTime(record.claimedEndAt ?? record.endedAt), breakMinutes: record.claimedBreakMinutes ?? breakMinutes(breaksFor(record.id)), note: record.employeeNote ?? "" }) : null;
               const manual = manualDrafts[date] ?? { start: "", end: "", breakMinutes: 0 };
+              const editDraft = record ? draft : manual;
               const past = date <= today;
               const needsAction = mobileNeedsAction(date);
               return <article className={`mobile-work-record-card${needsAction ? " needs-action" : ""}`} key={date}>
                 <div className="mobile-work-record-head"><strong>{dayLabel(date)}</strong>{record ? <span className={`work-status work-status-${record.status}`}>{statusLabel(record.status, Boolean(record.endedAt))}</span> : planned ? <span className="work-status work-status-unsubmitted">未申告</span> : <span className="work-status work-status-none">—</span>}</div>
-                <div className="mobile-work-schedule"><span>シフト予定</span><b>{planned ? `${planned.startTime}〜${planned.endTime}${planned.role ? ` ／ ${planned.role}` : ""}` : "予定なし"}</b>{planned && (record ? !record.monthlyClosedAt && <button className="small-action" disabled={busy} onClick={() => void applySchedule(record)}>シフト通り</button> : past && <button className="small-action" disabled={busy} onClick={() => void createClaim(planned)}>シフト通り</button>)}</div>
-                {record || past ? <div className="mobile-work-edit"><label>申告時間<div className="claim-time-fields"><TimeSelect value={record ? draft?.start ?? "" : manual.start} date={date} label={`${date} 申告開始`} disabled={Boolean(record?.monthlyClosedAt)} onChange={(value) => record ? updateDraft(record, { start: value, end: draft?.end ?? "" }) : updateManualDraft(date, { start: value, end: manual.end, breakMinutes: manual.breakMinutes })} /><span>〜</span><TimeSelect value={record ? draft?.end ?? "" : manual.end} date={date} label={`${date} 申告終了`} disabled={Boolean(record?.monthlyClosedAt)} onChange={(value) => record ? updateDraft(record, { start: draft?.start ?? "", end: value }) : updateManualDraft(date, { start: manual.start, end: value, breakMinutes: manual.breakMinutes })} /></div></label>{record && <><label>休憩<input type="number" min={0} max={1440} value={draft?.breakMinutes ?? 0} disabled={Boolean(record.monthlyClosedAt)} onChange={(event) => updateDraft(record, { breakMinutes: Math.max(0, Math.min(1440, Number(event.target.value) || 0)) })} />分</label><label>備考<input value={draft?.note ?? ""} placeholder="理由・備考" disabled={Boolean(record.monthlyClosedAt)} onChange={(event) => updateDraft(record, { note: event.target.value })} /></label><div className="mobile-work-total">実働 {formatMinutes(claimedMinutes(draft))}</div>{record.status === "rejected" && record.managerNote && <p className="work-rejection-note">差戻し理由：{record.managerNote}</p>}{["working", "unsubmitted", "rejected"].includes(record.status) && (record.endedAt || draft?.end) && <button className="primary-button mobile-work-submit" disabled={busy} onClick={() => void submit(record)}>申請</button>}</>}</div> : <p className="mobile-work-future">過去日になると入力できます。</p>}
+                <div className="mobile-work-schedule"><span>シフト予定</span><b>{planned ? `${planned.startTime}〜${planned.endTime}${planned.role ? ` ／ ${planned.role}` : ""}` : "予定なし"}</b>{planned && (record ? !record.monthlyClosedAt && !approvalLocked(record) && <button className="small-action" disabled={busy} onClick={() => void applySchedule(record, planned.id)}>シフト通り</button> : past && <button className="small-action" disabled={busy} onClick={() => void createClaim(planned)}>シフト通り</button>)}</div>
+                <div className="mobile-work-clock"><span>打刻</span><b>{record && (record.startedAt || record.endedAt) ? `${formatClock(record.startedAt)}〜${formatClock(record.endedAt)}` : "—"}</b></div>
+                {record || past ? <div className="mobile-work-edit">{record && approvalLocked(record) && !record.monthlyClosedAt && <button className="small-action" disabled={busy} onClick={() => void startClaimEdit(record)}>申告を修正</button>}<label>申告時間<div className="claim-time-fields"><TimeSelect value={editDraft?.start ?? ""} date={date} label={`${date} 申告開始`} disabled={Boolean(record?.monthlyClosedAt) || Boolean(record && approvalLocked(record))} onChange={(value) => record ? updateDraft(record, { start: value, end: draft?.end ?? "" }) : updateManualDraft(date, { start: value, end: manual.end, breakMinutes: manual.breakMinutes, note: manual.note })} /><span>〜</span><TimeSelect value={editDraft?.end ?? ""} date={date} label={`${date} 申告終了`} disabled={Boolean(record?.monthlyClosedAt) || Boolean(record && approvalLocked(record))} onChange={(value) => record ? updateDraft(record, { start: draft?.start ?? "", end: value }) : updateManualDraft(date, { start: manual.start, end: value, breakMinutes: manual.breakMinutes, note: manual.note })} /></div></label><label>休憩<input type="number" min={0} max={1440} value={editDraft?.breakMinutes ?? 0} disabled={Boolean(record?.monthlyClosedAt) || Boolean(record && approvalLocked(record))} onChange={(event) => record ? updateDraft(record, { breakMinutes: Math.max(0, Math.min(1440, Number(event.target.value) || 0)) }) : updateManualDraft(date, { start: manual.start, end: manual.end, breakMinutes: Math.max(0, Math.min(1440, Number(event.target.value) || 0)), note: manual.note })} />分</label><label>備考<input value={editDraft?.note ?? ""} placeholder="理由・備考" disabled={Boolean(record?.monthlyClosedAt) || Boolean(record && approvalLocked(record))} onChange={(event) => record ? updateDraft(record, { note: event.target.value }) : updateManualDraft(date, { start: manual.start, end: manual.end, breakMinutes: manual.breakMinutes, note: event.target.value })} /></label>{record && <><div className="mobile-work-total">実働 {formatMinutes(claimedMinutes(draft))}</div>{record.status === "rejected" && record.managerNote && <p className="work-rejection-note">差戻し理由：{record.managerNote}</p>}{(["working", "unsubmitted", "rejected"].includes(record.status) || (record.status === "submitted" && hasDraftChanges(record, draft))) && (record.endedAt || draft?.end || draft?.note?.trim()) && <button className="primary-button mobile-work-submit" disabled={busy} onClick={() => void submit(record)}>申請</button>}</>}{!record && (manual.start || manual.end || manual.note?.trim()) && <button className="primary-button mobile-work-submit" disabled={busy} onClick={() => void createManualClaim(date, manual)}>申請</button>}</div> : <p className="mobile-work-future">過去日になると入力できます。</p>}
               </article>;
             })}
           </div>
@@ -843,11 +953,11 @@ export default function WorkRecordsPanel({
                               {planned.startTime}〜{planned.endTime}
                             </span>
                             {record ? (
-                              !record.monthlyClosedAt && (
+                              !record.monthlyClosedAt && !approvalLocked(record) && (
                                 <button
                                   className="small-action"
                                   disabled={busy}
-                                  onClick={() => void applySchedule(record)}
+                                  onClick={() => void applySchedule(record, planned.id)}
                                 >
                                   シフト通り
                                 </button>
@@ -889,7 +999,7 @@ export default function WorkRecordsPanel({
                               value={draft?.start ?? ""}
                               date={date}
                               label={`${date} 申告開始`}
-                              disabled={Boolean(record.monthlyClosedAt)}
+                              disabled={Boolean(record.monthlyClosedAt) || approvalLocked(record)}
                               onChange={(value) =>
                                 updateDraft(record, {
                                   start: value,
@@ -902,7 +1012,7 @@ export default function WorkRecordsPanel({
                               value={draft?.end ?? ""}
                               date={date}
                               label={`${date} 申告終了`}
-                              disabled={Boolean(record.monthlyClosedAt)}
+                              disabled={Boolean(record.monthlyClosedAt) || approvalLocked(record)}
                               onChange={(value) =>
                                 updateDraft(record, {
                                   start: draft?.start ?? "",
@@ -939,6 +1049,22 @@ export default function WorkRecordsPanel({
                               }
                             />
                           </div>
+                        ) : !record && past && (manual.start || manual.end || manual.note?.trim()) ? (
+                          <button
+                            className="small-action"
+                            disabled={busy}
+                            onClick={() => void createManualClaim(date, manual)}
+                          >
+                            申請
+                          </button>
+                        ) : !record && past && (manual.start || manual.end || manual.note?.trim()) ? (
+                          <button
+                            className="small-action"
+                            disabled={busy}
+                            onClick={() => void createManualClaim(date, manual)}
+                          >
+                            申請
+                          </button>
                         ) : (
                           "—"
                         )}
@@ -952,7 +1078,7 @@ export default function WorkRecordsPanel({
                               max={1440}
                               step={1}
                               value={draft?.breakMinutes ?? 0}
-                              disabled={Boolean(record.monthlyClosedAt)}
+                              disabled={Boolean(record.monthlyClosedAt) || approvalLocked(record)}
                               aria-label={`${date} 申告休憩`}
                               onChange={(event) =>
                                 updateDraft(record, {
@@ -963,6 +1089,26 @@ export default function WorkRecordsPanel({
                                       Number(event.target.value) || 0,
                                     ),
                                   ),
+                                })
+                              }
+                            />
+                            <span>分</span>
+                          </div>
+                        ) : past ? (
+                          <div className="claim-break-field">
+                            <input
+                              type="number"
+                              min={0}
+                              max={1440}
+                              step={1}
+                              value={manual.breakMinutes ?? 0}
+                              aria-label={`${date} 申告休憩`}
+                              onChange={(event) =>
+                                updateManualDraft(date, {
+                                  start: manual.start,
+                                  end: manual.end,
+                                  breakMinutes: Math.max(0, Math.min(1440, Number(event.target.value) || 0)),
+                                  note: manual.note,
                                 })
                               }
                             />
@@ -981,11 +1127,27 @@ export default function WorkRecordsPanel({
                             className="monthly-note"
                             value={draft?.note ?? ""}
                             placeholder="理由・備考"
-                            disabled={Boolean(record.monthlyClosedAt)}
+                            disabled={Boolean(record.monthlyClosedAt) || approvalLocked(record)}
                             maxLength={500}
                             aria-label={`${date} 備考`}
                             onChange={(event) =>
                               updateDraft(record, { note: event.target.value })
+                            }
+                          />
+                        ) : past ? (
+                          <input
+                            className="monthly-note"
+                            value={manual.note ?? ""}
+                            placeholder="理由・備考"
+                            maxLength={500}
+                            aria-label={`${date} 備考`}
+                            onChange={(event) =>
+                              updateManualDraft(date, {
+                                start: manual.start,
+                                end: manual.end,
+                                breakMinutes: manual.breakMinutes,
+                                note: event.target.value,
+                              })
                             }
                           />
                         ) : (
@@ -1017,13 +1179,30 @@ export default function WorkRecordsPanel({
                         )}
                       </td>
                       <td>
-                        {record &&
-                        ["working", "unsubmitted", "rejected"].includes(record.status) &&
-                        (record.endedAt || draft?.end) ? (
+                        {record && approvalLocked(record) && !record.monthlyClosedAt ? (
+                          <button
+                            className="small-action"
+                            disabled={busy}
+                            onClick={() => void startClaimEdit(record)}
+                          >
+                            申告を修正
+                          </button>
+                        ) : record &&
+                        (["working", "unsubmitted", "rejected"].includes(record.status) ||
+                          (record.status === "submitted" && hasDraftChanges(record, draft))) &&
+                        (record.endedAt || draft?.end || draft?.note?.trim()) ? (
                           <button
                             className="small-action"
                             disabled={busy}
                             onClick={() => void submit(record)}
+                          >
+                            申請
+                          </button>
+                        ) : !record && past && (manual.start || manual.end || manual.note?.trim()) ? (
+                          <button
+                            className="small-action"
+                            disabled={busy}
+                            onClick={() => void createManualClaim(date, manual)}
                           >
                             申請
                           </button>
@@ -1055,6 +1234,8 @@ function ManagerView({
   page,
   hasNext,
   onPageChange,
+  filters,
+  onFiltersChange,
 }: {
   records: RecordRow[];
   members: Member[];
@@ -1070,6 +1251,8 @@ function ManagerView({
   page: number;
   hasNext: boolean;
   onPageChange: (page: number) => void;
+  filters: ManagerFilters;
+  onFiltersChange: (filters: ManagerFilters) => void;
 }) {
   const names = new Map(
     members.map((member) => [
@@ -1077,11 +1260,20 @@ function ManagerView({
       member.displayName?.trim() || member.userEmail.split("@")[0],
     ]),
   );
-  const [month, setMonth] = useState(monthKey(new Date()));
-  const [day, setDay] = useState("all");
-  const [member, setMember] = useState("all");
-  const [status, setStatus] = useState("submitted");
-  const [differenceFilter, setDifferenceFilter] = useState("all");
+  const [month, setMonth] = useState(filters.month);
+  const [day, setDay] = useState(filters.day);
+  const [member, setMember] = useState(filters.member);
+  const [status, setStatus] = useState(filters.status);
+  const [differenceFilter, setDifferenceFilter] = useState(filters.difference);
+  useEffect(() => {
+    onFiltersChange({
+      month,
+      day,
+      member,
+      status,
+      difference: differenceFilter,
+    });
+  }, [month, day, member, status, differenceFilter, onFiltersChange]);
   const [selected, setSelected] = useState<string[]>([]);
   const [detail, setDetail] = useState<RecordRow | null>(null);
   const [rejectTarget, setRejectTarget] = useState<RecordRow | null>(null);
