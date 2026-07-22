@@ -13,6 +13,8 @@ type Group = {
 };
 type Props = {
   groups: Group[];
+  canCreateGroups: boolean;
+  onSiteAdmin?: () => void;
   onApplications: () => void;
   onCreateGroup: () => void;
   onBasic: (id: string) => void;
@@ -94,6 +96,8 @@ function WorkDeclareButton({ groupId, onClick }: { groupId: string; onClick: () 
 
 export default function GroupMenu({
   groups,
+  canCreateGroups,
+  onSiteAdmin,
   onApplications,
   onCreateGroup,
   onBasic,
@@ -115,20 +119,21 @@ export default function GroupMenu({
   return (
     <nav className="group-menu" aria-label="グループメニュー">
       <div className="group-menu-global">
-        <button
+        {canCreateGroups && <button
           className="group-menu-application"
           type="button"
           onClick={onApplications}
         >
           グループ申請
-        </button>
-        <button
+        </button>}
+        {onSiteAdmin && <button className="group-menu-application" type="button" onClick={onSiteAdmin}>サイト管理</button>}
+        {canCreateGroups && <button
           className="group-menu-application"
           type="button"
           onClick={onCreateGroup}
         >
           グループ作成
-        </button>
+        </button>}
       </div>
       {groups.map((group) => {
         const manager = group.role === "owner" || group.role === "editor";

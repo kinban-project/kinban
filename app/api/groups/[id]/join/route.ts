@@ -11,7 +11,9 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
   const user = await getChatGPTUser();
   if (!user) return Response.json({ error: "ログインが必要です" }, { status: 401 });
   const { id } = await context.params;
-  if (!await getGroup(id)) return Response.json({ error: "グループが見つかりません" }, { status: 404 });
+  const group = await getGroup(id);
+  if (!group) return Response.json({ error: "グループが見つかりません" }, { status: 404 });
+  if (group.participationMode !== "request_to_join") return Response.json({ error: "このグループは非公開・招待制です" }, { status: 403 });
   const db = getDb();
   const [member] = await db.select().from(groupMembers).where(and(eq(groupMembers.groupId, id), eq(groupMembers.userEmail, user.email))).limit(1);
   if (member) return Response.json({ membership: member });

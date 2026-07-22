@@ -25,7 +25,9 @@ type Assistant = {
   canReviewMonthlyWork: boolean;
   canCreateAnnouncements: boolean;
 };
-type GroupDetail = { currentEmail: string; group: Group; membership: { role: string; showInPersonal: boolean }; members: Member[]; requests: Array<{ id: string; userEmail: string; status: string }>; assistant: Assistant | null };
+type GroupInvitation = { id: string; inviteeEmail: string; status: string; expiresAt: string };
+type PendingInvitation = GroupInvitation & { groupId: string; group: Group | null };
+type GroupDetail = { currentEmail: string; group: Group; membership: { role: string; showInPersonal: boolean }; members: Member[]; requests: Array<{ id: string; userEmail: string; status: string }>; invitations?: GroupInvitation[]; assistant: Assistant | null };
 
 const weekdayLabels = ["日", "月", "火", "水", "木", "金", "土"];
 const preferenceStatusLabels: Record<string, string> = { want: "出勤希望", possible: "可能", off: "休み希望", unavailable: "勤務不可" };
@@ -47,10 +49,16 @@ export default function GroupsPanel({ onChanged, initialGroupId }: { onChanged: 
   const [notice, setNotice] = useState<string | null>(null);
   const [userId, setUserId] = useState(getLocalUserId());
   const [memberQuery, setMemberQuery] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [pendingInvitations, setPendingInvitations] = useState<PendingInvitation[]>([]);
 
   async function loadGroups() {
     const response = await localApiFetch("/api/groups");
-    if (response.ok) setGroups((await response.json() as { groups: Group[] }).groups);
+    if (response.ok) {
+      const data = await response.json() as { groups: Group[]; pendingInvitations?: PendingInvitation[] };
+      setGroups(data.groups);
+      setPendingInvitations(data.pendingInvitations ?? []);
+    }
   }
   useEffect(() => { const timer = window.setTimeout(() => void loadGroups(), 0); return () => window.clearTimeout(timer); }, []);
   useEffect(() => { const group = groups.find((item) => item.id === initialGroupId); if (group) void openGroup(group); }, [groups, initialGroupId]);
@@ -69,6 +77,24 @@ export default function GroupsPanel({ onChanged, initialGroupId }: { onChanged: 
     const response = await localApiFetch(`/api/groups/${joinId}/join`, { method: "POST" });
     setNotice(response.ok ? "参加申請を送りました" : ((await response.json().catch(() => ({})) as { error?: string }).error ?? "参加申請に失敗しました"));
     setJoinId(""); await loadGroups();
+  }
+  async function acceptInvitation(invitation: PendingInvitation) {
+    const response = await localApiFetch(`/api/groups/${invitation.groupId}/invitations`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "accept" }) });
+    setNotice(response.ok ? "グループ招待を承認しました" : ((await response.json().catch(() => ({})) as { error?: string }).error ?? "グループ招待を承認できませんでした"));
+    if (response.ok) { await loadGroups(); onChanged(); }
+  }
+  async function inviteMember(event: React.FormEvent) {
+    event.preventDefault();
+    if (!selected || !inviteEmail.trim()) return;
+    const response = await localApiFetch(`/api/groups/${selected.group.id}/invitations`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: inviteEmail.trim() }) });
+    const data = await response.json().catch(() => ({})) as { error?: string };
+    setNotice(response.ok ? "グループ招待を作成しました" : (data.error ?? "グループ招待を作成できませんでした"));
+    if (response.ok) { setInviteEmail(""); await openGroup(selected.group); }
+  }
+  async function revokeInvitation(invitationId: string) {
+    if (!selected || !window.confirm("この招待を取り消しますか？")) return;
+    const response = await localApiFetch(`/api/groups/${selected.group.id}/invitations`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ invitationId }) });
+    if (response.ok) await openGroup(selected.group);
   }
   async function updateMember(body: { userEmail: string; role?: string; status?: "active" | "inactive"; adminNote?: string }) {
     if (!selected) return;
@@ -128,6 +154,7 @@ export default function GroupsPanel({ onChanged, initialGroupId }: { onChanged: 
     {!initialGroupId && <>
       <div className="groups-head"><div><p className="eyebrow">GROUP CALENDARS</p><h2>グループ管理</h2><p>グループの予定とメンバーを管理します。</p></div><span className="group-user">{userId}</span></div>
       {process.env.NEXT_PUBLIC_LOCAL_MODE === "true" && <div className="local-user-switch"><label>開発ユーザー<input value={userId} onChange={(event) => { setUserId(event.target.value); setLocalUserId(event.target.value); }} onBlur={() => { void loadGroups(); onChanged(); }} /></label><small>認証なしのローカルテスト用です。</small></div>}
+      {pendingInvitations.length > 0 && <section className="group-invitation-panel pending-group-invitations"><h4>グループ招待</h4>{pendingInvitations.map((invitation) => <div className="group-invitation-row" key={invitation.id}><span>{invitation.group?.name ?? invitation.groupId}</span><small>招待の有効期限: {invitation.expiresAt.slice(0, 10)}</small><button className="small-action" type="button" onClick={() => void acceptInvitation(invitation)}>承認</button></div>)}</section>}
       <div className="group-actions"><form onSubmit={createGroup}><input required value={name} onChange={(event) => setName(event.target.value)} placeholder="新しいグループ名" /><button className="primary-button">グループを作成</button></form><form onSubmit={joinGroup}><input required value={joinId} onChange={(event) => setJoinId(event.target.value)} placeholder="グループIDで参加申請" /><button className="ghost-button">参加申請</button></form></div>
       {notice && <p className="group-notice" role="status">{notice}</p>}
       <div className="group-list">{groups.length ? groups.map((group) => <article className="group-item" key={group.id}><div><strong>{group.name}</strong><small>ID: {group.id}</small><span>{roleLabels[group.membership.role] ?? group.membership.role}</span></div>{group.pendingJoin ? <em>承認待ち</em> : <button className="ghost-button" onClick={() => void openGroup(group)}>詳細</button>}</article>) : <p className="group-empty">参加しているグループはありません。</p>}</div>
@@ -135,6 +162,14 @@ export default function GroupsPanel({ onChanged, initialGroupId }: { onChanged: 
     {selected && <div className="group-detail">
       <div className="modal-head"><div><p className="eyebrow">GROUP</p><h3>メンバー管理（{selected.group.name}）</h3><small>{selected.group.id}</small></div></div>
       {selected.membership.role === "owner" && selected.requests.filter((request) => request.status === "pending").length > 0 && <><h4>参加申請</h4>{selected.requests.filter((request) => request.status === "pending").map((request) => <div className="member-row" key={request.id}><span>{request.userEmail}</span><span><button className="small-action" onClick={() => void handleRequest(request.id, "approve")}>承認</button><button className="small-action danger" onClick={() => void handleRequest(request.id, "reject")}>却下</button></span></div>)}</>}
+      {isAdmin && <section className="group-invitation-panel">
+        <h4>メンバーを招待</h4>
+        <form className="group-invitation-form" onSubmit={inviteMember}>
+          <input type="email" required value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} placeholder="サイト利用者のメールアドレス" />
+          <button className="small-action" type="submit">招待</button>
+        </form>
+        {(selected.invitations ?? []).filter((invitation) => invitation.status === "pending").map((invitation) => <div className="group-invitation-row" key={invitation.id}><span>{invitation.inviteeEmail}</span><button className="small-action danger" type="button" onClick={() => void revokeInvitation(invitation.id)}>取消</button></div>)}
+      </section>}
       <div className="member-search"><input value={memberQuery} onChange={(event) => setMemberQuery(event.target.value)} placeholder="氏名・メールで検索" aria-label="メンバー検索" /><small>{filteredMembers.length}/{selected.members.length}人</small></div>
       <h4>メンバー</h4><div className="member-cards">{filteredMembers.map((member) => <article className={`member-card ${member.status === "inactive" ? "is-inactive" : ""}`} key={member.userEmail}>
         <div className="member-card-head"><div><strong>{member.displayName?.trim() || member.userEmail.split("@")[0]}</strong><small>{member.userEmail}</small></div><div className="member-card-badges">{member.status === "inactive" && <span className="member-status-badge inactive">利用停止</span>}{isAdmin && member.userEmail !== selected.group.ownerEmail && member.userEmail !== selected.currentEmail && <select className="member-role-select" value={member.role} onChange={(event) => void updateMember({ userEmail: member.userEmail, role: event.target.value })} aria-label={`${member.displayName?.trim() || member.userEmail}の権限`}><option value="member">メンバー</option><option value="editor">管理者</option></select>}</div></div>

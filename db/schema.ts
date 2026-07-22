@@ -30,6 +30,12 @@ export const groups = sqliteTable("groups", {
   name: text("name").notNull(),
   description: text("description").notNull().default(""),
   ownerEmail: text("owner_email").notNull(),
+  visibility: text("visibility", { enum: ["private", "discoverable"] })
+    .notNull()
+    .default("private"),
+  participationMode: text("participation_mode", { enum: ["invite_only", "request_to_join"] })
+    .notNull()
+    .default("invite_only"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
@@ -183,6 +189,80 @@ export const assistantContexts = sqliteTable("assistant_contexts", {
   expiresAt: text("expires_at").notNull(),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
+
+export const siteUsers = sqliteTable("site_users", {
+  id: text("id").primaryKey(),
+  userEmail: text("user_email").notNull().unique(),
+  displayName: text("display_name").notNull().default(""),
+  status: text("status", { enum: ["invited", "active", "suspended"] })
+    .notNull()
+    .default("invited"),
+  isSiteAdmin: integer("is_site_admin", { mode: "boolean" })
+    .notNull()
+    .default(false),
+  canCreateGroups: integer("can_create_groups", { mode: "boolean" })
+    .notNull()
+    .default(false),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const siteInvitations = sqliteTable("site_invitations", {
+  id: text("id").primaryKey(),
+  email: text("email").notNull(),
+  invitedBy: text("invited_by").notNull(),
+  tokenHash: text("token_hash").notNull().unique(),
+  status: text("status", { enum: ["pending", "accepted", "revoked", "expired"] })
+    .notNull()
+    .default("pending"),
+  expiresAt: text("expires_at").notNull(),
+  acceptedAt: text("accepted_at"),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const authIdentities = sqliteTable("auth_identities", {
+  id: text("id").primaryKey(),
+  siteUserId: text("site_user_id").notNull(),
+  provider: text("provider", { enum: ["google", "microsoft", "email_link", "chatgpt"] }).notNull(),
+  providerSubject: text("provider_subject").notNull(),
+  verifiedEmail: text("verified_email").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("auth_identity_provider_subject_idx").on(table.provider, table.providerSubject),
+]);
+
+export const siteSessions = sqliteTable("site_sessions", {
+  id: text("id").primaryKey(),
+  siteUserId: text("site_user_id").notNull(),
+  sessionHash: text("session_hash").notNull().unique(),
+  expiresAt: text("expires_at").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const groupInvitations = sqliteTable("group_invitations", {
+  id: text("id").primaryKey(),
+  groupId: text("group_id").notNull(),
+  inviteeEmail: text("invitee_email").notNull(),
+  invitedBy: text("invited_by").notNull(),
+  status: text("status", { enum: ["pending", "accepted", "revoked", "expired"] })
+    .notNull()
+    .default("pending"),
+  expiresAt: text("expires_at").notNull(),
+  acceptedAt: text("accepted_at"),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("group_invitation_pending_unique_idx")
+    .on(table.groupId, table.inviteeEmail, table.status),
+  index("group_invitation_email_status_idx").on(table.inviteeEmail, table.status),
+]);
 
 export const demoClocks = sqliteTable("demo_clocks", {
   scope: text("scope").primaryKey(),

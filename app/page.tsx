@@ -15,6 +15,7 @@ import AnnouncementsPanel from "./announcements-panel";
 import DashboardPanel from "./dashboard-panel";
 import WorkRecordsPanel from "./work-records-panel";
 import MonthlyWorkPanel from "./monthly-work-panel";
+import SiteAdminPanel from "./site-admin-panel";
 import { localApiFetch } from "./local-api";
 import { displayShiftTime } from "./shift-time";
 
@@ -48,6 +49,7 @@ type GroupMembership = {
   unreadAnnouncements?: number;
   unreadAssistant?: boolean;
 };
+type SiteAccess = { isSiteAdmin: boolean; canCreateGroups: boolean };
 
 function ModalClose({ onClose }: { onClose: () => void }) {
   return <button type="button" className="modal-global-close" onClick={onClose} aria-label="閉じる">×</button>;
@@ -148,6 +150,7 @@ export default function Home() {
     process.env.NEXT_PUBLIC_LOCAL_MODE === "true" ? [] : demoEvents,
   );
   const [groups, setGroups] = useState<GroupMembership[]>([]);
+  const [siteAccess, setSiteAccess] = useState<SiteAccess>({ isSiteAdmin: false, canCreateGroups: false });
   const [userEmail, setUserEmail] = useState<string | null>(
     process.env.NEXT_PUBLIC_LOCAL_MODE === "true"
       ? `${process.env.NEXT_PUBLIC_LOCAL_USER_ID || "tanaka"}@local.test`
@@ -161,6 +164,7 @@ export default function Home() {
   const [groupsOpen, setGroupsOpen] = useState(false);
   const [groupJoinOpen, setGroupJoinOpen] = useState(false);
   const [groupCreateOpen, setGroupCreateOpen] = useState(false);
+  const [siteAdminOpen, setSiteAdminOpen] = useState(false);
   const [shiftOpen, setShiftOpen] = useState(false);
   const [shiftAdjustmentOpen, setShiftAdjustmentOpen] = useState(false);
   const [shiftRosterOpen, setShiftRosterOpen] = useState(false);
@@ -229,6 +233,7 @@ export default function Home() {
       email: string;
       events: EventItem[];
       groups?: GroupMembership[];
+      siteAccess?: SiteAccess;
     };
     setUserEmail(data.email);
     const profileResponse = await localApiFetch("/api/profile");
@@ -237,6 +242,7 @@ export default function Home() {
       setAccountNickname(profile.nickname?.trim() ?? "");
     }
     setEvents(data.events);
+    setSiteAccess(data.siteAccess ?? { isSiteAdmin: false, canCreateGroups: false });
     const memberships = data.groups ?? [];
     if (memberships.some((group) => group.groupId.startsWith("seed-group-"))) {
       const clockResponse = await fetch("/api/demo-clock", { cache: "no-store" });
@@ -434,6 +440,8 @@ export default function Home() {
       </header>
       <GroupMenu
         groups={groups}
+        canCreateGroups={siteAccess.canCreateGroups}
+        onSiteAdmin={siteAccess.isSiteAdmin ? () => { setSiteAdminOpen(true); setMenuGroupId(undefined); } : undefined}
         onApplications={() => {
           setMenuGroupId(undefined);
           setGroupJoinOpen(true);
@@ -854,6 +862,11 @@ export default function Home() {
               }}
             />
           </div>
+        </div>
+      )}
+      {siteAdminOpen && (
+        <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSiteAdminOpen(false); }}>
+          <div className="modal groups-modal"><ModalClose onClose={() => setSiteAdminOpen(false)} /><SiteAdminPanel /></div>
         </div>
       )}
       {groupJoinOpen && (

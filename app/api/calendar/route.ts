@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { getDb } from "../../../db";
-import { accountProfiles, assistantMessages, assistantReadStates, events, groupJoinRequests, groupMembers, groups as groupTable, shiftAssignments, shiftSlots } from "../../../db/schema";
+import { accountProfiles, assistantMessages, assistantReadStates, events, groupJoinRequests, groupMembers, groups as groupTable, shiftAssignments, shiftSlots, siteUsers } from "../../../db/schema";
 import { getMembership } from "../groups/group-access";
 import { toPublicMember } from "../groups/member-dto";
 
@@ -23,6 +23,7 @@ export async function GET() {
   const db = getDb();
   const memberships = await db.select().from(groupMembers).where(and(eq(groupMembers.userEmail, user.email), eq(groupMembers.status, "active")));
   const [profile] = await db.select().from(accountProfiles).where(eq(accountProfiles.userEmail, user.email)).limit(1);
+  const [siteUser] = await db.select().from(siteUsers).where(eq(siteUsers.userEmail, user.email)).limit(1);
   const groupTableRows = memberships.length ? await db.select().from(groupTable).where(inArray(groupTable.id, memberships.map((item) => item.groupId))) : [];
   const pendingMemberRequests = memberships.length ? await db.select().from(groupJoinRequests).where(inArray(groupJoinRequests.groupId, memberships.map((item) => item.groupId))) : [];
   const assistantMessagesRows = memberships.length ? await db.select().from(assistantMessages).where(inArray(assistantMessages.groupId, memberships.map((item) => item.groupId))) : [];
@@ -78,6 +79,7 @@ export async function GET() {
     .sort((a, b) => `${b.date}${b.startTime}`.localeCompare(`${a.date}${a.startTime}`));
   return Response.json({
     email: user.email,
+    siteAccess: { isSiteAdmin: Boolean(siteUser?.isSiteAdmin), canCreateGroups: Boolean(siteUser?.isSiteAdmin || siteUser?.canCreateGroups) },
     groups: memberships.map((membership) => {
       const manager = membership.role === "owner" || membership.role === "editor";
       const readState = assistantReadRows.find((row) => row.groupId === membership.groupId && row.memberEmail === (manager ? "*" : user.email));

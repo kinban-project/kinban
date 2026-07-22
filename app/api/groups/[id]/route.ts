@@ -1,7 +1,7 @@
 import { eq, inArray } from "drizzle-orm";
 import { getChatGPTUser } from "../../../chatgpt-auth";
 import { getDb } from "../../../../db";
-import { assistantAnnouncementDrafts, assistantMessageExecutions, assistantMessages, events, groupAssistants, groupJoinRequests, groupMembers, groupPreferences, groups, shiftAvailability, shiftSwapCandidates, shiftSwapRequests } from "../../../../db/schema";
+import { assistantAnnouncementDrafts, assistantMessageExecutions, assistantMessages, events, groupAssistants, groupInvitations, groupJoinRequests, groupMembers, groupPreferences, groups, shiftAvailability, shiftSwapCandidates, shiftSwapRequests } from "../../../../db/schema";
 import { getGroup, getMembership } from "../group-access";
 import { recordAudit } from "../../../audit-log";
 import { canViewAdminNote, toPublicMember } from "../member-dto";
@@ -20,6 +20,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const members = await db.select().from(groupMembers).where(eq(groupMembers.groupId, id));
   const [assistant] = await db.select().from(groupAssistants).where(eq(groupAssistants.groupId, id)).limit(1);
   const requests = membership.role === "owner" ? await db.select().from(groupJoinRequests).where(eq(groupJoinRequests.groupId, id)) : [];
+  const invitations = isAdmin ? await db.select().from(groupInvitations).where(eq(groupInvitations.groupId, id)) : [];
   const isAdmin = canViewAdminNote(membership.role);
   const visiblePreferenceEmails = isAdmin ? members.map((member) => member.userEmail) : [user.email];
   const preferences = visiblePreferenceEmails.length
@@ -37,7 +38,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       ? availability.filter((entry) => entry.userEmail === member.userEmail)
       : [],
   }));
-  return Response.json({ currentEmail: user.email, group, membership: toPublicMember(membership, isAdmin), members: safeMembers, requests, assistant: assistant ?? null });
+  return Response.json({ currentEmail: user.email, group, membership: toPublicMember(membership, isAdmin), members: safeMembers, requests, invitations, assistant: assistant ?? null });
 }
 
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
