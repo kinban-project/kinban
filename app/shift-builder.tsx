@@ -70,12 +70,25 @@ function defaultRequestCloseDate(startDate: string) {
   return candidateDate > minimumDate ? candidateDate : minimumDate;
 }
 
+function nextMonthRange(base: Date) {
+  const start = new Date(base.getFullYear(), base.getMonth() + 1, 1);
+  const end = new Date(base.getFullYear(), base.getMonth() + 2, 0);
+  const date = (value: Date) =>
+    `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+  const startDate = date(start);
+  return {
+    startDate,
+    endDate: date(end),
+    requestCloseDate: `${defaultRequestCloseDate(startDate)}T23:59`,
+  };
+}
+
 const initial = {
   groupId: "",
-  name: "7月後半シフト",
-  startDate: "2026-07-16",
-  endDate: "2026-07-31",
-  requestCloseDate: `${defaultRequestCloseDate("2026-07-16")}T23:59`,
+  name: "",
+  startDate: "",
+  endDate: "",
+  requestCloseDate: "",
   openingTime: "09:00",
   closingTime: "18:00",
   slotMinutes: "60",
@@ -203,6 +216,25 @@ export default function ShiftBuilder({
     return () => window.clearTimeout(timer);
   }, []);
   useEffect(() => {
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      const response = await localApiFetch("/api/demo-clock");
+      const data = (await response.json().catch(() => ({}))) as {
+        currentAt?: string;
+      };
+      const base = data.currentAt ? new Date(data.currentAt) : new Date();
+      const range = nextMonthRange(Number.isNaN(base.getTime()) ? new Date() : base);
+      if (!cancelled)
+        setForm((current) =>
+          current.startDate ? current : { ...current, ...range },
+        );
+    }, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, []);
+  useEffect(() => {
     if (initialGroupId)
       setForm((current) => ({ ...current, groupId: initialGroupId }));
   }, [initialGroupId]);
@@ -217,6 +249,10 @@ export default function ShiftBuilder({
 
   async function createPlan(event: React.FormEvent) {
     event.preventDefault();
+    if (!form.name.trim()) {
+      setNotice("シフト名を入力してください");
+      return;
+    }
     setBusy(true);
     setNotice(null);
     const response = await localApiFetch("/api/shifts", {
@@ -285,12 +321,17 @@ export default function ShiftBuilder({
   }
   async function saveLayout(action?: "start-requests") {
     if (!detail) return;
+    if (!detail.plan.name.trim()) {
+      setNotice("シフト名を入力してください");
+      return;
+    }
     setBusy(true);
     const response = await localApiFetch(`/api/shifts/${detail.plan.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         action,
+        name: detail.plan.name.trim(),
         expectedVersion: detail.plan.version,
         requestCloseDate: detail.requestPeriod?.closesOn,
         layout: { notes: detail.plan.notes, slots: detail.slots, closedDates },
@@ -725,6 +766,19 @@ export default function ShiftBuilder({
               )}
             </div>
           )}
+          <label>
+            シフト名
+            <input
+              required
+              value={detail.plan.name}
+              onChange={(event) =>
+                setDetail({
+                  ...detail,
+                  plan: { ...detail.plan, name: event.target.value },
+                })
+              }
+            />
+          </label>
           <label className="plan-notes plan-notes-edit">
             勤務枠の方針・メモ
             <textarea
