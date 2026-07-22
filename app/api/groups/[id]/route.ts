@@ -20,8 +20,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const members = await db.select().from(groupMembers).where(eq(groupMembers.groupId, id));
   const [assistant] = await db.select().from(groupAssistants).where(eq(groupAssistants.groupId, id)).limit(1);
   const requests = membership.role === "owner" ? await db.select().from(groupJoinRequests).where(eq(groupJoinRequests.groupId, id)) : [];
-  const invitations = isAdmin ? await db.select().from(groupInvitations).where(eq(groupInvitations.groupId, id)) : [];
   const isAdmin = canViewAdminNote(membership.role);
+  const invitations = isAdmin ? await db.select().from(groupInvitations).where(eq(groupInvitations.groupId, id)) : [];
   const visiblePreferenceEmails = isAdmin ? members.map((member) => member.userEmail) : [user.email];
   const preferences = visiblePreferenceEmails.length
     ? await db.select().from(groupPreferences).where(eq(groupPreferences.groupId, id))
@@ -54,6 +54,7 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
   await db.batch([
     db.delete(events).where(eq(events.groupId, id)),
     db.delete(groupJoinRequests).where(eq(groupJoinRequests.groupId, id)),
+    db.delete(groupInvitations).where(eq(groupInvitations.groupId, id)),
     db.delete(assistantAnnouncementDrafts).where(eq(assistantAnnouncementDrafts.groupId, id)),
     db.delete(shiftSwapCandidates).where(eq(shiftSwapCandidates.groupId, id)),
     db.delete(shiftSwapRequests).where(eq(shiftSwapRequests.groupId, id)),

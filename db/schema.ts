@@ -245,6 +245,12 @@ export const siteSessions = sqliteTable("site_sessions", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const siteSetupState = sqliteTable("site_setup_state", {
+  id: text("id").primaryKey(),
+  completedAt: text("completed_at"),
+  completedBy: text("completed_by"),
+});
+
 export const groupInvitations = sqliteTable("group_invitations", {
   id: text("id").primaryKey(),
   groupId: text("group_id").notNull(),

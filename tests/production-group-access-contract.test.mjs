@@ -7,7 +7,10 @@ const migration = fs.readFileSync("drizzle/0038_add_site_users_and_private_group
 const groupsApi = fs.readFileSync("app/api/groups/route.ts", "utf8");
 const joinApi = fs.readFileSync("app/api/groups/[id]/join/route.ts", "utf8");
 const invitationApi = fs.readFileSync("app/api/groups/[id]/invitations/route.ts", "utf8");
+const groupDetailApi = fs.readFileSync("app/api/groups/[id]/route.ts", "utf8");
 const siteApi = fs.readFileSync("app/api/site/users/route.ts", "utf8");
+const setupApi = fs.readFileSync("app/api/site/setup/route.ts", "utf8");
+const sessionHelper = fs.readFileSync("app/site-sessions.ts", "utf8");
 
 test("production group access has site-user and private invite-only data", () => {
   assert.match(schema, /export const siteUsers = sqliteTable\("site_users"/);
@@ -33,4 +36,12 @@ test("site administration exposes invitation and permission changes", () => {
   assert.match(siteApi, /siteInvitations/);
   assert.match(siteApi, /canCreateGroups/);
   assert.match(siteApi, /isSiteAdmin/);
+  assert.match(setupApi, /INITIAL_SETUP_SECRET/);
+  assert.match(setupApi, /completedAt/);
+  assert.match(sessionHelper, /issueSiteSession/);
+  assert.match(sessionHelper, /getSiteSession/);
+});
+
+test("group detail calculates admin visibility before loading invitations", () => {
+  assert.ok(groupDetailApi.indexOf("const isAdmin = canViewAdminNote") < groupDetailApi.indexOf("const invitations = isAdmin"));
 });

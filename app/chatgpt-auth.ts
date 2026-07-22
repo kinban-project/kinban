@@ -18,7 +18,7 @@ const SIGN_IN_PATH = "/signin-with-chatgpt";
 const SIGN_OUT_PATH = "/signout-with-chatgpt";
 const CALLBACK_PATH = "/callback";
 
-export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
+export async function getChatGPTIdentity(): Promise<ChatGPTUser | null> {
   const requestHeaders = await headers();
   const localMode = process.env.LOCAL_MODE === "true" || (env as { LOCAL_MODE?: string }).LOCAL_MODE === "true";
   if (localMode) {
@@ -41,6 +41,14 @@ export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
     email,
     fullName,
   };
+  return identity;
+}
+
+export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
+  const identity = await getChatGPTIdentity();
+  if (!identity) return null;
+  const localMode = process.env.LOCAL_MODE === "true" || (env as { LOCAL_MODE?: string }).LOCAL_MODE === "true";
+  if (localMode) return identity;
   const siteUser = await ensureSiteAccess(identity);
   return siteUser ? identity : null;
 }

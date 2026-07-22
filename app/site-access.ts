@@ -1,20 +1,15 @@
 import { and, eq, gt } from "drizzle-orm";
-import { env } from "cloudflare:workers";
 import { getDb } from "../db";
 import { authIdentities, siteInvitations, siteUsers } from "../db/schema";
 
 type Identity = { email: string; displayName: string };
-
-function configured(name: string) {
-  return process.env[name] ?? (env as Record<string, string | undefined>)[name];
-}
 
 export async function getSiteUser(email: string) {
   const [row] = await getDb().select().from(siteUsers).where(eq(siteUsers.userEmail, email)).limit(1);
   return row ?? null;
 }
 
-async function linkChatGPTIdentity(siteUserId: string, identity: Identity) {
+export async function linkChatGPTIdentity(siteUserId: string, identity: Identity) {
   const db = getDb();
   await db.insert(authIdentities).values({
     id: crypto.randomUUID(),
@@ -59,18 +54,6 @@ export async function ensureSiteAccess(identity: Identity) {
     return active;
   }
 
-  const initialOwner = configured("INITIAL_OWNER_EMAIL")?.trim().toLowerCase();
-  if (initialOwner && initialOwner === identity.email.toLowerCase()) {
-    const id = existing?.id ?? crypto.randomUUID();
-    await getDb().batch([
-      existing
-        ? getDb().update(siteUsers).set({ displayName: identity.displayName, status: "active", isSiteAdmin: true, canCreateGroups: true, updatedAt: now }).where(eq(siteUsers.id, id))
-        : getDb().insert(siteUsers).values({ id, userEmail: identity.email, displayName: identity.displayName, status: "active", isSiteAdmin: true, canCreateGroups: true }),
-    ]);
-    const active = await getSiteUser(identity.email);
-    if (active) await linkChatGPTIdentity(active.id, identity);
-    return active;
-  }
   return null;
 }
 
