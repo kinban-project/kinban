@@ -47,6 +47,13 @@ export default function AnnouncementsPanel({ groupId, manager = false, initialTa
     setReadDetails(data.readDetails ?? []);
   }
 
+  async function removeAnnouncement(item: Announcement) {
+    if (!window.confirm(`「${item.title}」を削除しますか？\n返信と既読情報も削除されます。`)) return;
+    const response = await localApiFetch(`/api/groups/${groupId}/announcements?announcementId=${encodeURIComponent(item.id)}`, { method: "DELETE" });
+    setNotice(response.ok ? "お知らせを削除しました。" : "お知らせを削除できませんでした。");
+    if (response.ok) await load();
+  }
+
   useEffect(() => { void load(); }, [groupId]);
   useEffect(() => { setTab(initialTab); setShowAssistantUnread(assistantUnread); if (initialTab === "assistant") { setShowAssistantUnread(false); onAssistantRead?.(); } }, [groupId, initialTab, assistantUnread]);
 
@@ -72,7 +79,7 @@ export default function AnnouncementsPanel({ groupId, manager = false, initialTa
         const readCount = new Set(readDetails.filter((row) => row.announcementId === item.id).map((row) => row.userEmail)).size;
         const unreadMembers = members.filter((member) => !readDetails.some((row) => row.announcementId === item.id && row.userEmail === member.userEmail));
         return <article className="announcement-item" key={item.id}>
-          <div className="announcement-head"><strong>{item.title}</strong>{item.notificationLevel === "urgent" && <span className="announcement-read-summary">緊急</span>}<small>{item.createdAt}</small>{manager && <><span className="announcement-read-summary">既読 {readCount}/{members.length}</span><button className="small-action" onClick={() => setExpandedReads((current) => ({ ...current, [item.id]: !current[item.id] }))}>{expandedReads[item.id] ? "詳細を隠す" : "未読者を表示"}</button></>}{!manager && !reads.includes(item.id) && <button className="small-action" onClick={() => void post("read", item.id)}>既読にする</button>}</div>
+          <div className="announcement-head"><strong>{item.title}</strong>{item.notificationLevel === "urgent" && <span className="announcement-read-summary">緊急</span>}<small>{item.createdAt}</small>{manager && <><span className="announcement-read-summary">既読 {readCount}/{members.length}</span><button className="small-action" onClick={() => setExpandedReads((current) => ({ ...current, [item.id]: !current[item.id] }))}>{expandedReads[item.id] ? "詳細を隠す" : "未読者を表示"}</button><button className="small-action danger" onClick={() => void removeAnnouncement(item)}>削除</button></>}{!manager && !reads.includes(item.id) && <button className="small-action" onClick={() => void post("read", item.id)}>既読にする</button>}</div>
           <p>{item.body}</p>
           {manager && expandedReads[item.id] && <div className="announcement-read-detail"><strong>未読者（{unreadMembers.length}人）</strong>{unreadMembers.length ? <div>{unreadMembers.map((member) => <span key={member.userEmail}>{memberNames[member.userEmail] ?? member.userEmail.split("@")[0]}</span>)}</div> : <p>全員が既読です。</p>}</div>}
           <div className="announcement-replies">{replies.filter((row) => row.announcementId === item.id).map((row) => <div key={row.id}><strong>{memberNames[row.userEmail] ?? row.userEmail.split("@")[0]}</strong><span>{row.body}</span></div>)}</div>

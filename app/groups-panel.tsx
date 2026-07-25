@@ -180,8 +180,8 @@ export default function GroupsPanel({ onChanged, initialGroupId }: { onChanged: 
       </article>)}</div>
       {selected.assistant && <><h4>運営支援AI</h4><article className={`member-card assistant-member-card ${selected.assistant.status === "inactive" ? "is-inactive" : ""}`}>
         <div className="member-card-head"><div><strong>{selected.assistant.displayName}</strong><small>システムメンバー・シフト割当対象外</small></div><div className="member-card-badges"><span className="member-role-badge">管理者</span>{selected.assistant.status === "inactive" && <span className="member-status-badge inactive">利用停止</span>}</div></div>
-        <p className="assistant-member-description">メンバーからのシフト・勤怠相談を受け付けます。管理者が送った指示だけ、下で有効にした操作を実行できます。</p>
-        {isAdmin && <fieldset className="assistant-permissions"><legend>管理者メッセージから実行できる操作</legend>{([
+        <p className="assistant-member-description">メンバーからのシフト・勤怠相談を受け付けます。管理者の直接指示、またはclaimした管理者メッセージに対して、下で有効にした操作を実行できます。</p>
+        {isAdmin && <fieldset className="assistant-permissions"><legend>管理者の指示から実行できる操作</legend>{([
           ["canCreateShifts", "シフト作成（割当下書きを含む）"],
           ["canPublishShifts", "シフト公開"],
           ["canReviewDailyWork", "勤怠承認／差戻し（日次）"],

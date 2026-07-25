@@ -59,11 +59,20 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   if (!siteUser) return Response.json({ error: "先にサイト利用者として承認してください" }, { status: 404 });
   const [existingMember] = await db.select().from(groupMembers).where(and(eq(groupMembers.groupId, id), eq(groupMembers.userEmail, email))).limit(1);
   if (existingMember?.status === "active") return Response.json({ error: "すでにグループのメンバーです" }, { status: 409 });
+  const now = new Date().toISOString();
   const [pending] = await db.select().from(groupInvitations).where(and(eq(groupInvitations.groupId, id), eq(groupInvitations.inviteeEmail, email), eq(groupInvitations.status, "pending"))).limit(1);
-  if (pending) return Response.json({ invitation: pending });
-  const invitation = { id: crypto.randomUUID(), groupId: id, inviteeEmail: email, invitedBy: user.email, status: "pending" as const, expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() };
-  await db.insert(groupInvitations).values(invitation);
-  await recordAudit({ groupId: id, userEmail: user.email, action: "group.invitation.create", entityType: "groupInvitation", entityId: invitation.id, summary: `${email}をグループへ招待しました` });
+  const invitation = pending ?? { id: crypto.randomUUID(), groupId: id, inviteeEmail: email, invitedBy: user.email, status: "accepted" as const, expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), acceptedAt: now };
+  if (existingMember) {
+    await db.update(groupMembers).set({ status: "active" }).where(eq(groupMembers.id, existingMember.id));
+  } else {
+    await db.insert(groupMembers).values({ id: crypto.randomUUID(), groupId: id, userEmail: email, role: "member", showInPersonal: true });
+  }
+  if (pending) {
+    await db.update(groupInvitations).set({ status: "accepted", acceptedAt: now }).where(eq(groupInvitations.id, pending.id));
+  } else {
+    await db.insert(groupInvitations).values(invitation);
+  }
+  await recordAudit({ groupId: id, userEmail: user.email, action: "group.invitation.accept", entityType: "groupInvitation", entityId: invitation.id, summary: `${email}をグループへ追加しました` });
   return Response.json({ invitation }, { status: 201 });
 }
 

@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { env } from "cloudflare:workers";
 import { ensureSiteAccess } from "./site-access";
+import { getSiteSession, readCookie, SITE_SESSION_COOKIE } from "./site-sessions";
 
 export type ChatGPTUser = {
   displayName: string;
@@ -25,6 +26,12 @@ export async function getChatGPTIdentity(): Promise<ChatGPTUser | null> {
     const localId = requestHeaders.get("x-dev-user-id") || process.env.LOCAL_USER_ID || (env as { LOCAL_USER_ID?: string }).LOCAL_USER_ID || "local-user";
     const email = localId.includes("@") ? localId : `${localId}@local.test`;
     return { displayName: localId, email, fullName: localId };
+  }
+
+  const sessionToken = readCookie(requestHeaders.get("cookie"), SITE_SESSION_COOKIE);
+  const session = sessionToken ? await getSiteSession(sessionToken) : null;
+  if (session) {
+    return { displayName: session.displayName || session.userEmail, email: session.userEmail, fullName: session.displayName || null };
   }
   const email = requestHeaders.get(USER_EMAIL_HEADER);
   if (!email) return null;

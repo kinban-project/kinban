@@ -62,3 +62,27 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   }
   return Response.json({ error: "不正な操作です" }, { status: 400 });
 }
+
+export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
+  const user = await getChatGPTUser();
+  if (!user) return Response.json({ error: "ログインが必要です" }, { status: 401 });
+  const { id } = await context.params;
+  const membership = await requireGroupMembership(id, user.email);
+  if (membership.role !== "owner" && membership.role !== "editor") {
+    return Response.json({ error: "管理者権限が必要です。" }, { status: 403 });
+  }
+  const announcementId = new URL(request.url).searchParams.get("announcementId")?.trim() ?? "";
+  if (!announcementId) return Response.json({ error: "announcementId is required" }, { status: 400 });
+  const db = getDb();
+  const [announcement] = await db
+    .select()
+    .from(groupAnnouncements)
+    .where(and(eq(groupAnnouncements.id, announcementId), eq(groupAnnouncements.groupId, id)))
+    .limit(1);
+  if (!announcement) return Response.json({ error: "お知らせが見つかりません。" }, { status: 404 });
+  await db.delete(announcementReads).where(eq(announcementReads.announcementId, announcementId));
+  await db.delete(announcementReplies).where(eq(announcementReplies.announcementId, announcementId));
+  await db.delete(groupAnnouncements).where(eq(groupAnnouncements.id, announcementId));
+  await recordAudit({ groupId: id, userEmail: user.email, action: "announcement.delete", entityType: "announcement", entityId: announcementId, summary: `お知らせを削除: ${announcement.title}` });
+  return Response.json({ ok: true, announcementId });
+}

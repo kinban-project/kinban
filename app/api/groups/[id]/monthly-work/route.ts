@@ -129,10 +129,6 @@ export async function POST(request: Request, context: Context) {
   if (body.action === "submit") {
     if (targetEmail !== userEmail) return jsonError("本人の月次申告のみ実行できます", 403);
     if (existing?.status === "approved") return jsonError("月次承認済みのため変更できません", 409);
-    const bounds = monthBounds(month)!;
-    const rows = await db.select().from(workRecords).where(and(eq(workRecords.groupId, groupId), eq(workRecords.userEmail, targetEmail), gte(workRecords.scheduledDate, bounds.start), lte(workRecords.scheduledDate, bounds.end)));
-    const incomplete = rows.filter((row) => !row.claimedStartAt || !row.claimedEndAt || row.status === "working");
-    if (incomplete.length) return jsonError(`未入力または未終了の勤務記録が${incomplete.length}件あります`, 400);
     if (existing) await db.update(monthlyWorkClaims).set({ status: "submitted", submittedAt: now, approvedAt: null, approvedBy: null, updatedAt: now }).where(eq(monthlyWorkClaims.id, existing.id));
     else await db.insert(monthlyWorkClaims).values({ id: crypto.randomUUID(), groupId, userEmail: targetEmail, monthKey: month, status: "submitted", submittedAt: now, managerNote: "" });
     return Response.json({ ok: true, status: "submitted" });

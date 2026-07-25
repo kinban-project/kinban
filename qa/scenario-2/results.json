@@ -1,0 +1,2587 @@
+{
+  "summary": {
+    "baseUrl": "http://localhost:3003",
+    "groupId": "seed-group-store",
+    "passed": 13,
+    "failed": 0,
+    "planId": "bc2f2ebb-deed-48a1-a13e-0ad8b4413bce",
+    "recordId": "87e85124-69c2-492a-8273-7548ac691414",
+    "checks": [
+      {
+        "beforeAssignment": {
+          "ok": false,
+          "canPublish": false,
+          "plan": {
+            "id": "bc2f2ebb-deed-48a1-a13e-0ad8b4413bce",
+            "name": "シナリオ2 8月後半",
+            "status": "draft",
+            "version": 2
+          },
+          "requestPeriod": {
+            "id": "63b970bf-587b-40f2-8917-5aa80e115a9e",
+            "groupId": "seed-group-store",
+            "planId": "bc2f2ebb-deed-48a1-a13e-0ad8b4413bce",
+            "name": "シナリオ2 8月後半の勤務希望",
+            "opensOn": "2026-07-20",
+            "closesOn": "2026-08-10",
+            "status": "open",
+            "createdBy": "tanaka@local.test",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          "summary": {
+            "slotCount": 16,
+            "assignmentCount": 0,
+            "errorCount": 16,
+            "warningCount": 10
+          },
+          "errors": [
+            {
+              "type": "shortage",
+              "severity": "error",
+              "slotId": "38fe9dc1-b491-4e0c-a831-5c0650021d59",
+              "date": "2026-08-20",
+              "startTime": "17:00",
+              "endTime": "19:00",
+              "role": "ホール",
+              "required": 1,
+              "assigned": 0,
+              "message": "2026-08-20 17:00-19:00 ホール: 必要1名に対して0名"
+            },
+            {
+              "type": "shortage",
+              "severity": "error",
+              "slotId": "1685b97d-b775-4431-b0e1-b8675f083edf",
+              "date": "2026-08-20",
+              "startTime": "17:00",
+              "endTime": "19:00",
+              "role": "厨房",
+              "required": 1,
+              "assigned": 0,
+              "message": "2026-08-20 17:00-19:00 厨房: 必要1名に対して0名"
+            },
+            {
+              "type": "shortage",
+              "severity": "error",
+              "slotId": "633376be-7774-4e7c-89ae-6792e38986af",
+              "date": "2026-08-20",
+              "startTime": "19:00",
+              "endTime": "21:00",
+              "role": "ホール",
+              "required": 1,
+              "assigned": 0,
+              "message": "2026-08-20 19:00-21:00 ホール: 必要1名に対して0名"
+            },
+            {
+              "type": "shortage",
+              "severity": "error",
+              "slotId": "d4e95ea2-96d5-4e95-9bdf-a57e32885c7e",
+              "date": "2026-08-20",
+              "startTime": "19:00",
+              "endTime": "21:00",
+              "role": "厨房",
+              "required": 1,
+              "assigned": 0,
+              "message": "2026-08-20 19:00-21:00 厨房: 必要1名に対して0名"
+            },
+            {
+              "type": "shortage",
+              "severity": "error",
+              "slotId": "6cf4fc25-05cb-499a-a65a-405e2e7af400",
+              "date": "2026-08-20",
+              "startTime": "21:00",
+              "endTime": "23:00",
+              "role": "ホール",
+              "required": 1,
+              "assigned": 0,
+              "message": "2026-08-20 21:00-23:00 ホール: 必要1名に対して0名"
+            },
+            {
+              "type": "shortage",
+              "severity": "error",
+              "slotId": "1861e548-7fc2-45df-a43c-bb280869292f",
+              "date": "2026-08-20",
+              "startTime": "21:00",
+              "endTime": "23:00",
+              "role": "厨房",
+              "required": 1,
+              "assigned": 0,
+              "message": "2026-08-20 21:00-23:00 厨房: 必要1名に対して0名"
+            },
+            {
+              "type": "shortage",
+              "severity": "error",
+              "slotId": "e89560c3-1a87-4852-b521-4de64124f9d1",
+              "date": "2026-08-20",
+              "startTime": "23:00",
+              "endTime": "25:00",
+              "role": "ホール",
+              "required": 1,
+              "assigned": 0,
+              "message": "2026-08-20 23:00-25:00 ホール: 必要1名に対して0名"
+            },
+            {
+              "type": "shortage",
+              "severity": "error",
+              "slotId": "99ec07f0-7cc7-4a9a-8afc-3f91dde4fa77",
+              "date": "2026-08-20",
+              "startTime": "23:00",
+              "endTime": "25:00",
+              "role": "厨房",
+              "required": 1,
+              "assigned": 0,
+              "message": "2026-08-20 23:00-25:00 厨房: 必要1名に対して0名"
+            },
+            {
+              "type": "shortage",
+              "severity": "error",
+              "slotId": "047bf570-7b60-481f-b7f4-65a9c2ead485",
+              "date": "2026-08-21",
+              "startTime": "17:00",
+              "endTime": "19:00",
+              "role": "ホール",
+              "required": 1,
+              "assigned": 0,
+              "message": "2026-08-21 17:00-19:00 ホール: 必要1名に対して0名"
+            },
+            {
+              "type": "shortage",
+              "severity": "error",
+              "slotId": "ac44016c-5b1c-491a-9944-d0e9364bbaf1",
+              "date": "2026-08-21",
+              "startTime": "17:00",
+              "endTime": "19:00",
+              "role": "厨房",
+              "required": 1,
+              "assigned": 0,
+              "message": "2026-08-21 17:00-19:00 厨房: 必要1名に対して0名"
+            },
+            {
+              "type": "shortage",
+              "severity": "error",
+              "slotId": "5d66154e-87fd-4ab9-adec-5048aa9e3129",
+              "date": "2026-08-21",
+              "startTime": "19:00",
+              "endTime": "21:00",
+              "role": "ホール",
+              "required": 1,
+              "assigned": 0,
+              "message": "2026-08-21 19:00-21:00 ホール: 必要1名に対して0名"
+            },
+            {
+              "type": "shortage",
+              "severity": "error",
+              "slotId": "2fca067e-5bf4-4e43-92c9-015b2fb4a0bb",
+              "date": "2026-08-21",
+              "startTime": "19:00",
+              "endTime": "21:00",
+              "role": "厨房",
+              "required": 1,
+              "assigned": 0,
+              "message": "2026-08-21 19:00-21:00 厨房: 必要1名に対して0名"
+            },
+            {
+              "type": "shortage",
+              "severity": "error",
+              "slotId": "4a4d4362-fd17-4970-a49b-9fff9ed9815e",
+              "date": "2026-08-21",
+              "startTime": "21:00",
+              "endTime": "23:00",
+              "role": "ホール",
+              "required": 1,
+              "assigned": 0,
+              "message": "2026-08-21 21:00-23:00 ホール: 必要1名に対して0名"
+            },
+            {
+              "type": "shortage",
+              "severity": "error",
+              "slotId": "43b15eee-0269-4ff2-b631-ce7e3a2024be",
+              "date": "2026-08-21",
+              "startTime": "21:00",
+              "endTime": "23:00",
+              "role": "厨房",
+              "required": 1,
+              "assigned": 0,
+              "message": "2026-08-21 21:00-23:00 厨房: 必要1名に対して0名"
+            },
+            {
+              "type": "shortage",
+              "severity": "error",
+              "slotId": "011d2cfd-625c-4565-8124-7d85ab28c000",
+              "date": "2026-08-21",
+              "startTime": "23:00",
+              "endTime": "25:00",
+              "role": "ホール",
+              "required": 1,
+              "assigned": 0,
+              "message": "2026-08-21 23:00-25:00 ホール: 必要1名に対して0名"
+            },
+            {
+              "type": "shortage",
+              "severity": "error",
+              "slotId": "5a48c978-d016-4c9f-9e38-787a4d449964",
+              "date": "2026-08-21",
+              "startTime": "23:00",
+              "endTime": "25:00",
+              "role": "厨房",
+              "required": 1,
+              "assigned": 0,
+              "message": "2026-08-21 23:00-25:00 厨房: 必要1名に対して0名"
+            }
+          ],
+          "warnings": [
+            {
+              "type": "member_range",
+              "severity": "warning",
+              "memberEmail": "tanaka@local.test",
+              "memberName": "店長",
+              "days": 0,
+              "totalMinutes": 0,
+              "minDays": 5,
+              "maxDays": 6,
+              "minHours": 40,
+              "maxHours": 60,
+              "message": "店長の勤務日数・時間が基本設定の範囲外です"
+            },
+            {
+              "type": "member_range",
+              "severity": "warning",
+              "memberEmail": "member01@local.test",
+              "memberName": "副店長",
+              "days": 0,
+              "totalMinutes": 0,
+              "minDays": 5,
+              "maxDays": 6,
+              "minHours": 40,
+              "maxHours": 60,
+              "message": "副店長の勤務日数・時間が基本設定の範囲外です"
+            },
+            {
+              "type": "member_range",
+              "severity": "warning",
+              "memberEmail": "member02@local.test",
+              "memberName": "学生A",
+              "days": 0,
+              "totalMinutes": 0,
+              "minDays": 2,
+              "maxDays": 4,
+              "minHours": 8,
+              "maxHours": 20,
+              "message": "学生Aの勤務日数・時間が基本設定の範囲外です"
+            },
+            {
+              "type": "member_range",
+              "severity": "warning",
+              "memberEmail": "member03@local.test",
+              "memberName": "学生B",
+              "days": 0,
+              "totalMinutes": 0,
+              "minDays": 2,
+              "maxDays": 4,
+              "minHours": 8,
+              "maxHours": 20,
+              "message": "学生Bの勤務日数・時間が基本設定の範囲外です"
+            },
+            {
+              "type": "member_range",
+              "severity": "warning",
+              "memberEmail": "member04@local.test",
+              "memberName": "主婦A",
+              "days": 0,
+              "totalMinutes": 0,
+              "minDays": 2,
+              "maxDays": 3,
+              "minHours": 8,
+              "maxHours": 16,
+              "message": "主婦Aの勤務日数・時間が基本設定の範囲外です"
+            },
+            {
+              "type": "member_range",
+              "severity": "warning",
+              "memberEmail": "member05@local.test",
+              "memberName": "主婦B",
+              "days": 0,
+              "totalMinutes": 0,
+              "minDays": 3,
+              "maxDays": 4,
+              "minHours": 12,
+              "maxHours": 24,
+              "message": "主婦Bの勤務日数・時間が基本設定の範囲外です"
+            },
+            {
+              "type": "member_range",
+              "severity": "warning",
+              "memberEmail": "member06@local.test",
+              "memberName": "フリーターA",
+              "days": 0,
+              "totalMinutes": 0,
+              "minDays": 4,
+              "maxDays": 5,
+              "minHours": 24,
+              "maxHours": 36,
+              "message": "フリーターAの勤務日数・時間が基本設定の範囲外です"
+            },
+            {
+              "type": "member_range",
+              "severity": "warning",
+              "memberEmail": "member07@local.test",
+              "memberName": "フリーターB",
+              "days": 0,
+              "totalMinutes": 0,
+              "minDays": 4,
+              "maxDays": 5,
+              "minHours": 24,
+              "maxHours": 36,
+              "message": "フリーターBの勤務日数・時間が基本設定の範囲外です"
+            },
+            {
+              "type": "member_range",
+              "severity": "warning",
+              "memberEmail": "member08@local.test",
+              "memberName": "パートA",
+              "days": 0,
+              "totalMinutes": 0,
+              "minDays": 3,
+              "maxDays": 4,
+              "minHours": 16,
+              "maxHours": 28,
+              "message": "パートAの勤務日数・時間が基本設定の範囲外です"
+            },
+            {
+              "type": "member_range",
+              "severity": "warning",
+              "memberEmail": "member09@local.test",
+              "memberName": "パートB",
+              "days": 0,
+              "totalMinutes": 0,
+              "minDays": 3,
+              "maxDays": 5,
+              "minHours": 20,
+              "maxHours": 36,
+              "message": "パートBの勤務日数・時間が基本設定の範囲外です"
+            }
+          ],
+          "memberSummaries": [
+            {
+              "userEmail": "tanaka@local.test",
+              "displayName": "店長",
+              "days": 0,
+              "totalMinutes": 0,
+              "requestSavedAt": null,
+              "requestComment": ""
+            },
+            {
+              "userEmail": "member01@local.test",
+              "displayName": "副店長",
+              "days": 0,
+              "totalMinutes": 0,
+              "requestSavedAt": null,
+              "requestComment": ""
+            },
+            {
+              "userEmail": "member02@local.test",
+              "displayName": "学生A",
+              "days": 0,
+              "totalMinutes": 0,
+              "requestSavedAt": "2026-07-20T10:01:53.182Z",
+              "requestComment": "テスト用の希望コメント"
+            },
+            {
+              "userEmail": "member03@local.test",
+              "displayName": "学生B",
+              "days": 0,
+              "totalMinutes": 0,
+              "requestSavedAt": null,
+              "requestComment": ""
+            },
+            {
+              "userEmail": "member04@local.test",
+              "displayName": "主婦A",
+              "days": 0,
+              "totalMinutes": 0,
+              "requestSavedAt": null,
+              "requestComment": ""
+            },
+            {
+              "userEmail": "member05@local.test",
+              "displayName": "主婦B",
+              "days": 0,
+              "totalMinutes": 0,
+              "requestSavedAt": null,
+              "requestComment": ""
+            },
+            {
+              "userEmail": "member06@local.test",
+              "displayName": "フリーターA",
+              "days": 0,
+              "totalMinutes": 0,
+              "requestSavedAt": null,
+              "requestComment": ""
+            },
+            {
+              "userEmail": "member07@local.test",
+              "displayName": "フリーターB",
+              "days": 0,
+              "totalMinutes": 0,
+              "requestSavedAt": null,
+              "requestComment": ""
+            },
+            {
+              "userEmail": "member08@local.test",
+              "displayName": "パートA",
+              "days": 0,
+              "totalMinutes": 0,
+              "requestSavedAt": null,
+              "requestComment": ""
+            },
+            {
+              "userEmail": "member09@local.test",
+              "displayName": "パートB",
+              "days": 0,
+              "totalMinutes": 0,
+              "requestSavedAt": null,
+              "requestComment": ""
+            }
+          ]
+        }
+      }
+    ],
+    "ok": true
+  },
+  "results": [
+    {
+      "kind": "api",
+      "user": "tanaka@local.test",
+      "method": "GET",
+      "path": "/api/groups",
+      "status": 200,
+      "ms": 175,
+      "data": {
+        "groups": [
+          {
+            "id": "seed-group-store",
+            "name": "サンプル店",
+            "description": "勤務枠・シフト・勤務申告のテスト用グループ",
+            "ownerEmail": "tanaka@local.test",
+            "createdAt": "2026-07-20 10:01:52",
+            "membership": {
+              "id": "seed-member-owner",
+              "groupId": "seed-group-store",
+              "userEmail": "tanaka@local.test",
+              "displayName": "店長",
+              "role": "owner",
+              "status": "active",
+              "showInPersonal": true,
+              "createdAt": "2026-07-20 10:01:52"
+            },
+            "pendingJoin": false,
+            "pendingMemberRequests": 0,
+            "nextRequestCloseDate": "2026-07-30"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "step",
+      "name": "seed group is available",
+      "status": "passed"
+    },
+    {
+      "kind": "mcp",
+      "name": "list_groups",
+      "status": 200,
+      "ms": 129,
+      "isError": false,
+      "data": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "[\n  {\n    \"id\": \"seed-group-store\",\n    \"name\": \"サンプル店\",\n    \"description\": \"勤務枠・シフト・勤務申告のテスト用グループ\",\n    \"ownerEmail\": \"tanaka@local.test\",\n    \"createdAt\": \"2026-07-20 10:01:52\",\n    \"role\": \"owner\",\n    \"tokenType\": \"assistant\"\n  }\n]"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "kind": "step",
+      "name": "MCP read connection",
+      "status": "passed"
+    },
+    {
+      "kind": "api",
+      "user": "tanaka@local.test",
+      "method": "POST",
+      "path": "/api/shifts",
+      "status": 201,
+      "ms": 78,
+      "data": {
+        "plan": {
+          "id": "bc2f2ebb-deed-48a1-a13e-0ad8b4413bce",
+          "groupId": "seed-group-store",
+          "name": "シナリオ2 8月後半",
+          "notes": "",
+          "startDate": "2026-08-20",
+          "endDate": "2026-08-21",
+          "requestCloseDate": "2026-08-10",
+          "openingTime": "17:00",
+          "closingTime": "26:00",
+          "slotMinutes": 120,
+          "defaultRequiredCount": 1,
+          "status": "draft"
+        },
+        "requestPeriod": {
+          "id": "63b970bf-587b-40f2-8917-5aa80e115a9e",
+          "groupId": "seed-group-store",
+          "planId": "bc2f2ebb-deed-48a1-a13e-0ad8b4413bce",
+          "name": "シナリオ2 8月後半の勤務希望",
+          "opensOn": "",
+          "closesOn": "2026-08-10",
+          "status": "pending",
+          "createdBy": "tanaka@local.test"
+        },
+        "slotCount": 16
+      }
+    },
+    {
+      "kind": "step",
+      "name": "manager creates a shift plan",
+      "status": "passed"
+    },
+    {
+      "kind": "api",
+      "user": "tanaka@local.test",
+      "method": "PATCH",
+      "path": "/api/shifts/bc2f2ebb-deed-48a1-a13e-0ad8b4413bce",
+      "status": 200,
+      "ms": 166,
+      "data": {
+        "ok": true,
+        "status": "open",
+        "opensOn": "2026-07-20",
+        "closesOn": "2026-08-10"
+      }
+    },
+    {
+      "kind": "api",
+      "user": "tanaka@local.test",
+      "method": "GET",
+      "path": "/api/shifts/bc2f2ebb-deed-48a1-a13e-0ad8b4413bce",
+      "status": 200,
+      "ms": 234,
+      "data": {
+        "currentEmail": "tanaka@local.test",
+        "plan": {
+          "id": "bc2f2ebb-deed-48a1-a13e-0ad8b4413bce",
+          "groupId": "seed-group-store",
+          "name": "シナリオ2 8月後半",
+          "startDate": "2026-08-20",
+          "endDate": "2026-08-21",
+          "openingTime": "17:00",
+          "closingTime": "26:00",
+          "slotMinutes": 120,
+          "defaultRequiredCount": 1,
+          "notes": "",
+          "status": "draft",
+          "version": 2,
+          "createdBy": "tanaka@local.test",
+          "createdAt": "2026-07-20 10:01:52"
+        },
+        "slots": [
+          {
+            "id": "38fe9dc1-b491-4e0c-a831-5c0650021d59",
+            "planId": "bc2f2ebb-deed-48a1-a13e-0ad8b4413bce",
+            "date": "2026-08-20",
+            "startTime": "17:00",
+            "endTime": "19:00",
+            "requiredCount": 1,
+            "role": "ホール"
+          },
+          {
+            "id": "1685b97d-b775-4431-b0e1-b8675f083edf",
+            "planId": "bc2f2ebb-deed-48a1-a13e-0ad8b4413bce",
+            "date": "2026-08-20",
+            "startTime": "17:00",
+            "endTime": "19:00",
+            "requiredCount": 1,
+            "role": "厨房"
+          },
+          {
+            "id": "633376be-7774-4e7c-89ae-6792e38986af",
+            "planId": "bc2f2ebb-deed-48a1-a13e-0ad8b4413bce",
+            "date": "2026-08-20",
+            "startTime": "19:00",
+            "endTime": "21:00",
+            "requiredCount": 1,
+            "role": "ホール"
+          },
+          {
+            "id": "d4e95ea2-96d5-4e95-9bdf-a57e32885c7e",
+            "planId": "bc2f2ebb-deed-48a1-a13e-0ad8b4413bce",
+            "date": "2026-08-20",
+            "startTime": "19:00",
+            "endTime": "21:00",
+            "requiredCount": 1,
+            "role": "厨房"
+          },
+          {
+            "id": "6cf4fc25-05cb-499a-a65a-405e2e7af400",
+            "planId": "bc2f2ebb-deed-48a1-a13e-0ad8b4413bce",
+            "date": "2026-08-20",
+            "startTime": "21:00",
+            "endTime": "23:00",
+            "requiredCount": 1,
+            "role": "ホール"
+          },
+          {
+            "id": "1861e548-7fc2-45df-a43c-bb280869292f",
+            "planId": "bc2f2ebb-deed-48a1-a13e-0ad8b4413bce",
+            "date": "2026-08-20",
+            "startTime": "21:00",
+            "endTime": "23:00",
+            "requiredCount": 1,
+            "role": "厨房"
+          },
+          {
+            "id": "e89560c3-1a87-4852-b521-4de64124f9d1",
+            "planId": "bc2f2ebb-deed-48a1-a13e-0ad8b4413bce",
+            "date": "2026-08-20",
+            "startTime": "23:00",
+            "endTime": "25:00",
+            "requiredCount": 1,
+            "role": "ホール"
+          },
+          {
+            "id": "99ec07f0-7cc7-4a9a-8afc-3f91dde4fa77",
+            "planId": "bc2f2ebb-deed-48a1-a13e-0ad8b4413bce",
+            "date": "2026-08-20",
+            "startTime": "23:00",
+            "endTime": "25:00",
+            "requiredCount": 1,
+            "role": "厨房"
+          },
+          {
+            "id": "047bf570-7b60-481f-b7f4-65a9c2ead485",
+            "planId": "bc2f2ebb-deed-48a1-a13e-0ad8b4413bce",
+            "date": "2026-08-21",
+            "startTime": "17:00",
+            "endTime": "19:00",
+            "requiredCount": 1,
+            "role": "ホール"
+          },
+          {
+            "id": "ac44016c-5b1c-491a-9944-d0e9364bbaf1",
+            "planId": "bc2f2ebb-deed-48a1-a13e-0ad8b4413bce",
+            "date": "2026-08-21",
+            "startTime": "17:00",
+            "endTime": "19:00",
+            "requiredCount": 1,
+            "role": "厨房"
+          },
+          {
+            "id": "5d66154e-87fd-4ab9-adec-5048aa9e3129",
+            "planId": "bc2f2ebb-deed-48a1-a13e-0ad8b4413bce",
+            "date": "2026-08-21",
+            "startTime": "19:00",
+            "endTime": "21:00",
+            "requiredCount": 1,
+            "role": "ホール"
+          },
+          {
+            "id": "2fca067e-5bf4-4e43-92c9-015b2fb4a0bb",
+            "planId": "bc2f2ebb-deed-48a1-a13e-0ad8b4413bce",
+            "date": "2026-08-21",
+            "startTime": "19:00",
+            "endTime": "21:00",
+            "requiredCount": 1,
+            "role": "厨房"
+          },
+          {
+            "id": "4a4d4362-fd17-4970-a49b-9fff9ed9815e",
+            "planId": "bc2f2ebb-deed-48a1-a13e-0ad8b4413bce",
+            "date": "2026-08-21",
+            "startTime": "21:00",
+            "endTime": "23:00",
+            "requiredCount": 1,
+            "role": "ホール"
+          },
+          {
+            "id": "43b15eee-0269-4ff2-b631-ce7e3a2024be",
+            "planId": "bc2f2ebb-deed-48a1-a13e-0ad8b4413bce",
+            "date": "2026-08-21",
+            "startTime": "21:00",
+            "endTime": "23:00",
+            "requiredCount": 1,
+            "role": "厨房"
+          },
+          {
+            "id": "011d2cfd-625c-4565-8124-7d85ab28c000",
+            "planId": "bc2f2ebb-deed-48a1-a13e-0ad8b4413bce",
+            "date": "2026-08-21",
+            "startTime": "23:00",
+            "endTime": "25:00",
+            "requiredCount": 1,
+            "role": "ホール"
+          },
+          {
+            "id": "5a48c978-d016-4c9f-9e38-787a4d449964",
+            "planId": "bc2f2ebb-deed-48a1-a13e-0ad8b4413bce",
+            "date": "2026-08-21",
+            "startTime": "23:00",
+            "endTime": "25:00",
+            "requiredCount": 1,
+            "role": "厨房"
+          }
+        ],
+        "assignments": [],
+        "members": [
+          {
+            "id": "seed-member-owner",
+            "groupId": "seed-group-store",
+            "userEmail": "tanaka@local.test",
+            "displayName": "店長",
+            "role": "owner",
+            "status": "active",
+            "showInPersonal": true,
+            "createdAt": "2026-07-20 10:01:52",
+            "adminNote": "代表管理者。月次締めを実行できます。"
+          },
+          {
+            "id": "seed-member-01",
+            "groupId": "seed-group-store",
+            "userEmail": "member01@local.test",
+            "displayName": "副店長",
+            "role": "editor",
+            "status": "active",
+            "showInPersonal": true,
+            "createdAt": "2026-07-20 10:01:52",
+            "adminNote": "日々の承認担当。"
+          },
+          {
+            "id": "seed-member-02",
+            "groupId": "seed-group-store",
+            "userEmail": "member02@local.test",
+            "displayName": "学生A",
+            "role": "member",
+            "status": "active",
+            "showInPersonal": true,
+            "createdAt": "2026-07-20 10:01:52",
+            "adminNote": "土日と夕方を希望。22時以降は不可。"
+          },
+          {
+            "id": "seed-member-03",
+            "groupId": "seed-group-store",
+            "userEmail": "member03@local.test",
+            "displayName": "学生B",
+            "role": "member",
+            "status": "active",
+            "showInPersonal": true,
+            "createdAt": "2026-07-20 10:01:52",
+            "adminNote": "平日夕方を希望。試験期間は短時間。"
+          },
+          {
+            "id": "seed-member-04",
+            "groupId": "seed-group-store",
+            "userEmail": "member04@local.test",
+            "displayName": "主婦A",
+            "role": "member",
+            "status": "active",
+            "showInPersonal": true,
+            "createdAt": "2026-07-20 10:01:52",
+            "adminNote": "平日日中を希望。土日は休み希望。"
+          },
+          {
+            "id": "seed-member-05",
+            "groupId": "seed-group-store",
+            "userEmail": "member05@local.test",
+            "displayName": "主婦B",
+            "role": "member",
+            "status": "active",
+            "showInPersonal": true,
+            "createdAt": "2026-07-20 10:01:52",
+            "adminNote": "平日日中を中心に希望。"
+          },
+          {
+            "id": "seed-member-06",
+            "groupId": "seed-group-store",
+            "userEmail": "member06@local.test",
+            "displayName": "フリーターA",
+            "role": "member",
+            "status": "active",
+            "showInPersonal": true,
+            "createdAt": "2026-07-20 10:01:52",
+            "adminNote": "夕方以降を中心に希望。"
+          },
+          {
+            "id": "seed-member-07",
+            "groupId": "seed-group-store",
+            "userEmail": "member07@local.test",
+            "displayName": "フリーターB",
+            "role": "member",
+            "status": "active",
+            "showInPersonal": true,
+            "createdAt": "2026-07-20 10:01:52",
+            "adminNote": "深夜帯も対応可能。"
+          },
+          {
+            "id": "seed-member-08",
+            "groupId": "seed-group-store",
+            "userEmail": "member08@local.test",
+            "displayName": "パートA",
+            "role": "member",
+            "status": "active",
+            "showInPersonal": true,
+            "createdAt": "2026-07-20 10:01:52",
+            "adminNote": "週3日程度。"
+          },
+          {
+            "id": "seed-member-09",
+            "groupId": "seed-group-store",
+            "userEmail": "member09@local.test",
+            "displayName": "パートB",
+            "role": "member",
+            "status": "active",
+            "showInPersonal": true,
+            "createdAt": "2026-07-20 10:01:52",
+            "adminNote": "曜日相談可。"
+          }
+        ],
+        "closedDates": [],
+        "requestPeriod": {
+          "id": "63b970bf-587b-40f2-8917-5aa80e115a9e",
+          "groupId": "seed-group-store",
+          "planId": "bc2f2ebb-deed-48a1-a13e-0ad8b4413bce",
+          "name": "シナリオ2 8月後半の勤務希望",
+          "opensOn": "2026-07-20",
+          "closesOn": "2026-08-10",
+          "status": "open",
+          "createdBy": "tanaka@local.test",
+          "createdAt": "2026-07-20 10:01:52"
+        },
+        "memberPreferences": [
+          {
+            "id": "seed-pref-owner",
+            "groupId": "seed-group-store",
+            "userEmail": "tanaka@local.test",
+            "minDays": 5,
+            "maxDays": 6,
+            "minHours": 40,
+            "maxHours": 60,
+            "weekendPolicy": "any",
+            "freeComment": "店舗運営のため曜日・時間は柔軟に調整可能。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "seed-pref-01",
+            "groupId": "seed-group-store",
+            "userEmail": "member01@local.test",
+            "minDays": 5,
+            "maxDays": 6,
+            "minHours": 40,
+            "maxHours": 60,
+            "weekendPolicy": "any",
+            "freeComment": "副店長。全時間帯を調整可能。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "seed-pref-02",
+            "groupId": "seed-group-store",
+            "userEmail": "member02@local.test",
+            "minDays": 2,
+            "maxDays": 4,
+            "minHours": 8,
+            "maxHours": 20,
+            "weekendPolicy": "prefer_off",
+            "freeComment": "土日と夕方を希望。22時以降は勤務不可。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "seed-pref-03",
+            "groupId": "seed-group-store",
+            "userEmail": "member03@local.test",
+            "minDays": 2,
+            "maxDays": 4,
+            "minHours": 8,
+            "maxHours": 20,
+            "weekendPolicy": "prefer_off",
+            "freeComment": "平日夕方を希望。試験期間は短時間。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "seed-pref-04",
+            "groupId": "seed-group-store",
+            "userEmail": "member04@local.test",
+            "minDays": 2,
+            "maxDays": 3,
+            "minHours": 8,
+            "maxHours": 16,
+            "weekendPolicy": "prefer_off",
+            "freeComment": "平日日中を希望。土日は休み希望。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "seed-pref-05",
+            "groupId": "seed-group-store",
+            "userEmail": "member05@local.test",
+            "minDays": 3,
+            "maxDays": 4,
+            "minHours": 12,
+            "maxHours": 24,
+            "weekendPolicy": "prefer_off",
+            "freeComment": "平日日中を中心に希望。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "seed-pref-06",
+            "groupId": "seed-group-store",
+            "userEmail": "member06@local.test",
+            "minDays": 4,
+            "maxDays": 5,
+            "minHours": 24,
+            "maxHours": 36,
+            "weekendPolicy": "any",
+            "freeComment": "夕方以降を中心に希望。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "seed-pref-07",
+            "groupId": "seed-group-store",
+            "userEmail": "member07@local.test",
+            "minDays": 4,
+            "maxDays": 5,
+            "minHours": 24,
+            "maxHours": 36,
+            "weekendPolicy": "any",
+            "freeComment": "深夜帯も対応可能。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "seed-pref-08",
+            "groupId": "seed-group-store",
+            "userEmail": "member08@local.test",
+            "minDays": 3,
+            "maxDays": 4,
+            "minHours": 16,
+            "maxHours": 28,
+            "weekendPolicy": "any",
+            "freeComment": "週3日程度。曜日相談可。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "seed-pref-09",
+            "groupId": "seed-group-store",
+            "userEmail": "member09@local.test",
+            "minDays": 3,
+            "maxDays": 5,
+            "minHours": 20,
+            "maxHours": 36,
+            "weekendPolicy": "any",
+            "freeComment": "曜日は柔軟に相談可能。",
+            "createdAt": "2026-07-20 10:01:52"
+          }
+        ],
+        "memberAvailability": [
+          {
+            "id": "55f699117f74a4e6930ec026ef5646d3",
+            "groupId": "seed-group-store",
+            "userEmail": "tanaka@local.test",
+            "dayOfWeek": 0,
+            "status": "want",
+            "startTime": "09:30",
+            "endTime": "30:00",
+            "note": "",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "cb4d897f34788c7fddec155b019781b7",
+            "groupId": "seed-group-store",
+            "userEmail": "tanaka@local.test",
+            "dayOfWeek": 1,
+            "status": "want",
+            "startTime": "09:30",
+            "endTime": "30:00",
+            "note": "",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "72886c0a23431adc32e9c80439d06b63",
+            "groupId": "seed-group-store",
+            "userEmail": "tanaka@local.test",
+            "dayOfWeek": 2,
+            "status": "want",
+            "startTime": "09:30",
+            "endTime": "30:00",
+            "note": "",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "652da1e48758693760e88a18dca9a0b3",
+            "groupId": "seed-group-store",
+            "userEmail": "tanaka@local.test",
+            "dayOfWeek": 3,
+            "status": "want",
+            "startTime": "09:30",
+            "endTime": "30:00",
+            "note": "",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "c86dac13bc8b9179512107399524026d",
+            "groupId": "seed-group-store",
+            "userEmail": "tanaka@local.test",
+            "dayOfWeek": 4,
+            "status": "want",
+            "startTime": "09:30",
+            "endTime": "30:00",
+            "note": "",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "eb132ae56a3c07375c56abe9142b1425",
+            "groupId": "seed-group-store",
+            "userEmail": "tanaka@local.test",
+            "dayOfWeek": 5,
+            "status": "want",
+            "startTime": "09:30",
+            "endTime": "30:00",
+            "note": "",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "0c62eaafd94fdbb4e5870b50dde7b25b",
+            "groupId": "seed-group-store",
+            "userEmail": "tanaka@local.test",
+            "dayOfWeek": 6,
+            "status": "want",
+            "startTime": "09:30",
+            "endTime": "30:00",
+            "note": "",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "86a15558449fbc6d0bc740a942b2296a",
+            "groupId": "seed-group-store",
+            "userEmail": "member01@local.test",
+            "dayOfWeek": 0,
+            "status": "want",
+            "startTime": "09:30",
+            "endTime": "30:00",
+            "note": "",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "c49d00d61ab3c8ae7eb3f730c26f3da7",
+            "groupId": "seed-group-store",
+            "userEmail": "member01@local.test",
+            "dayOfWeek": 1,
+            "status": "want",
+            "startTime": "09:30",
+            "endTime": "30:00",
+            "note": "",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "e0b904deb53326c89fb91fd5acb9a668",
+            "groupId": "seed-group-store",
+            "userEmail": "member01@local.test",
+            "dayOfWeek": 2,
+            "status": "want",
+            "startTime": "09:30",
+            "endTime": "30:00",
+            "note": "",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "bec4f32f59ecb8ad36982237e4d9f51e",
+            "groupId": "seed-group-store",
+            "userEmail": "member01@local.test",
+            "dayOfWeek": 3,
+            "status": "want",
+            "startTime": "09:30",
+            "endTime": "30:00",
+            "note": "",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "c08ffae33c7206a4e38bce526cde5033",
+            "groupId": "seed-group-store",
+            "userEmail": "member01@local.test",
+            "dayOfWeek": 4,
+            "status": "want",
+            "startTime": "09:30",
+            "endTime": "30:00",
+            "note": "",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "da50d8ac4370a2ad0ea3b3b82aa0e8a1",
+            "groupId": "seed-group-store",
+            "userEmail": "member01@local.test",
+            "dayOfWeek": 5,
+            "status": "want",
+            "startTime": "09:30",
+            "endTime": "30:00",
+            "note": "",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "d5e7fc82333b12733c7df84b9d44e912",
+            "groupId": "seed-group-store",
+            "userEmail": "member01@local.test",
+            "dayOfWeek": 6,
+            "status": "want",
+            "startTime": "09:30",
+            "endTime": "30:00",
+            "note": "",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "8d7fce967ba65b17cea404bff630bd01",
+            "groupId": "seed-group-store",
+            "userEmail": "member02@local.test",
+            "dayOfWeek": 0,
+            "status": "want",
+            "startTime": "17:00",
+            "endTime": "22:00",
+            "note": "夕方中心。22時以降は不可。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "1b2dd2c5f0042c0359d9dce30ce04716",
+            "groupId": "seed-group-store",
+            "userEmail": "member02@local.test",
+            "dayOfWeek": 1,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "22:00",
+            "note": "夕方中心。22時以降は不可。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "2855c26a6fc4052423fb89adc4e26fbd",
+            "groupId": "seed-group-store",
+            "userEmail": "member02@local.test",
+            "dayOfWeek": 2,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "22:00",
+            "note": "夕方中心。22時以降は不可。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "06755034107097f3fa03599f6a544a7d",
+            "groupId": "seed-group-store",
+            "userEmail": "member02@local.test",
+            "dayOfWeek": 3,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "22:00",
+            "note": "夕方中心。22時以降は不可。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "eddf67fe90a016ed4a32fe6a720d6037",
+            "groupId": "seed-group-store",
+            "userEmail": "member02@local.test",
+            "dayOfWeek": 4,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "22:00",
+            "note": "夕方中心。22時以降は不可。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "18f8eccc70af0fadec913aa3599e528b",
+            "groupId": "seed-group-store",
+            "userEmail": "member02@local.test",
+            "dayOfWeek": 5,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "22:00",
+            "note": "夕方中心。22時以降は不可。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "3dcee4a40193fd368bc2ced246e3bb78",
+            "groupId": "seed-group-store",
+            "userEmail": "member02@local.test",
+            "dayOfWeek": 6,
+            "status": "want",
+            "startTime": "17:00",
+            "endTime": "22:00",
+            "note": "夕方中心。22時以降は不可。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "0eee38fbfab6c7f6760fd379ed0616a8",
+            "groupId": "seed-group-store",
+            "userEmail": "member03@local.test",
+            "dayOfWeek": 0,
+            "status": "want",
+            "startTime": "17:00",
+            "endTime": "22:00",
+            "note": "夕方中心。22時以降は不可。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "35b53b5af4a29e8af6f0174fdd69050e",
+            "groupId": "seed-group-store",
+            "userEmail": "member03@local.test",
+            "dayOfWeek": 1,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "22:00",
+            "note": "夕方中心。22時以降は不可。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "2429ddfad160a3bc819b25a124e43c3a",
+            "groupId": "seed-group-store",
+            "userEmail": "member03@local.test",
+            "dayOfWeek": 2,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "22:00",
+            "note": "夕方中心。22時以降は不可。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "f2882fe648c8d24540c02644e7d5ec8b",
+            "groupId": "seed-group-store",
+            "userEmail": "member03@local.test",
+            "dayOfWeek": 3,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "22:00",
+            "note": "夕方中心。22時以降は不可。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "2ea0be0e12cc889f4e2e253c7fdbdee2",
+            "groupId": "seed-group-store",
+            "userEmail": "member03@local.test",
+            "dayOfWeek": 4,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "22:00",
+            "note": "夕方中心。22時以降は不可。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "f967d0fa45aea2e1c7091f1c8af43e7b",
+            "groupId": "seed-group-store",
+            "userEmail": "member03@local.test",
+            "dayOfWeek": 5,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "22:00",
+            "note": "夕方中心。22時以降は不可。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "d4ba03428489b2a50f77d395eba66f94",
+            "groupId": "seed-group-store",
+            "userEmail": "member03@local.test",
+            "dayOfWeek": 6,
+            "status": "want",
+            "startTime": "17:00",
+            "endTime": "22:00",
+            "note": "夕方中心。22時以降は不可。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "e7fd4e9ada226d74def34fd2e781b7eb",
+            "groupId": "seed-group-store",
+            "userEmail": "member04@local.test",
+            "dayOfWeek": 0,
+            "status": "unavailable",
+            "startTime": "09:30",
+            "endTime": "17:00",
+            "note": "平日日中を希望。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "301882e45efbcfa6bc25c5d3284306cb",
+            "groupId": "seed-group-store",
+            "userEmail": "member04@local.test",
+            "dayOfWeek": 1,
+            "status": "want",
+            "startTime": "09:30",
+            "endTime": "17:00",
+            "note": "平日日中を希望。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "259c433af537cd30ec8990ad3b388bcf",
+            "groupId": "seed-group-store",
+            "userEmail": "member04@local.test",
+            "dayOfWeek": 2,
+            "status": "want",
+            "startTime": "09:30",
+            "endTime": "17:00",
+            "note": "平日日中を希望。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "c2b9633552623f05881d798d5e14b37e",
+            "groupId": "seed-group-store",
+            "userEmail": "member04@local.test",
+            "dayOfWeek": 3,
+            "status": "want",
+            "startTime": "09:30",
+            "endTime": "17:00",
+            "note": "平日日中を希望。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "374e9973356e2815de0a6cb1fef7ca72",
+            "groupId": "seed-group-store",
+            "userEmail": "member04@local.test",
+            "dayOfWeek": 4,
+            "status": "want",
+            "startTime": "09:30",
+            "endTime": "17:00",
+            "note": "平日日中を希望。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "123d3c38e99f01152cc146c709b335c4",
+            "groupId": "seed-group-store",
+            "userEmail": "member04@local.test",
+            "dayOfWeek": 5,
+            "status": "want",
+            "startTime": "09:30",
+            "endTime": "17:00",
+            "note": "平日日中を希望。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "c0fb62e962d43d720106a735359b9b5e",
+            "groupId": "seed-group-store",
+            "userEmail": "member04@local.test",
+            "dayOfWeek": 6,
+            "status": "unavailable",
+            "startTime": "09:30",
+            "endTime": "17:00",
+            "note": "平日日中を希望。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "f7fe7fe87039e91a57cab24e10b48e6a",
+            "groupId": "seed-group-store",
+            "userEmail": "member05@local.test",
+            "dayOfWeek": 0,
+            "status": "unavailable",
+            "startTime": "09:30",
+            "endTime": "17:00",
+            "note": "平日日中を希望。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "ea596815f9d6897db4db8d093e4854f2",
+            "groupId": "seed-group-store",
+            "userEmail": "member05@local.test",
+            "dayOfWeek": 1,
+            "status": "want",
+            "startTime": "09:30",
+            "endTime": "17:00",
+            "note": "平日日中を希望。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "b02b6b6c44a4028cbfdbf49e3f9eed36",
+            "groupId": "seed-group-store",
+            "userEmail": "member05@local.test",
+            "dayOfWeek": 2,
+            "status": "want",
+            "startTime": "09:30",
+            "endTime": "17:00",
+            "note": "平日日中を希望。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "cf4d01da9cef07252cfc45ad28d63f38",
+            "groupId": "seed-group-store",
+            "userEmail": "member05@local.test",
+            "dayOfWeek": 3,
+            "status": "want",
+            "startTime": "09:30",
+            "endTime": "17:00",
+            "note": "平日日中を希望。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "79886f57e6e1e91b256422f55f733a49",
+            "groupId": "seed-group-store",
+            "userEmail": "member05@local.test",
+            "dayOfWeek": 4,
+            "status": "want",
+            "startTime": "09:30",
+            "endTime": "17:00",
+            "note": "平日日中を希望。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "0d7fef8bfafff0f8c9d8162f55692e40",
+            "groupId": "seed-group-store",
+            "userEmail": "member05@local.test",
+            "dayOfWeek": 5,
+            "status": "want",
+            "startTime": "09:30",
+            "endTime": "17:00",
+            "note": "平日日中を希望。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "4e4f1f5d1297b6a9d05bd62836b3b897",
+            "groupId": "seed-group-store",
+            "userEmail": "member05@local.test",
+            "dayOfWeek": 6,
+            "status": "unavailable",
+            "startTime": "09:30",
+            "endTime": "17:00",
+            "note": "平日日中を希望。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "efd1f788de66358909b2bcff5ff02078",
+            "groupId": "seed-group-store",
+            "userEmail": "member06@local.test",
+            "dayOfWeek": 0,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "30:00",
+            "note": "夕方・深夜も対応可能。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "57645bd2c900358d0c1b93300428423a",
+            "groupId": "seed-group-store",
+            "userEmail": "member06@local.test",
+            "dayOfWeek": 1,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "30:00",
+            "note": "夕方・深夜も対応可能。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "ea2bd2535ccc79f81fc87af19dab369d",
+            "groupId": "seed-group-store",
+            "userEmail": "member06@local.test",
+            "dayOfWeek": 2,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "30:00",
+            "note": "夕方・深夜も対応可能。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "e8c2a58f6021575a629267444008aec5",
+            "groupId": "seed-group-store",
+            "userEmail": "member06@local.test",
+            "dayOfWeek": 3,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "30:00",
+            "note": "夕方・深夜も対応可能。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "06e44be0fcb320b998e6a5e9f6b337b4",
+            "groupId": "seed-group-store",
+            "userEmail": "member06@local.test",
+            "dayOfWeek": 4,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "30:00",
+            "note": "夕方・深夜も対応可能。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "9f58d2c8f122bdab42f5682c94a44d37",
+            "groupId": "seed-group-store",
+            "userEmail": "member06@local.test",
+            "dayOfWeek": 5,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "30:00",
+            "note": "夕方・深夜も対応可能。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "82f0adf6e2d175575ea7a9105ddcdf97",
+            "groupId": "seed-group-store",
+            "userEmail": "member06@local.test",
+            "dayOfWeek": 6,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "30:00",
+            "note": "夕方・深夜も対応可能。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "5754566f91ae347076707fd957aeee8c",
+            "groupId": "seed-group-store",
+            "userEmail": "member07@local.test",
+            "dayOfWeek": 0,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "30:00",
+            "note": "夕方・深夜も対応可能。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "dcc4898e3bb0ba831137777c6fc4f6f9",
+            "groupId": "seed-group-store",
+            "userEmail": "member07@local.test",
+            "dayOfWeek": 1,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "30:00",
+            "note": "夕方・深夜も対応可能。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "b8419ffe242bb03d3aa498a7c134c94e",
+            "groupId": "seed-group-store",
+            "userEmail": "member07@local.test",
+            "dayOfWeek": 2,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "30:00",
+            "note": "夕方・深夜も対応可能。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "aca965de22967b148eac5c4a3df89c62",
+            "groupId": "seed-group-store",
+            "userEmail": "member07@local.test",
+            "dayOfWeek": 3,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "30:00",
+            "note": "夕方・深夜も対応可能。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "a3d11b0e05c0f9bed1e17493ccb6614a",
+            "groupId": "seed-group-store",
+            "userEmail": "member07@local.test",
+            "dayOfWeek": 4,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "30:00",
+            "note": "夕方・深夜も対応可能。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "1a43dc50698146afa1ee0f35630cc544",
+            "groupId": "seed-group-store",
+            "userEmail": "member07@local.test",
+            "dayOfWeek": 5,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "30:00",
+            "note": "夕方・深夜も対応可能。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "3cadb7426c8db7f6f6c1daffc99e3008",
+            "groupId": "seed-group-store",
+            "userEmail": "member07@local.test",
+            "dayOfWeek": 6,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "30:00",
+            "note": "夕方・深夜も対応可能。",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "0b1ca230af083c512b85cf8572a78395",
+            "groupId": "seed-group-store",
+            "userEmail": "member08@local.test",
+            "dayOfWeek": 0,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "30:00",
+            "note": "",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "14113b10df5f619bce0ccd0818f3e7f2",
+            "groupId": "seed-group-store",
+            "userEmail": "member08@local.test",
+            "dayOfWeek": 1,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "30:00",
+            "note": "",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "7a584852f4fc9f63731292c76d724728",
+            "groupId": "seed-group-store",
+            "userEmail": "member08@local.test",
+            "dayOfWeek": 2,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "30:00",
+            "note": "",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "057287a72c189df0fcbb020a34239bb6",
+            "groupId": "seed-group-store",
+            "userEmail": "member08@local.test",
+            "dayOfWeek": 3,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "30:00",
+            "note": "",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "0c63941cd22ae6823028710a16c34269",
+            "groupId": "seed-group-store",
+            "userEmail": "member08@local.test",
+            "dayOfWeek": 4,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "30:00",
+            "note": "",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "31d70776b4debad40bcf1f5925d12099",
+            "groupId": "seed-group-store",
+            "userEmail": "member08@local.test",
+            "dayOfWeek": 5,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "30:00",
+            "note": "",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "ce1329d801bb7a6f74317e589542fdef",
+            "groupId": "seed-group-store",
+            "userEmail": "member08@local.test",
+            "dayOfWeek": 6,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "30:00",
+            "note": "",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "9c1d4cb75682af5a3b4340dd9930fd1a",
+            "groupId": "seed-group-store",
+            "userEmail": "member09@local.test",
+            "dayOfWeek": 0,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "30:00",
+            "note": "",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "78292b2626a5fbd25fc9e3d543df884e",
+            "groupId": "seed-group-store",
+            "userEmail": "member09@local.test",
+            "dayOfWeek": 1,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "30:00",
+            "note": "",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "b9b67ef33a29593215adb9698c4f2891",
+            "groupId": "seed-group-store",
+            "userEmail": "member09@local.test",
+            "dayOfWeek": 2,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "30:00",
+            "note": "",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "2d578bde1ef4ec512e8db28a6565323c",
+            "groupId": "seed-group-store",
+            "userEmail": "member09@local.test",
+            "dayOfWeek": 3,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "30:00",
+            "note": "",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "55364a924bc5d91b96f67e1e9198ab69",
+            "groupId": "seed-group-store",
+            "userEmail": "member09@local.test",
+            "dayOfWeek": 4,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "30:00",
+            "note": "",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "d72af6f745a551a35e369d77420840e9",
+            "groupId": "seed-group-store",
+            "userEmail": "member09@local.test",
+            "dayOfWeek": 5,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "30:00",
+            "note": "",
+            "createdAt": "2026-07-20 10:01:52"
+          },
+          {
+            "id": "f1d19e0a2063e0fb7a2322d458bbb598",
+            "groupId": "seed-group-store",
+            "userEmail": "member09@local.test",
+            "dayOfWeek": 6,
+            "status": "possible",
+            "startTime": "17:00",
+            "endTime": "30:00",
+            "note": "",
+            "createdAt": "2026-07-20 10:01:52"
+          }
+        ],
+        "requests": [],
+        "requestSubmissions": []
+      }
+    },
+    {
+      "kind": "step",
+      "name": "manager starts request period",
+      "status": "passed"
+    },
+    {
+      "kind": "api",
+      "user": "member02@local.test",
+      "method": "POST",
+      "path": "/api/shift-requests",
+      "status": 200,
+      "ms": 166,
+      "data": {
+        "ok": true,
+        "count": 2,
+        "savedAt": "2026-07-20T10:01:53.182Z"
+      }
+    },
+    {
+      "kind": "step",
+      "name": "member saves shift requests",
+      "status": "passed"
+    },
+    {
+      "kind": "mcp",
+      "name": "get_shift_request_overview",
+      "status": 200,
+      "ms": 256,
+      "isError": false,
+      "data": {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\n  \"period\": {\n    \"id\": \"63b970bf-587b-40f2-8917-5aa80e115a9e\",\n    \"groupId\": \"seed-group-store\",\n    \"planId\": \"bc2f2ebb-deed-48a1-a13e-0ad8b4413bce\",\n    \"name\": \"シナリオ2 8月後半の勤務希望\",\n    \"opensOn\": \"2026-07-20\",\n    \"closesOn\": \"2026-08-10\",\n    \"status\": \"open\",\n    \"createdBy\": \"tanaka@local.test\",\n    \"createdAt\": \"2026-07-20 10:01:52\"\n  },\n  \"members\": [\n    {\n      \"member\": {\n        \"id\": \"seed-member-owner\",\n        \"groupId\": \"seed-group-store\",\n        \"userEmail\": \"tanaka@local.test\",\n        \"displayName\": \"店長\",\n        \"role\": \"owner\",\n        \"status\": \"active\",\n        \"showInPersonal\": true,\n        \"createdAt\": \"2026-07-20 10:01:52\",\n        \"accountNickname\": \"店長\"\n      },\n      \"preferences\": {\n        \"id\": \"seed-pref-owner\",\n        \"groupId\": \"seed-group-store\",\n        \"userEmail\": \"tanaka@local.test\",\n        \"minDays\": 5,\n        \"maxDays\": 6,\n        \"minHours\": 40,\n        \"maxHours\": 60,\n        \"weekendPolicy\": \"any\",\n        \"freeComment\": \"店舗運営のため曜日・時間は柔軟に調整可能。\",\n        \"createdAt\": \"2026-07-20 10:01:52\"\n      },\n      \"availability\": [\n        {\n          \"id\": \"55f699117f74a4e6930ec026ef5646d3\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"tanaka@local.test\",\n          \"dayOfWeek\": 0,\n          \"status\": \"want\",\n          \"startTime\": \"09:30\",\n          \"endTime\": \"30:00\",\n          \"note\": \"\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"cb4d897f34788c7fddec155b019781b7\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"tanaka@local.test\",\n          \"dayOfWeek\": 1,\n          \"status\": \"want\",\n          \"startTime\": \"09:30\",\n          \"endTime\": \"30:00\",\n          \"note\": \"\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"72886c0a23431adc32e9c80439d06b63\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"tanaka@local.test\",\n          \"dayOfWeek\": 2,\n          \"status\": \"want\",\n          \"startTime\": \"09:30\",\n          \"endTime\": \"30:00\",\n          \"note\": \"\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"652da1e48758693760e88a18dca9a0b3\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"tanaka@local.test\",\n          \"dayOfWeek\": 3,\n          \"status\": \"want\",\n          \"startTime\": \"09:30\",\n          \"endTime\": \"30:00\",\n          \"note\": \"\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"c86dac13bc8b9179512107399524026d\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"tanaka@local.test\",\n          \"dayOfWeek\": 4,\n          \"status\": \"want\",\n          \"startTime\": \"09:30\",\n          \"endTime\": \"30:00\",\n          \"note\": \"\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"eb132ae56a3c07375c56abe9142b1425\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"tanaka@local.test\",\n          \"dayOfWeek\": 5,\n          \"status\": \"want\",\n          \"startTime\": \"09:30\",\n          \"endTime\": \"30:00\",\n          \"note\": \"\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"0c62eaafd94fdbb4e5870b50dde7b25b\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"tanaka@local.test\",\n          \"dayOfWeek\": 6,\n          \"status\": \"want\",\n          \"startTime\": \"09:30\",\n          \"endTime\": \"30:00\",\n          \"note\": \"\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        }\n      ],\n      \"requests\": [],\n      \"submission\": null\n    },\n    {\n      \"member\": {\n        \"id\": \"seed-member-01\",\n        \"groupId\": \"seed-group-store\",\n        \"userEmail\": \"member01@local.test\",\n        \"displayName\": \"副店長\",\n        \"role\": \"editor\",\n        \"status\": \"active\",\n        \"showInPersonal\": true,\n        \"createdAt\": \"2026-07-20 10:01:52\",\n        \"accountNickname\": \"副店長\"\n      },\n      \"preferences\": {\n        \"id\": \"seed-pref-01\",\n        \"groupId\": \"seed-group-store\",\n        \"userEmail\": \"member01@local.test\",\n        \"minDays\": 5,\n        \"maxDays\": 6,\n        \"minHours\": 40,\n        \"maxHours\": 60,\n        \"weekendPolicy\": \"any\",\n        \"freeComment\": \"副店長。全時間帯を調整可能。\",\n        \"createdAt\": \"2026-07-20 10:01:52\"\n      },\n      \"availability\": [\n        {\n          \"id\": \"86a15558449fbc6d0bc740a942b2296a\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member01@local.test\",\n          \"dayOfWeek\": 0,\n          \"status\": \"want\",\n          \"startTime\": \"09:30\",\n          \"endTime\": \"30:00\",\n          \"note\": \"\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"c49d00d61ab3c8ae7eb3f730c26f3da7\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member01@local.test\",\n          \"dayOfWeek\": 1,\n          \"status\": \"want\",\n          \"startTime\": \"09:30\",\n          \"endTime\": \"30:00\",\n          \"note\": \"\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"e0b904deb53326c89fb91fd5acb9a668\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member01@local.test\",\n          \"dayOfWeek\": 2,\n          \"status\": \"want\",\n          \"startTime\": \"09:30\",\n          \"endTime\": \"30:00\",\n          \"note\": \"\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"bec4f32f59ecb8ad36982237e4d9f51e\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member01@local.test\",\n          \"dayOfWeek\": 3,\n          \"status\": \"want\",\n          \"startTime\": \"09:30\",\n          \"endTime\": \"30:00\",\n          \"note\": \"\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"c08ffae33c7206a4e38bce526cde5033\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member01@local.test\",\n          \"dayOfWeek\": 4,\n          \"status\": \"want\",\n          \"startTime\": \"09:30\",\n          \"endTime\": \"30:00\",\n          \"note\": \"\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"da50d8ac4370a2ad0ea3b3b82aa0e8a1\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member01@local.test\",\n          \"dayOfWeek\": 5,\n          \"status\": \"want\",\n          \"startTime\": \"09:30\",\n          \"endTime\": \"30:00\",\n          \"note\": \"\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"d5e7fc82333b12733c7df84b9d44e912\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member01@local.test\",\n          \"dayOfWeek\": 6,\n          \"status\": \"want\",\n          \"startTime\": \"09:30\",\n          \"endTime\": \"30:00\",\n          \"note\": \"\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        }\n      ],\n      \"requests\": [],\n      \"submission\": null\n    },\n    {\n      \"member\": {\n        \"id\": \"seed-member-02\",\n        \"groupId\": \"seed-group-store\",\n        \"userEmail\": \"member02@local.test\",\n        \"displayName\": \"学生A\",\n        \"role\": \"member\",\n        \"status\": \"active\",\n        \"showInPersonal\": true,\n        \"createdAt\": \"2026-07-20 10:01:52\",\n        \"accountNickname\": \"学生A\"\n      },\n      \"preferences\": {\n        \"id\": \"seed-pref-02\",\n        \"groupId\": \"seed-group-store\",\n        \"userEmail\": \"member02@local.test\",\n        \"minDays\": 2,\n        \"maxDays\": 4,\n        \"minHours\": 8,\n        \"maxHours\": 20,\n        \"weekendPolicy\": \"prefer_off\",\n        \"freeComment\": \"土日と夕方を希望。22時以降は勤務不可。\",\n        \"createdAt\": \"2026-07-20 10:01:52\"\n      },\n      \"availability\": [\n        {\n          \"id\": \"8d7fce967ba65b17cea404bff630bd01\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member02@local.test\",\n          \"dayOfWeek\": 0,\n          \"status\": \"want\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"22:00\",\n          \"note\": \"夕方中心。22時以降は不可。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"1b2dd2c5f0042c0359d9dce30ce04716\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member02@local.test\",\n          \"dayOfWeek\": 1,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"22:00\",\n          \"note\": \"夕方中心。22時以降は不可。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"2855c26a6fc4052423fb89adc4e26fbd\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member02@local.test\",\n          \"dayOfWeek\": 2,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"22:00\",\n          \"note\": \"夕方中心。22時以降は不可。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"06755034107097f3fa03599f6a544a7d\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member02@local.test\",\n          \"dayOfWeek\": 3,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"22:00\",\n          \"note\": \"夕方中心。22時以降は不可。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"eddf67fe90a016ed4a32fe6a720d6037\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member02@local.test\",\n          \"dayOfWeek\": 4,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"22:00\",\n          \"note\": \"夕方中心。22時以降は不可。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"18f8eccc70af0fadec913aa3599e528b\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member02@local.test\",\n          \"dayOfWeek\": 5,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"22:00\",\n          \"note\": \"夕方中心。22時以降は不可。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"3dcee4a40193fd368bc2ced246e3bb78\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member02@local.test\",\n          \"dayOfWeek\": 6,\n          \"status\": \"want\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"22:00\",\n          \"note\": \"夕方中心。22時以降は不可。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        }\n      ],\n      \"requests\": [\n        {\n          \"id\": \"f1ee30a2-8c08-4790-8060-98584a6259b7\",\n          \"periodId\": \"63b970bf-587b-40f2-8917-5aa80e115a9e\",\n          \"userEmail\": \"member02@local.test\",\n          \"date\": \"2026-08-20\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"19:00\",\n          \"preference\": \"want\",\n          \"note\": \"シナリオテスト2の希望\",\n          \"createdAt\": \"2026-07-20 10:01:53\"\n        },\n        {\n          \"id\": \"0300d52f-69ed-431b-a0b2-da60b06b94a3\",\n          \"periodId\": \"63b970bf-587b-40f2-8917-5aa80e115a9e\",\n          \"userEmail\": \"member02@local.test\",\n          \"date\": \"2026-08-20\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"19:00\",\n          \"preference\": \"possible\",\n          \"note\": \"シナリオテスト2の希望\",\n          \"createdAt\": \"2026-07-20 10:01:53\"\n        }\n      ],\n      \"submission\": {\n        \"id\": \"248c3ac0-6d84-400b-818c-01b3e1319d25\",\n        \"periodId\": \"63b970bf-587b-40f2-8917-5aa80e115a9e\",\n        \"userEmail\": \"member02@local.test\",\n        \"savedAt\": \"2026-07-20T10:01:53.182Z\",\n        \"requestComment\": \"テスト用の希望コメント\"\n      }\n    },\n    {\n      \"member\": {\n        \"id\": \"seed-member-03\",\n        \"groupId\": \"seed-group-store\",\n        \"userEmail\": \"member03@local.test\",\n        \"displayName\": \"学生B\",\n        \"role\": \"member\",\n        \"status\": \"active\",\n        \"showInPersonal\": true,\n        \"createdAt\": \"2026-07-20 10:01:52\",\n        \"accountNickname\": \"学生B\"\n      },\n      \"preferences\": {\n        \"id\": \"seed-pref-03\",\n        \"groupId\": \"seed-group-store\",\n        \"userEmail\": \"member03@local.test\",\n        \"minDays\": 2,\n        \"maxDays\": 4,\n        \"minHours\": 8,\n        \"maxHours\": 20,\n        \"weekendPolicy\": \"prefer_off\",\n        \"freeComment\": \"平日夕方を希望。試験期間は短時間。\",\n        \"createdAt\": \"2026-07-20 10:01:52\"\n      },\n      \"availability\": [\n        {\n          \"id\": \"0eee38fbfab6c7f6760fd379ed0616a8\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member03@local.test\",\n          \"dayOfWeek\": 0,\n          \"status\": \"want\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"22:00\",\n          \"note\": \"夕方中心。22時以降は不可。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"35b53b5af4a29e8af6f0174fdd69050e\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member03@local.test\",\n          \"dayOfWeek\": 1,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"22:00\",\n          \"note\": \"夕方中心。22時以降は不可。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"2429ddfad160a3bc819b25a124e43c3a\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member03@local.test\",\n          \"dayOfWeek\": 2,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"22:00\",\n          \"note\": \"夕方中心。22時以降は不可。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"f2882fe648c8d24540c02644e7d5ec8b\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member03@local.test\",\n          \"dayOfWeek\": 3,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"22:00\",\n          \"note\": \"夕方中心。22時以降は不可。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"2ea0be0e12cc889f4e2e253c7fdbdee2\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member03@local.test\",\n          \"dayOfWeek\": 4,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"22:00\",\n          \"note\": \"夕方中心。22時以降は不可。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"f967d0fa45aea2e1c7091f1c8af43e7b\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member03@local.test\",\n          \"dayOfWeek\": 5,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"22:00\",\n          \"note\": \"夕方中心。22時以降は不可。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"d4ba03428489b2a50f77d395eba66f94\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member03@local.test\",\n          \"dayOfWeek\": 6,\n          \"status\": \"want\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"22:00\",\n          \"note\": \"夕方中心。22時以降は不可。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        }\n      ],\n      \"requests\": [],\n      \"submission\": null\n    },\n    {\n      \"member\": {\n        \"id\": \"seed-member-04\",\n        \"groupId\": \"seed-group-store\",\n        \"userEmail\": \"member04@local.test\",\n        \"displayName\": \"主婦A\",\n        \"role\": \"member\",\n        \"status\": \"active\",\n        \"showInPersonal\": true,\n        \"createdAt\": \"2026-07-20 10:01:52\",\n        \"accountNickname\": \"主婦A\"\n      },\n      \"preferences\": {\n        \"id\": \"seed-pref-04\",\n        \"groupId\": \"seed-group-store\",\n        \"userEmail\": \"member04@local.test\",\n        \"minDays\": 2,\n        \"maxDays\": 3,\n        \"minHours\": 8,\n        \"maxHours\": 16,\n        \"weekendPolicy\": \"prefer_off\",\n        \"freeComment\": \"平日日中を希望。土日は休み希望。\",\n        \"createdAt\": \"2026-07-20 10:01:52\"\n      },\n      \"availability\": [\n        {\n          \"id\": \"e7fd4e9ada226d74def34fd2e781b7eb\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member04@local.test\",\n          \"dayOfWeek\": 0,\n          \"status\": \"unavailable\",\n          \"startTime\": \"09:30\",\n          \"endTime\": \"17:00\",\n          \"note\": \"平日日中を希望。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"301882e45efbcfa6bc25c5d3284306cb\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member04@local.test\",\n          \"dayOfWeek\": 1,\n          \"status\": \"want\",\n          \"startTime\": \"09:30\",\n          \"endTime\": \"17:00\",\n          \"note\": \"平日日中を希望。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"259c433af537cd30ec8990ad3b388bcf\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member04@local.test\",\n          \"dayOfWeek\": 2,\n          \"status\": \"want\",\n          \"startTime\": \"09:30\",\n          \"endTime\": \"17:00\",\n          \"note\": \"平日日中を希望。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"c2b9633552623f05881d798d5e14b37e\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member04@local.test\",\n          \"dayOfWeek\": 3,\n          \"status\": \"want\",\n          \"startTime\": \"09:30\",\n          \"endTime\": \"17:00\",\n          \"note\": \"平日日中を希望。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"374e9973356e2815de0a6cb1fef7ca72\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member04@local.test\",\n          \"dayOfWeek\": 4,\n          \"status\": \"want\",\n          \"startTime\": \"09:30\",\n          \"endTime\": \"17:00\",\n          \"note\": \"平日日中を希望。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"123d3c38e99f01152cc146c709b335c4\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member04@local.test\",\n          \"dayOfWeek\": 5,\n          \"status\": \"want\",\n          \"startTime\": \"09:30\",\n          \"endTime\": \"17:00\",\n          \"note\": \"平日日中を希望。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"c0fb62e962d43d720106a735359b9b5e\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member04@local.test\",\n          \"dayOfWeek\": 6,\n          \"status\": \"unavailable\",\n          \"startTime\": \"09:30\",\n          \"endTime\": \"17:00\",\n          \"note\": \"平日日中を希望。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        }\n      ],\n      \"requests\": [],\n      \"submission\": null\n    },\n    {\n      \"member\": {\n        \"id\": \"seed-member-05\",\n        \"groupId\": \"seed-group-store\",\n        \"userEmail\": \"member05@local.test\",\n        \"displayName\": \"主婦B\",\n        \"role\": \"member\",\n        \"status\": \"active\",\n        \"showInPersonal\": true,\n        \"createdAt\": \"2026-07-20 10:01:52\",\n        \"accountNickname\": \"主婦B\"\n      },\n      \"preferences\": {\n        \"id\": \"seed-pref-05\",\n        \"groupId\": \"seed-group-store\",\n        \"userEmail\": \"member05@local.test\",\n        \"minDays\": 3,\n        \"maxDays\": 4,\n        \"minHours\": 12,\n        \"maxHours\": 24,\n        \"weekendPolicy\": \"prefer_off\",\n        \"freeComment\": \"平日日中を中心に希望。\",\n        \"createdAt\": \"2026-07-20 10:01:52\"\n      },\n      \"availability\": [\n        {\n          \"id\": \"f7fe7fe87039e91a57cab24e10b48e6a\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member05@local.test\",\n          \"dayOfWeek\": 0,\n          \"status\": \"unavailable\",\n          \"startTime\": \"09:30\",\n          \"endTime\": \"17:00\",\n          \"note\": \"平日日中を希望。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"ea596815f9d6897db4db8d093e4854f2\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member05@local.test\",\n          \"dayOfWeek\": 1,\n          \"status\": \"want\",\n          \"startTime\": \"09:30\",\n          \"endTime\": \"17:00\",\n          \"note\": \"平日日中を希望。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"b02b6b6c44a4028cbfdbf49e3f9eed36\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member05@local.test\",\n          \"dayOfWeek\": 2,\n          \"status\": \"want\",\n          \"startTime\": \"09:30\",\n          \"endTime\": \"17:00\",\n          \"note\": \"平日日中を希望。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"cf4d01da9cef07252cfc45ad28d63f38\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member05@local.test\",\n          \"dayOfWeek\": 3,\n          \"status\": \"want\",\n          \"startTime\": \"09:30\",\n          \"endTime\": \"17:00\",\n          \"note\": \"平日日中を希望。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"79886f57e6e1e91b256422f55f733a49\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member05@local.test\",\n          \"dayOfWeek\": 4,\n          \"status\": \"want\",\n          \"startTime\": \"09:30\",\n          \"endTime\": \"17:00\",\n          \"note\": \"平日日中を希望。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"0d7fef8bfafff0f8c9d8162f55692e40\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member05@local.test\",\n          \"dayOfWeek\": 5,\n          \"status\": \"want\",\n          \"startTime\": \"09:30\",\n          \"endTime\": \"17:00\",\n          \"note\": \"平日日中を希望。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"4e4f1f5d1297b6a9d05bd62836b3b897\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member05@local.test\",\n          \"dayOfWeek\": 6,\n          \"status\": \"unavailable\",\n          \"startTime\": \"09:30\",\n          \"endTime\": \"17:00\",\n          \"note\": \"平日日中を希望。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        }\n      ],\n      \"requests\": [],\n      \"submission\": null\n    },\n    {\n      \"member\": {\n        \"id\": \"seed-member-06\",\n        \"groupId\": \"seed-group-store\",\n        \"userEmail\": \"member06@local.test\",\n        \"displayName\": \"フリーターA\",\n        \"role\": \"member\",\n        \"status\": \"active\",\n        \"showInPersonal\": true,\n        \"createdAt\": \"2026-07-20 10:01:52\",\n        \"accountNickname\": \"フリーターA\"\n      },\n      \"preferences\": {\n        \"id\": \"seed-pref-06\",\n        \"groupId\": \"seed-group-store\",\n        \"userEmail\": \"member06@local.test\",\n        \"minDays\": 4,\n        \"maxDays\": 5,\n        \"minHours\": 24,\n        \"maxHours\": 36,\n        \"weekendPolicy\": \"any\",\n        \"freeComment\": \"夕方以降を中心に希望。\",\n        \"createdAt\": \"2026-07-20 10:01:52\"\n      },\n      \"availability\": [\n        {\n          \"id\": \"efd1f788de66358909b2bcff5ff02078\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member06@local.test\",\n          \"dayOfWeek\": 0,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"30:00\",\n          \"note\": \"夕方・深夜も対応可能。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"57645bd2c900358d0c1b93300428423a\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member06@local.test\",\n          \"dayOfWeek\": 1,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"30:00\",\n          \"note\": \"夕方・深夜も対応可能。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"ea2bd2535ccc79f81fc87af19dab369d\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member06@local.test\",\n          \"dayOfWeek\": 2,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"30:00\",\n          \"note\": \"夕方・深夜も対応可能。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"e8c2a58f6021575a629267444008aec5\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member06@local.test\",\n          \"dayOfWeek\": 3,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"30:00\",\n          \"note\": \"夕方・深夜も対応可能。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"06e44be0fcb320b998e6a5e9f6b337b4\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member06@local.test\",\n          \"dayOfWeek\": 4,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"30:00\",\n          \"note\": \"夕方・深夜も対応可能。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"9f58d2c8f122bdab42f5682c94a44d37\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member06@local.test\",\n          \"dayOfWeek\": 5,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"30:00\",\n          \"note\": \"夕方・深夜も対応可能。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"82f0adf6e2d175575ea7a9105ddcdf97\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member06@local.test\",\n          \"dayOfWeek\": 6,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"30:00\",\n          \"note\": \"夕方・深夜も対応可能。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        }\n      ],\n      \"requests\": [],\n      \"submission\": null\n    },\n    {\n      \"member\": {\n        \"id\": \"seed-member-07\",\n        \"groupId\": \"seed-group-store\",\n        \"userEmail\": \"member07@local.test\",\n        \"displayName\": \"フリーターB\",\n        \"role\": \"member\",\n        \"status\": \"active\",\n        \"showInPersonal\": true,\n        \"createdAt\": \"2026-07-20 10:01:52\",\n        \"accountNickname\": \"フリーターB\"\n      },\n      \"preferences\": {\n        \"id\": \"seed-pref-07\",\n        \"groupId\": \"seed-group-store\",\n        \"userEmail\": \"member07@local.test\",\n        \"minDays\": 4,\n        \"maxDays\": 5,\n        \"minHours\": 24,\n        \"maxHours\": 36,\n        \"weekendPolicy\": \"any\",\n        \"freeComment\": \"深夜帯も対応可能。\",\n        \"createdAt\": \"2026-07-20 10:01:52\"\n      },\n      \"availability\": [\n        {\n          \"id\": \"5754566f91ae347076707fd957aeee8c\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member07@local.test\",\n          \"dayOfWeek\": 0,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"30:00\",\n          \"note\": \"夕方・深夜も対応可能。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"dcc4898e3bb0ba831137777c6fc4f6f9\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member07@local.test\",\n          \"dayOfWeek\": 1,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"30:00\",\n          \"note\": \"夕方・深夜も対応可能。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"b8419ffe242bb03d3aa498a7c134c94e\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member07@local.test\",\n          \"dayOfWeek\": 2,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"30:00\",\n          \"note\": \"夕方・深夜も対応可能。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"aca965de22967b148eac5c4a3df89c62\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member07@local.test\",\n          \"dayOfWeek\": 3,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"30:00\",\n          \"note\": \"夕方・深夜も対応可能。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"a3d11b0e05c0f9bed1e17493ccb6614a\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member07@local.test\",\n          \"dayOfWeek\": 4,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"30:00\",\n          \"note\": \"夕方・深夜も対応可能。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"1a43dc50698146afa1ee0f35630cc544\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member07@local.test\",\n          \"dayOfWeek\": 5,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"30:00\",\n          \"note\": \"夕方・深夜も対応可能。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"3cadb7426c8db7f6f6c1daffc99e3008\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member07@local.test\",\n          \"dayOfWeek\": 6,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"30:00\",\n          \"note\": \"夕方・深夜も対応可能。\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        }\n      ],\n      \"requests\": [],\n      \"submission\": null\n    },\n    {\n      \"member\": {\n        \"id\": \"seed-member-08\",\n        \"groupId\": \"seed-group-store\",\n        \"userEmail\": \"member08@local.test\",\n        \"displayName\": \"パートA\",\n        \"role\": \"member\",\n        \"status\": \"active\",\n        \"showInPersonal\": true,\n        \"createdAt\": \"2026-07-20 10:01:52\",\n        \"accountNickname\": \"パートA\"\n      },\n      \"preferences\": {\n        \"id\": \"seed-pref-08\",\n        \"groupId\": \"seed-group-store\",\n        \"userEmail\": \"member08@local.test\",\n        \"minDays\": 3,\n        \"maxDays\": 4,\n        \"minHours\": 16,\n        \"maxHours\": 28,\n        \"weekendPolicy\": \"any\",\n        \"freeComment\": \"週3日程度。曜日相談可。\",\n        \"createdAt\": \"2026-07-20 10:01:52\"\n      },\n      \"availability\": [\n        {\n          \"id\": \"0b1ca230af083c512b85cf8572a78395\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member08@local.test\",\n          \"dayOfWeek\": 0,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"30:00\",\n          \"note\": \"\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"14113b10df5f619bce0ccd0818f3e7f2\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member08@local.test\",\n          \"dayOfWeek\": 1,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"30:00\",\n          \"note\": \"\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"7a584852f4fc9f63731292c76d724728\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member08@local.test\",\n          \"dayOfWeek\": 2,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"30:00\",\n          \"note\": \"\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"057287a72c189df0fcbb020a34239bb6\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member08@local.test\",\n          \"dayOfWeek\": 3,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"30:00\",\n          \"note\": \"\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"0c63941cd22ae6823028710a16c34269\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member08@local.test\",\n          \"dayOfWeek\": 4,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"30:00\",\n          \"note\": \"\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"31d70776b4debad40bcf1f5925d12099\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member08@local.test\",\n          \"dayOfWeek\": 5,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"30:00\",\n          \"note\": \"\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"ce1329d801bb7a6f74317e589542fdef\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member08@local.test\",\n          \"dayOfWeek\": 6,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"30:00\",\n          \"note\": \"\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        }\n      ],\n      \"requests\": [],\n      \"submission\": null\n    },\n    {\n      \"member\": {\n        \"id\": \"seed-member-09\",\n        \"groupId\": \"seed-group-store\",\n        \"userEmail\": \"member09@local.test\",\n        \"displayName\": \"パートB\",\n        \"role\": \"member\",\n        \"status\": \"active\",\n        \"showInPersonal\": true,\n        \"createdAt\": \"2026-07-20 10:01:52\",\n        \"accountNickname\": \"パートB\"\n      },\n      \"preferences\": {\n        \"id\": \"seed-pref-09\",\n        \"groupId\": \"seed-group-store\",\n        \"userEmail\": \"member09@local.test\",\n        \"minDays\": 3,\n        \"maxDays\": 5,\n        \"minHours\": 20,\n        \"maxHours\": 36,\n        \"weekendPolicy\": \"any\",\n        \"freeComment\": \"曜日は柔軟に相談可能。\",\n        \"createdAt\": \"2026-07-20 10:01:52\"\n      },\n      \"availability\": [\n        {\n          \"id\": \"9c1d4cb75682af5a3b4340dd9930fd1a\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member09@local.test\",\n          \"dayOfWeek\": 0,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"30:00\",\n          \"note\": \"\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"78292b2626a5fbd25fc9e3d543df884e\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member09@local.test\",\n          \"dayOfWeek\": 1,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"30:00\",\n          \"note\": \"\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"b9b67ef33a29593215adb9698c4f2891\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member09@local.test\",\n          \"dayOfWeek\": 2,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"30:00\",\n          \"note\": \"\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"2d578bde1ef4ec512e8db28a6565323c\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member09@local.test\",\n          \"dayOfWeek\": 3,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"30:00\",\n          \"note\": \"\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"55364a924bc5d91b96f67e1e9198ab69\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member09@local.test\",\n          \"dayOfWeek\": 4,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"30:00\",\n          \"note\": \"\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"d72af6f745a551a35e369d77420840e9\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member09@local.test\",\n          \"dayOfWeek\": 5,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"30:00\",\n          \"note\": \"\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        },\n        {\n          \"id\": \"f1d19e0a2063e0fb7a2322d458bbb598\",\n          \"groupId\": \"seed-group-store\",\n          \"userEmail\": \"member09@local.test\",\n          \"dayOfWeek\": 6,\n          \"status\": \"possible\",\n          \"startTime\": \"17:00\",\n          \"endTime\": \"30:00\",\n          \"note\": \"\",\n          \"createdAt\": \"2026-07-20 10:01:52\"\n        }\n      ],\n      \"requests\": [],\n      \"submission\": null\n    }\n  ]\n}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "kind": "step",
+      "name": "MCP reads request overview",
+      "status": "passed"
+    },
+    {
+      "kind": "mcp",
+      "name": "check_shift_assignments",
+      "status": 200,
+      "ms": 302,
+      "isError": false,
+      "data": {
+        "jsonrpc": "2.0",
+        "id": 3,
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\n  \"ok\": false,\n  \"canPublish\": false,\n  \"plan\": {\n    \"id\": \"bc2f2ebb-deed-48a1-a13e-0ad8b4413bce\",\n    \"name\": \"シナリオ2 8月後半\",\n    \"status\": \"draft\",\n    \"version\": 2\n  },\n  \"requestPeriod\": {\n    \"id\": \"63b970bf-587b-40f2-8917-5aa80e115a9e\",\n    \"groupId\": \"seed-group-store\",\n    \"planId\": \"bc2f2ebb-deed-48a1-a13e-0ad8b4413bce\",\n    \"name\": \"シナリオ2 8月後半の勤務希望\",\n    \"opensOn\": \"2026-07-20\",\n    \"closesOn\": \"2026-08-10\",\n    \"status\": \"open\",\n    \"createdBy\": \"tanaka@local.test\",\n    \"createdAt\": \"2026-07-20 10:01:52\"\n  },\n  \"summary\": {\n    \"slotCount\": 16,\n    \"assignmentCount\": 0,\n    \"errorCount\": 16,\n    \"warningCount\": 10\n  },\n  \"errors\": [\n    {\n      \"type\": \"shortage\",\n      \"severity\": \"error\",\n      \"slotId\": \"38fe9dc1-b491-4e0c-a831-5c0650021d59\",\n      \"date\": \"2026-08-20\",\n      \"startTime\": \"17:00\",\n      \"endTime\": \"19:00\",\n      \"role\": \"ホール\",\n      \"required\": 1,\n      \"assigned\": 0,\n      \"message\": \"2026-08-20 17:00-19:00 ホール: 必要1名に対して0名\"\n    },\n    {\n      \"type\": \"shortage\",\n      \"severity\": \"error\",\n      \"slotId\": \"1685b97d-b775-4431-b0e1-b8675f083edf\",\n      \"date\": \"2026-08-20\",\n      \"startTime\": \"17:00\",\n      \"endTime\": \"19:00\",\n      \"role\": \"厨房\",\n      \"required\": 1,\n      \"assigned\": 0,\n      \"message\": \"2026-08-20 17:00-19:00 厨房: 必要1名に対して0名\"\n    },\n    {\n      \"type\": \"shortage\",\n      \"severity\": \"error\",\n      \"slotId\": \"633376be-7774-4e7c-89ae-6792e38986af\",\n      \"date\": \"2026-08-20\",\n      \"startTime\": \"19:00\",\n      \"endTime\": \"21:00\",\n      \"role\": \"ホール\",\n      \"required\": 1,\n      \"assigned\": 0,\n      \"message\": \"2026-08-20 19:00-21:00 ホール: 必要1名に対して0名\"\n    },\n    {\n      \"type\": \"shortage\",\n      \"severity\": \"error\",\n      \"slotId\": \"d4e95ea2-96d5-4e95-9bdf-a57e32885c7e\",\n      \"date\": \"2026-08-20\",\n      \"startTime\": \"19:00\",\n      \"endTime\": \"21:00\",\n      \"role\": \"厨房\",\n      \"required\": 1,\n      \"assigned\": 0,\n      \"message\": \"2026-08-20 19:00-21:00 厨房: 必要1名に対して0名\"\n    },\n    {\n      \"type\": \"shortage\",\n      \"severity\": \"error\",\n      \"slotId\": \"6cf4fc25-05cb-499a-a65a-405e2e7af400\",\n      \"date\": \"2026-08-20\",\n      \"startTime\": \"21:00\",\n      \"endTime\": \"23:00\",\n      \"role\": \"ホール\",\n      \"required\": 1,\n      \"assigned\": 0,\n      \"message\": \"2026-08-20 21:00-23:00 ホール: 必要1名に対して0名\"\n    },\n    {\n      \"type\": \"shortage\",\n      \"severity\": \"error\",\n      \"slotId\": \"1861e548-7fc2-45df-a43c-bb280869292f\",\n      \"date\": \"2026-08-20\",\n      \"startTime\": \"21:00\",\n      \"endTime\": \"23:00\",\n      \"role\": \"厨房\",\n      \"required\": 1,\n      \"assigned\": 0,\n      \"message\": \"2026-08-20 21:00-23:00 厨房: 必要1名に対して0名\"\n    },\n    {\n      \"type\": \"shortage\",\n      \"severity\": \"error\",\n      \"slotId\": \"e89560c3-1a87-4852-b521-4de64124f9d1\",\n      \"date\": \"2026-08-20\",\n      \"startTime\": \"23:00\",\n      \"endTime\": \"25:00\",\n      \"role\": \"ホール\",\n      \"required\": 1,\n      \"assigned\": 0,\n      \"message\": \"2026-08-20 23:00-25:00 ホール: 必要1名に対して0名\"\n    },\n    {\n      \"type\": \"shortage\",\n      \"severity\": \"error\",\n      \"slotId\": \"99ec07f0-7cc7-4a9a-8afc-3f91dde4fa77\",\n      \"date\": \"2026-08-20\",\n      \"startTime\": \"23:00\",\n      \"endTime\": \"25:00\",\n      \"role\": \"厨房\",\n      \"required\": 1,\n      \"assigned\": 0,\n      \"message\": \"2026-08-20 23:00-25:00 厨房: 必要1名に対して0名\"\n    },\n    {\n      \"type\": \"shortage\",\n      \"severity\": \"error\",\n      \"slotId\": \"047bf570-7b60-481f-b7f4-65a9c2ead485\",\n      \"date\": \"2026-08-21\",\n      \"startTime\": \"17:00\",\n      \"endTime\": \"19:00\",\n      \"role\": \"ホール\",\n      \"required\": 1,\n      \"assigned\": 0,\n      \"message\": \"2026-08-21 17:00-19:00 ホール: 必要1名に対して0名\"\n    },\n    {\n      \"type\": \"shortage\",\n      \"severity\": \"error\",\n      \"slotId\": \"ac44016c-5b1c-491a-9944-d0e9364bbaf1\",\n      \"date\": \"2026-08-21\",\n      \"startTime\": \"17:00\",\n      \"endTime\": \"19:00\",\n      \"role\": \"厨房\",\n      \"required\": 1,\n      \"assigned\": 0,\n      \"message\": \"2026-08-21 17:00-19:00 厨房: 必要1名に対して0名\"\n    },\n    {\n      \"type\": \"shortage\",\n      \"severity\": \"error\",\n      \"slotId\": \"5d66154e-87fd-4ab9-adec-5048aa9e3129\",\n      \"date\": \"2026-08-21\",\n      \"startTime\": \"19:00\",\n      \"endTime\": \"21:00\",\n      \"role\": \"ホール\",\n      \"required\": 1,\n      \"assigned\": 0,\n      \"message\": \"2026-08-21 19:00-21:00 ホール: 必要1名に対して0名\"\n    },\n    {\n      \"type\": \"shortage\",\n      \"severity\": \"error\",\n      \"slotId\": \"2fca067e-5bf4-4e43-92c9-015b2fb4a0bb\",\n      \"date\": \"2026-08-21\",\n      \"startTime\": \"19:00\",\n      \"endTime\": \"21:00\",\n      \"role\": \"厨房\",\n      \"required\": 1,\n      \"assigned\": 0,\n      \"message\": \"2026-08-21 19:00-21:00 厨房: 必要1名に対して0名\"\n    },\n    {\n      \"type\": \"shortage\",\n      \"severity\": \"error\",\n      \"slotId\": \"4a4d4362-fd17-4970-a49b-9fff9ed9815e\",\n      \"date\": \"2026-08-21\",\n      \"startTime\": \"21:00\",\n      \"endTime\": \"23:00\",\n      \"role\": \"ホール\",\n      \"required\": 1,\n      \"assigned\": 0,\n      \"message\": \"2026-08-21 21:00-23:00 ホール: 必要1名に対して0名\"\n    },\n    {\n      \"type\": \"shortage\",\n      \"severity\": \"error\",\n      \"slotId\": \"43b15eee-0269-4ff2-b631-ce7e3a2024be\",\n      \"date\": \"2026-08-21\",\n      \"startTime\": \"21:00\",\n      \"endTime\": \"23:00\",\n      \"role\": \"厨房\",\n      \"required\": 1,\n      \"assigned\": 0,\n      \"message\": \"2026-08-21 21:00-23:00 厨房: 必要1名に対して0名\"\n    },\n    {\n      \"type\": \"shortage\",\n      \"severity\": \"error\",\n      \"slotId\": \"011d2cfd-625c-4565-8124-7d85ab28c000\",\n      \"date\": \"2026-08-21\",\n      \"startTime\": \"23:00\",\n      \"endTime\": \"25:00\",\n      \"role\": \"ホール\",\n      \"required\": 1,\n      \"assigned\": 0,\n      \"message\": \"2026-08-21 23:00-25:00 ホール: 必要1名に対して0名\"\n    },\n    {\n      \"type\": \"shortage\",\n      \"severity\": \"error\",\n      \"slotId\": \"5a48c978-d016-4c9f-9e38-787a4d449964\",\n      \"date\": \"2026-08-21\",\n      \"startTime\": \"23:00\",\n      \"endTime\": \"25:00\",\n      \"role\": \"厨房\",\n      \"required\": 1,\n      \"assigned\": 0,\n      \"message\": \"2026-08-21 23:00-25:00 厨房: 必要1名に対して0名\"\n    }\n  ],\n  \"warnings\": [\n    {\n      \"type\": \"member_range\",\n      \"severity\": \"warning\",\n      \"memberEmail\": \"tanaka@local.test\",\n      \"memberName\": \"店長\",\n      \"days\": 0,\n      \"totalMinutes\": 0,\n      \"minDays\": 5,\n      \"maxDays\": 6,\n      \"minHours\": 40,\n      \"maxHours\": 60,\n      \"message\": \"店長の勤務日数・時間が基本設定の範囲外です\"\n    },\n    {\n      \"type\": \"member_range\",\n      \"severity\": \"warning\",\n      \"memberEmail\": \"member01@local.test\",\n      \"memberName\": \"副店長\",\n      \"days\": 0,\n      \"totalMinutes\": 0,\n      \"minDays\": 5,\n      \"maxDays\": 6,\n      \"minHours\": 40,\n      \"maxHours\": 60,\n      \"message\": \"副店長の勤務日数・時間が基本設定の範囲外です\"\n    },\n    {\n      \"type\": \"member_range\",\n      \"severity\": \"warning\",\n      \"memberEmail\": \"member02@local.test\",\n      \"memberName\": \"学生A\",\n      \"days\": 0,\n      \"totalMinutes\": 0,\n      \"minDays\": 2,\n      \"maxDays\": 4,\n      \"minHours\": 8,\n      \"maxHours\": 20,\n      \"message\": \"学生Aの勤務日数・時間が基本設定の範囲外です\"\n    },\n    {\n      \"type\": \"member_range\",\n      \"severity\": \"warning\",\n      \"memberEmail\": \"member03@local.test\",\n      \"memberName\": \"学生B\",\n      \"days\": 0,\n      \"totalMinutes\": 0,\n      \"minDays\": 2,\n      \"maxDays\": 4,\n      \"minHours\": 8,\n      \"maxHours\": 20,\n      \"message\": \"学生Bの勤務日数・時間が基本設定の範囲外です\"\n    },\n    {\n      \"type\": \"member_range\",\n      \"severity\": \"warning\",\n      \"memberEmail\": \"member04@local.test\",\n      \"memberName\": \"主婦A\",\n      \"days\": 0,\n      \"totalMinutes\": 0,\n      \"minDays\": 2,\n      \"maxDays\": 3,\n      \"minHours\": 8,\n      \"maxHours\": 16,\n      \"message\": \"主婦Aの勤務日数・時間が基本設定の範囲外です\"\n    },\n    {\n      \"type\": \"member_range\",\n      \"severity\": \"warning\",\n      \"memberEmail\": \"member05@local.test\",\n      \"memberName\": \"主婦B\",\n      \"days\": 0,\n      \"totalMinutes\": 0,\n      \"minDays\": 3,\n      \"maxDays\": 4,\n      \"minHours\": 12,\n      \"maxHours\": 24,\n      \"message\": \"主婦Bの勤務日数・時間が基本設定の範囲外です\"\n    },\n    {\n      \"type\": \"member_range\",\n      \"severity\": \"warning\",\n      \"memberEmail\": \"member06@local.test\",\n      \"memberName\": \"フリーターA\",\n      \"days\": 0,\n      \"totalMinutes\": 0,\n      \"minDays\": 4,\n      \"maxDays\": 5,\n      \"minHours\": 24,\n      \"maxHours\": 36,\n      \"message\": \"フリーターAの勤務日数・時間が基本設定の範囲外です\"\n    },\n    {\n      \"type\": \"member_range\",\n      \"severity\": \"warning\",\n      \"memberEmail\": \"member07@local.test\",\n      \"memberName\": \"フリーターB\",\n      \"days\": 0,\n      \"totalMinutes\": 0,\n      \"minDays\": 4,\n      \"maxDays\": 5,\n      \"minHours\": 24,\n      \"maxHours\": 36,\n      \"message\": \"フリーターBの勤務日数・時間が基本設定の範囲外です\"\n    },\n    {\n      \"type\": \"member_range\",\n      \"severity\": \"warning\",\n      \"memberEmail\": \"member08@local.test\",\n      \"memberName\": \"パートA\",\n      \"days\": 0,\n      \"totalMinutes\": 0,\n      \"minDays\": 3,\n      \"maxDays\": 4,\n      \"minHours\": 16,\n      \"maxHours\": 28,\n      \"message\": \"パートAの勤務日数・時間が基本設定の範囲外です\"\n    },\n    {\n      \"type\": \"member_range\",\n      \"severity\": \"warning\",\n      \"memberEmail\": \"member09@local.test\",\n      \"memberName\": \"パートB\",\n      \"days\": 0,\n      \"totalMinutes\": 0,\n      \"minDays\": 3,\n      \"maxDays\": 5,\n      \"minHours\": 20,\n      \"maxHours\": 36,\n      \"message\": \"パートBの勤務日数・時間が基本設定の範囲外です\"\n    }\n  ],\n  \"memberSummaries\": [\n    {\n      \"userEmail\": \"tanaka@local.test\",\n      \"displayName\": \"店長\",\n      \"days\": 0,\n      \"totalMinutes\": 0,\n      \"requestSavedAt\": null,\n      \"requestComment\": \"\"\n    },\n    {\n      \"userEmail\": \"member01@local.test\",\n      \"displayName\": \"副店長\",\n      \"days\": 0,\n      \"totalMinutes\": 0,\n      \"requestSavedAt\": null,\n      \"requestComment\": \"\"\n    },\n    {\n      \"userEmail\": \"member02@local.test\",\n      \"displayName\": \"学生A\",\n      \"days\": 0,\n      \"totalMinutes\": 0,\n      \"requestSavedAt\": \"2026-07-20T10:01:53.182Z\",\n      \"requestComment\": \"テスト用の希望コメント\"\n    },\n    {\n      \"userEmail\": \"member03@local.test\",\n      \"displayName\": \"学生B\",\n      \"days\": 0,\n      \"totalMinutes\": 0,\n      \"requestSavedAt\": null,\n      \"requestComment\": \"\"\n    },\n    {\n      \"userEmail\": \"member04@local.test\",\n      \"displayName\": \"主婦A\",\n      \"days\": 0,\n      \"totalMinutes\": 0,\n      \"requestSavedAt\": null,\n      \"requestComment\": \"\"\n    },\n    {\n      \"userEmail\": \"member05@local.test\",\n      \"displayName\": \"主婦B\",\n      \"days\": 0,\n      \"totalMinutes\": 0,\n      \"requestSavedAt\": null,\n      \"requestComment\": \"\"\n    },\n    {\n      \"userEmail\": \"member06@local.test\",\n      \"displayName\": \"フリーターA\",\n      \"days\": 0,\n      \"totalMinutes\": 0,\n      \"requestSavedAt\": null,\n      \"requestComment\": \"\"\n    },\n    {\n      \"userEmail\": \"member07@local.test\",\n      \"displayName\": \"フリーターB\",\n      \"days\": 0,\n      \"totalMinutes\": 0,\n      \"requestSavedAt\": null,\n      \"requestComment\": \"\"\n    },\n    {\n      \"userEmail\": \"member08@local.test\",\n      \"displayName\": \"パートA\",\n      \"days\": 0,\n      \"totalMinutes\": 0,\n      \"requestSavedAt\": null,\n      \"requestComment\": \"\"\n    },\n    {\n      \"userEmail\": \"member09@local.test\",\n      \"displayName\": \"パートB\",\n      \"days\": 0,\n      \"totalMinutes\": 0,\n      \"requestSavedAt\": null,\n      \"requestComment\": \"\"\n    }\n  ]\n}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "kind": "step",
+      "name": "MCP checks assignment warnings",
+      "status": "passed"
+    },
+    {
+      "kind": "mcp",
+      "name": "set_shift_assignments",
+      "status": 200,
+      "ms": 587,
+      "isError": false,
+      "data": {
+        "jsonrpc": "2.0",
+        "id": 4,
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\n  \"ok\": true,\n  \"assigned\": 2,\n  \"status\": \"published\",\n  \"calendarEvents\": 2,\n  \"version\": 3\n}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "kind": "step",
+      "name": "MCP saves assignment draft and publishes",
+      "status": "passed"
+    },
+    {
+      "kind": "api",
+      "user": "member02@local.test",
+      "method": "GET",
+      "path": "/api/calendar",
+      "status": 200,
+      "ms": 557,
+      "data": {
+        "email": "member02@local.test",
+        "groups": [
+          {
+            "id": "seed-member-02",
+            "groupId": "seed-group-store",
+            "userEmail": "member02@local.test",
+            "displayName": "学生A",
+            "role": "member",
+            "status": "active",
+            "showInPersonal": true,
+            "createdAt": "2026-07-20 10:01:52",
+            "name": "サンプル店",
+            "unreadAssistant": false,
+            "pendingMemberRequests": 0
+          }
+        ],
+        "events": [
+          {
+            "id": "366a96ba-58b6-42af-9146-8736868ac860",
+            "ownerEmail": "tanaka@local.test",
+            "groupId": "seed-group-store",
+            "shiftPlanId": "bc2f2ebb-deed-48a1-a13e-0ad8b4413bce",
+            "title": "ホール",
+            "date": "2026-08-20",
+            "endDate": "2026-08-20",
+            "startTime": "17:00",
+            "endTime": "19:00",
+            "category": "仕事",
+            "notes": "担当：学生A",
+            "completed": false,
+            "createdAt": "2026-07-20 10:01:54",
+            "groupName": "サンプル店",
+            "readOnly": true
+          },
+          {
+            "id": "seed-calendar-slot-july2-0c4dc154e818a4a7",
+            "ownerEmail": "tanaka@local.test",
+            "groupId": "seed-group-store",
+            "shiftPlanId": "seed-plan-second-half",
+            "title": "ホール",
+            "date": "2026-07-31",
+            "endDate": "2026-07-31",
+            "startTime": "14:00",
+            "endTime": "17:00",
+            "category": "仕事",
+            "notes": "担当：学生A",
+            "completed": false,
+            "createdAt": "2026-07-20 10:01:52",
+            "groupName": "サンプル店",
+            "readOnly": true
+          },
+          {
+            "id": "seed-calendar-slot-july2-cb4d12b7abf5e71d",
+            "ownerEmail": "tanaka@local.test",
+            "groupId": "seed-group-store",
+            "shiftPlanId": "seed-plan-second-half",
+            "title": "ホール",
+            "date": "2026-07-30",
+            "endDate": "2026-07-30",
+            "startTime": "14:00",
+            "endTime": "17:00",
+            "category": "仕事",
+            "notes": "担当：学生A",
+            "completed": false,
+            "createdAt": "2026-07-20 10:01:52",
+            "groupName": "サンプル店",
+            "readOnly": true
+          },
+          {
+            "id": "seed-calendar-slot-july2-4ff1fbaa82d927ee",
+            "ownerEmail": "tanaka@local.test",
+            "groupId": "seed-group-store",
+            "shiftPlanId": "seed-plan-second-half",
+            "title": "ホール",
+            "date": "2026-07-29",
+            "endDate": "2026-07-29",
+            "startTime": "14:00",
+            "endTime": "17:00",
+            "category": "仕事",
+            "notes": "担当：学生A",
+            "completed": false,
+            "createdAt": "2026-07-20 10:01:52",
+            "groupName": "サンプル店",
+            "readOnly": true
+          },
+          {
+            "id": "seed-calendar-slot-july2-e0442aff743bd1e5",
+            "ownerEmail": "tanaka@local.test",
+            "groupId": "seed-group-store",
+            "shiftPlanId": "seed-plan-second-half",
+            "title": "ホール",
+            "date": "2026-07-28",
+            "endDate": "2026-07-28",
+            "startTime": "14:00",
+            "endTime": "17:00",
+            "category": "仕事",
+            "notes": "担当：学生A",
+            "completed": false,
+            "createdAt": "2026-07-20 10:01:52",
+            "groupName": "サンプル店",
+            "readOnly": true
+          },
+          {
+            "id": "seed-calendar-slot-july2-7b970b1156cc511d",
+            "ownerEmail": "tanaka@local.test",
+            "groupId": "seed-group-store",
+            "shiftPlanId": "seed-plan-second-half",
+            "title": "ホール",
+            "date": "2026-07-27",
+            "endDate": "2026-07-27",
+            "startTime": "14:00",
+            "endTime": "17:00",
+            "category": "仕事",
+            "notes": "担当：学生A",
+            "completed": false,
+            "createdAt": "2026-07-20 10:01:52",
+            "groupName": "サンプル店",
+            "readOnly": true
+          },
+          {
+            "id": "seed-calendar-slot-july2-060b663a739347ac",
+            "ownerEmail": "tanaka@local.test",
+            "groupId": "seed-group-store",
+            "shiftPlanId": "seed-plan-second-half",
+            "title": "ホール",
+            "date": "2026-07-26",
+            "endDate": "2026-07-26",
+            "startTime": "14:00",
+            "endTime": "17:00",
+            "category": "仕事",
+            "notes": "担当：学生A",
+            "completed": false,
+            "createdAt": "2026-07-20 10:01:52",
+            "groupName": "サンプル店",
+            "readOnly": true
+          },
+          {
+            "id": "seed-calendar-slot-july2-24a4d01d7e029071",
+            "ownerEmail": "tanaka@local.test",
+            "groupId": "seed-group-store",
+            "shiftPlanId": "seed-plan-second-half",
+            "title": "ホール",
+            "date": "2026-07-25",
+            "endDate": "2026-07-25",
+            "startTime": "14:00",
+            "endTime": "17:00",
+            "category": "仕事",
+            "notes": "担当：学生A",
+            "completed": false,
+            "createdAt": "2026-07-20 10:01:52",
+            "groupName": "サンプル店",
+            "readOnly": true
+          },
+          {
+            "id": "seed-calendar-slot-july2-02d7e51304c7e614",
+            "ownerEmail": "tanaka@local.test",
+            "groupId": "seed-group-store",
+            "shiftPlanId": "seed-plan-second-half",
+            "title": "ホール",
+            "date": "2026-07-24",
+            "endDate": "2026-07-24",
+            "startTime": "14:00",
+            "endTime": "17:00",
+            "category": "仕事",
+            "notes": "担当：学生A",
+            "completed": false,
+            "createdAt": "2026-07-20 10:01:52",
+            "groupName": "サンプル店",
+            "readOnly": true
+          },
+          {
+            "id": "seed-calendar-slot-july2-032f86f36758f043",
+            "ownerEmail": "tanaka@local.test",
+            "groupId": "seed-group-store",
+            "shiftPlanId": "seed-plan-second-half",
+            "title": "ホール",
+            "date": "2026-07-23",
+            "endDate": "2026-07-23",
+            "startTime": "14:00",
+            "endTime": "17:00",
+            "category": "仕事",
+            "notes": "担当：学生A",
+            "completed": false,
+            "createdAt": "2026-07-20 10:01:52",
+            "groupName": "サンプル店",
+            "readOnly": true
+          },
+          {
+            "id": "seed-calendar-slot-july2-b48ddaf21c3ff2fc",
+            "ownerEmail": "tanaka@local.test",
+            "groupId": "seed-group-store",
+            "shiftPlanId": "seed-plan-second-half",
+            "title": "ホール",
+            "date": "2026-07-22",
+            "endDate": "2026-07-22",
+            "startTime": "14:00",
+            "endTime": "17:00",
+            "category": "仕事",
+            "notes": "担当：学生A",
+            "completed": false,
+            "createdAt": "2026-07-20 10:01:52",
+            "groupName": "サンプル店",
+            "readOnly": true
+          },
+          {
+            "id": "seed-calendar-slot-july2-4e84dccd8b467c52",
+            "ownerEmail": "tanaka@local.test",
+            "groupId": "seed-group-store",
+            "shiftPlanId": "seed-plan-second-half",
+            "title": "ホール",
+            "date": "2026-07-21",
+            "endDate": "2026-07-21",
+            "startTime": "14:00",
+            "endTime": "17:00",
+            "category": "仕事",
+            "notes": "担当：学生A",
+            "completed": false,
+            "createdAt": "2026-07-20 10:01:52",
+            "groupName": "サンプル店",
+            "readOnly": true
+          },
+          {
+            "id": "seed-calendar-slot-july2-c997e45e549b9fa8",
+            "ownerEmail": "tanaka@local.test",
+            "groupId": "seed-group-store",
+            "shiftPlanId": "seed-plan-second-half",
+            "title": "ホール",
+            "date": "2026-07-20",
+            "endDate": "2026-07-20",
+            "startTime": "14:00",
+            "endTime": "17:00",
+            "category": "仕事",
+            "notes": "担当：学生A",
+            "completed": false,
+            "createdAt": "2026-07-20 10:01:52",
+            "groupName": "サンプル店",
+            "readOnly": true
+          },
+          {
+            "id": "seed-calendar-slot-july2-9b84696f5d7abc77",
+            "ownerEmail": "tanaka@local.test",
+            "groupId": "seed-group-store",
+            "shiftPlanId": "seed-plan-second-half",
+            "title": "ホール",
+            "date": "2026-07-19",
+            "endDate": "2026-07-19",
+            "startTime": "14:00",
+            "endTime": "17:00",
+            "category": "仕事",
+            "notes": "担当：学生A",
+            "completed": false,
+            "createdAt": "2026-07-20 10:01:52",
+            "groupName": "サンプル店",
+            "readOnly": true
+          },
+          {
+            "id": "seed-calendar-slot-july2-cac4610f78ed5e69",
+            "ownerEmail": "tanaka@local.test",
+            "groupId": "seed-group-store",
+            "shiftPlanId": "seed-plan-second-half",
+            "title": "ホール",
+            "date": "2026-07-18",
+            "endDate": "2026-07-18",
+            "startTime": "14:00",
+            "endTime": "17:00",
+            "category": "仕事",
+            "notes": "担当：学生A",
+            "completed": false,
+            "createdAt": "2026-07-20 10:01:52",
+            "groupName": "サンプル店",
+            "readOnly": true
+          },
+          {
+            "id": "seed-calendar-slot-july2-91b7d2e2aef66fd0",
+            "ownerEmail": "tanaka@local.test",
+            "groupId": "seed-group-store",
+            "shiftPlanId": "seed-plan-second-half",
+            "title": "ホール",
+            "date": "2026-07-17",
+            "endDate": "2026-07-17",
+            "startTime": "14:00",
+            "endTime": "17:00",
+            "category": "仕事",
+            "notes": "担当：学生A",
+            "completed": false,
+            "createdAt": "2026-07-20 10:01:52",
+            "groupName": "サンプル店",
+            "readOnly": true
+          },
+          {
+            "id": "seed-calendar-slot-july2-7dba0ee36e9c348e",
+            "ownerEmail": "tanaka@local.test",
+            "groupId": "seed-group-store",
+            "shiftPlanId": "seed-plan-second-half",
+            "title": "ホール",
+            "date": "2026-07-16",
+            "endDate": "2026-07-16",
+            "startTime": "14:00",
+            "endTime": "17:00",
+            "category": "仕事",
+            "notes": "担当：学生A",
+            "completed": false,
+            "createdAt": "2026-07-20 10:01:52",
+            "groupName": "サンプル店",
+            "readOnly": true
+          },
+          {
+            "id": "seed-calendar-slot-july1-7fc38833b06bd74e",
+            "ownerEmail": "tanaka@local.test",
+            "groupId": "seed-group-store",
+            "shiftPlanId": "seed-plan-first-half",
+            "title": "ホール",
+            "date": "2026-07-15",
+            "endDate": "2026-07-15",
+            "startTime": "14:00",
+            "endTime": "17:00",
+            "category": "仕事",
+            "notes": "担当：学生A",
+            "completed": false,
+            "createdAt": "2026-07-20 10:01:52",
+            "groupName": "サンプル店",
+            "readOnly": true
+          },
+          {
+            "id": "seed-calendar-slot-july1-dee560b45a100e3e",
+            "ownerEmail": "tanaka@local.test",
+            "groupId": "seed-group-store",
+            "shiftPlanId": "seed-plan-first-half",
+            "title": "ホール",
+            "date": "2026-07-14",
+            "endDate": "2026-07-14",
+            "startTime": "14:00",
+            "endTime": "17:00",
+            "category": "仕事",
+            "notes": "担当：学生A",
+            "completed": false,
+            "createdAt": "2026-07-20 10:01:52",
+            "groupName": "サンプル店",
+            "readOnly": true
+          },
+          {
+            "id": "seed-calendar-slot-july1-b198aeccd6408b96",
+            "ownerEmail": "tanaka@local.test",
+            "groupId": "seed-group-store",
+            "shiftPlanId": "seed-plan-first-half",
+            "title": "ホール",
+            "date": "2026-07-13",
+            "endDate": "2026-07-13",
+            "startTime": "14:00",
+            "endTime": "17:00",
+            "category": "仕事",
+            "notes": "担当：学生A",
+            "completed": false,
+            "createdAt": "2026-07-20 10:01:52",
+            "groupName": "サンプル店",
+            "readOnly": true
+          },
+          {
+            "id": "seed-calendar-slot-july1-2284d82de5ecc124",
+            "ownerEmail": "tanaka@local.test",
+            "groupId": "seed-group-store",
+            "shiftPlanId": "seed-plan-first-half",
+            "title": "ホール",
+            "date": "2026-07-12",
+            "endDate": "2026-07-12",
+            "startTime": "14:00",
+            "endTime": "17:00",
+            "category": "仕事",
+            "notes": "担当：学生A",
+            "completed": false,
+            "createdAt": "2026-07-20 10:01:52",
+            "groupName": "サンプル店",
+            "readOnly": true
+          },
+          {
+            "id": "seed-calendar-slot-july1-76ac0ea3914c2528",
+            "ownerEmail": "tanaka@local.test",
+            "groupId": "seed-group-store",
+            "shiftPlanId": "seed-plan-first-half",
+            "title": "ホール",
+            "date": "2026-07-11",
+            "endDate": "2026-07-11",
+            "startTime": "14:00",
+            "endTime": "17:00",
+            "category": "仕事",
+            "notes": "担当：学生A",
+            "completed": false,
+            "createdAt": "2026-07-20 10:01:52",
+            "groupName": "サンプル店",
+            "readOnly": true
+          },
+          {
+            "id": "seed-calendar-slot-july1-b593fe524e508a8c",
+            "ownerEmail": "tanaka@local.test",
+            "groupId": "seed-group-store",
+            "shiftPlanId": "seed-plan-first-half",
+            "title": "ホール",
+            "date": "2026-07-10",
+            "endDate": "2026-07-10",
+            "startTime": "14:00",
+            "endTime": "17:00",
+            "category": "仕事",
+            "notes": "担当：学生A",
+            "completed": false,
+            "createdAt": "2026-07-20 10:01:52",
+            "groupName": "サンプル店",
+            "readOnly": true
+          },
+          {
+            "id": "seed-calendar-slot-july1-f372c218af17e0b9",
+            "ownerEmail": "tanaka@local.test",
+            "groupId": "seed-group-store",
+            "shiftPlanId": "seed-plan-first-half",
+            "title": "ホール",
+            "date": "2026-07-09",
+            "endDate": "2026-07-09",
+            "startTime": "14:00",
+            "endTime": "17:00",
+            "category": "仕事",
+            "notes": "担当：学生A",
+            "completed": false,
+            "createdAt": "2026-07-20 10:01:52",
+            "groupName": "サンプル店",
+            "readOnly": true
+          },
+          {
+            "id": "seed-calendar-slot-july1-920bed3507179160",
+            "ownerEmail": "tanaka@local.test",
+            "groupId": "seed-group-store",
+            "shiftPlanId": "seed-plan-first-half",
+            "title": "ホール",
+            "date": "2026-07-08",
+            "endDate": "2026-07-08",
+            "startTime": "14:00",
+            "endTime": "17:00",
+            "category": "仕事",
+            "notes": "担当：学生A",
+            "completed": false,
+            "createdAt": "2026-07-20 10:01:52",
+            "groupName": "サンプル店",
+            "readOnly": true
+          },
+          {
+            "id": "seed-calendar-slot-july1-289c3bc0bd66fc36",
+            "ownerEmail": "tanaka@local.test",
+            "groupId": "seed-group-store",
+            "shiftPlanId": "seed-plan-first-half",
+            "title": "ホール",
+            "date": "2026-07-07",
+            "endDate": "2026-07-07",
+            "startTime": "14:00",
+            "endTime": "17:00",
+            "category": "仕事",
+            "notes": "担当：学生A",
+            "completed": false,
+            "createdAt": "2026-07-20 10:01:52",
+            "groupName": "サンプル店",
+            "readOnly": true
+          },
+          {
+            "id": "seed-calendar-slot-july1-b2dbbbabc8b24085",
+            "ownerEmail": "tanaka@local.test",
+            "groupId": "seed-group-store",
+            "shiftPlanId": "seed-plan-first-half",
+            "title": "ホール",
+            "date": "2026-07-06",
+            "endDate": "2026-07-06",
+            "startTime": "14:00",
+            "endTime": "17:00",
+            "category": "仕事",
+            "notes": "担当：学生A",
+            "completed": false,
+            "createdAt": "2026-07-20 10:01:52",
+            "groupName": "サンプル店",
+            "readOnly": true
+          },
+          {
+            "id": "seed-calendar-slot-july1-732e8a92e69d1ec0",
+            "ownerEmail": "tanaka@local.test",
+            "groupId": "seed-group-store",
+            "shiftPlanId": "seed-plan-first-half",
+            "title": "ホール",
+            "date": "2026-07-05",
+            "endDate": "2026-07-05",
+            "startTime": "14:00",
+            "endTime": "17:00",
+            "category": "仕事",
+            "notes": "担当：学生A",
+            "completed": false,
+            "createdAt": "2026-07-20 10:01:52",
+            "groupName": "サンプル店",
+            "readOnly": true
+          },
+          {
+            "id": "seed-calendar-slot-july1-4229473e19ad887c",
+            "ownerEmail": "tanaka@local.test",
+            "groupId": "seed-group-store",
+            "shiftPlanId": "seed-plan-first-half",
+            "title": "ホール",
+            "date": "2026-07-04",
+            "endDate": "2026-07-04",
+            "startTime": "14:00",
+            "endTime": "17:00",
+            "category": "仕事",
+            "notes": "担当：学生A",
+            "completed": false,
+            "createdAt": "2026-07-20 10:01:52",
+            "groupName": "サンプル店",
+            "readOnly": true
+          },
+          {
+            "id": "seed-calendar-slot-july1-3e5f96a08c2d6607",
+            "ownerEmail": "tanaka@local.test",
+            "groupId": "seed-group-store",
+            "shiftPlanId": "seed-plan-first-half",
+            "title": "ホール",
+            "date": "2026-07-03",
+            "endDate": "2026-07-03",
+            "startTime": "14:00",
+            "endTime": "17:00",
+            "category": "仕事",
+            "notes": "担当：学生A",
+            "completed": false,
+            "createdAt": "2026-07-20 10:01:52",
+            "groupName": "サンプル店",
+            "readOnly": true
+          },
+          {
+            "id": "seed-calendar-slot-july1-fea37060a777e806",
+            "ownerEmail": "tanaka@local.test",
+            "groupId": "seed-group-store",
+            "shiftPlanId": "seed-plan-first-half",
+            "title": "ホール",
+            "date": "2026-07-02",
+            "endDate": "2026-07-02",
+            "startTime": "14:00",
+            "endTime": "17:00",
+            "category": "仕事",
+            "notes": "担当：学生A",
+            "completed": false,
+            "createdAt": "2026-07-20 10:01:52",
+            "groupName": "サンプル店",
+            "readOnly": true
+          },
+          {
+            "id": "seed-calendar-slot-july1-17c4c17ea37d71a0",
+            "ownerEmail": "tanaka@local.test",
+            "groupId": "seed-group-store",
+            "shiftPlanId": "seed-plan-first-half",
+            "title": "ホール",
+            "date": "2026-07-01",
+            "endDate": "2026-07-01",
+            "startTime": "14:00",
+            "endTime": "17:00",
+            "category": "仕事",
+            "notes": "担当：学生A",
+            "completed": false,
+            "createdAt": "2026-07-20 10:01:52",
+            "groupName": "サンプル店",
+            "readOnly": true
+          }
+        ]
+      }
+    },
+    {
+      "kind": "step",
+      "name": "published shift appears in calendar",
+      "status": "passed"
+    },
+    {
+      "kind": "api",
+      "user": "member02@local.test",
+      "method": "POST",
+      "path": "/api/groups/seed-group-store/work-records",
+      "status": 201,
+      "ms": 120,
+      "data": {
+        "ok": true,
+        "record": {
+          "id": "87e85124-69c2-492a-8273-7548ac691414",
+          "groupId": "seed-group-store",
+          "planId": null,
+          "slotId": null,
+          "userEmail": "member02@local.test",
+          "scheduledDate": "2026-07-20",
+          "scheduledStartTime": "",
+          "scheduledEndTime": "",
+          "startedAt": "2026-07-20T10:01:55.005Z",
+          "claimedStartAt": "2026-07-20T10:01:55.005Z",
+          "activeKey": "seed-group-store:member02@local.test",
+          "status": "working",
+          "employeeNote": "シナリオテスト2の予定外勤務"
+        }
+      }
+    },
+    {
+      "kind": "api",
+      "user": "member02@local.test",
+      "method": "POST",
+      "path": "/api/groups/seed-group-store/work-records",
+      "status": 200,
+      "ms": 133,
+      "data": {
+        "ok": true,
+        "break": {
+          "id": "358b8045-3727-461a-b021-3d1dd19bdf3b",
+          "workRecordId": "87e85124-69c2-492a-8273-7548ac691414",
+          "startedAt": "2026-07-20T10:01:55.160Z"
+        }
+      }
+    },
+    {
+      "kind": "api",
+      "user": "member02@local.test",
+      "method": "POST",
+      "path": "/api/groups/seed-group-store/work-records",
+      "status": 200,
+      "ms": 133,
+      "data": {
+        "ok": true,
+        "breakId": "358b8045-3727-461a-b021-3d1dd19bdf3b",
+        "endedAt": "2026-07-20T10:01:55.293Z"
+      }
+    },
+    {
+      "kind": "api",
+      "user": "member02@local.test",
+      "method": "POST",
+      "path": "/api/groups/seed-group-store/work-records",
+      "status": 200,
+      "ms": 111,
+      "data": {
+        "ok": true,
+        "recordId": "87e85124-69c2-492a-8273-7548ac691414",
+        "status": "working",
+        "endedAt": "2026-07-20T10:01:55.404Z"
+      }
+    },
+    {
+      "kind": "step",
+      "name": "member clocks in and records break",
+      "status": "passed"
+    },
+    {
+      "kind": "api",
+      "user": "member02@local.test",
+      "method": "PATCH",
+      "path": "/api/groups/seed-group-store/work-records",
+      "status": 200,
+      "ms": 100,
+      "data": {
+        "ok": true,
+        "recordId": "87e85124-69c2-492a-8273-7548ac691414",
+        "status": "submitted",
+        "warnings": []
+      }
+    },
+    {
+      "kind": "api",
+      "user": "tanaka@local.test",
+      "method": "PATCH",
+      "path": "/api/groups/seed-group-store/work-records",
+      "status": 200,
+      "ms": 66,
+      "data": {
+        "ok": true,
+        "recordId": "87e85124-69c2-492a-8273-7548ac691414",
+        "status": "approved"
+      }
+    },
+    {
+      "kind": "step",
+      "name": "member submits daily work claim and manager approves",
+      "status": "passed"
+    },
+    {
+      "kind": "mcp",
+      "name": "create_announcement",
+      "status": 200,
+      "ms": 212,
+      "isError": false,
+      "data": {
+        "jsonrpc": "2.0",
+        "id": 5,
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\n  \"id\": \"3c960d6b-d351-4c4d-a0f1-fc2d2c6d95c0\",\n  \"groupId\": \"seed-group-store\",\n  \"createdBy\": \"tanaka@local.test\",\n  \"title\": \"シナリオテスト2のお知らせ\",\n  \"body\": \"テスト完了後にseedを再投入します。\"\n}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "kind": "step",
+      "name": "MCP creates an announcement",
+      "status": "passed"
+    },
+    {
+      "kind": "mcp",
+      "name": "get_assistant_message_queue_summary",
+      "status": 200,
+      "ms": 200,
+      "isError": false,
+      "data": {
+        "jsonrpc": "2.0",
+        "id": 6,
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\n  \"pendingCount\": 0,\n  \"processingCount\": 0,\n  \"reclaimableCount\": 0,\n  \"needsReviewCount\": 0,\n  \"messageBodiesIncluded\": false\n}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "kind": "step",
+      "name": "MCP queue summary is readable",
+      "status": "passed"
+    }
+  ]
+}

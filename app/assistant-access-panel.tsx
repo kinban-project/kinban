@@ -32,8 +32,9 @@ export default function AssistantAccessPanel({ groupId }: { groupId: string }) {
   }
 
   return <div className="assistant-access-panel">
+    <p>直接の管理者タスクは sourceMessageId と claimId を省略できます。メンバー問い合わせの処理中だけ、現在のclaimと発信者の権限を確認します。</p>
     <div className="assistant-access-head"><strong>運営支援AIキー</strong><button className="small-action" type="button" onClick={() => void issue()} disabled={busy}>{busy ? "発行中…" : "キーを発行"}</button></div>
-    <p>このキーはこのグループ専用です。運営情報を参照でき、変更操作は管理者メッセージと上の実行許可がそろう場合だけ実行されます。</p>
+    <p>このキーはこのグループ専用です。運営情報を参照でき、変更操作はキー発行者の管理者権限と上の実行許可がそろう場合に実行されます。</p>
     {newKey && <div className="assistant-new-key" role="alert"><code>{newKey}</code><button type="button" onClick={() => void navigator.clipboard?.writeText(newKey)}>コピー</button></div>}
     {notice && <small>{notice}</small>}
     {keys.map((key) => <div className="assistant-key-row" key={key.id}><span>{key.name}（{key.tokenPrefix}…）</span><button className="small-action danger" type="button" onClick={() => void revoke(key.id)}>無効化</button></div>)}

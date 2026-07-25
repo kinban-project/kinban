@@ -50,8 +50,8 @@ function ClockControls({ groupId }: { groupId: string }) {
   async function load() {
     const response = await localApiFetch(`/api/groups/${groupId}/work-records`);
     if (!response.ok) { setState("idle"); setRecordId(null); return; }
-    const data = await response.json() as { currentUserEmail?: string; records?: ClockRecord[]; breaks?: ClockBreak[] };
-    const active = (data.records ?? []).find((item) => item.userEmail === data.currentUserEmail && item.status === "working" && !item.endedAt && !item.attendanceExpired);
+    const data = await response.json() as { currentUserEmail?: string; currentUserActive?: ClockRecord | null; records?: ClockRecord[]; breaks?: ClockBreak[] };
+    const active = [data.currentUserActive, ...(data.records ?? [])].find((item): item is ClockRecord => Boolean(item) && item.userEmail === data.currentUserEmail && item.status === "working" && !item.endedAt && !item.attendanceExpired);
     if (!active) { setState("idle"); setRecordId(null); return; }
     setRecordId(active.id);
     setState((data.breaks ?? []).some((item) => item.workRecordId === active.id && !item.endedAt) ? "break" : "working");

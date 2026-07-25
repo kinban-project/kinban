@@ -12,7 +12,7 @@ description: 勤務申告と予定を確認し、日次・月次勤怠の確認�
 ## 変更操作
 
 - 日次承認／差戻しは `submit_work_record`、月次承認／差戻し／解除は `review_monthly_work` を使います。
-- 実行には、現在claim中の管理者メッセージIDの `sourceMessageId`、同じ `claimId`、日次または月次のグループ許可が必要です。
+- 直接の管理者タスクでは `sourceMessageId` と `claimId` は不要です。運営支援AIキーの発行者が有効な管理者であることと、日次または月次のグループ許可をMCPが確認します。メンバー問い合わせを起点にする場合だけ、現在claim中の管理者メッセージIDの `sourceMessageId` と同じ `claimId` を指定します。
 - 対象者、対象期間、差分、理由をレポートと操作ログで追えるようにします。
 
 ## 注意

@@ -434,9 +434,14 @@ export default function Home() {
               {accountNickname || "アカウント"}
             </button>
           ) : (
+            <>
             <a className="ghost-button" href="/signin-with-chatgpt?return_to=/">
               ChatGPTでログイン
             </a>
+            <a className="ghost-button" href="/signin-with-google?return_to=/">
+              Googleでログイン
+            </a>
+            </>
           )}
         </div>
       </header>
@@ -1049,12 +1054,20 @@ export default function Home() {
             {userEmail ? (
               <ProfilePanel email={userEmail} />
             ) : (
+              <>
               <a
                 className="primary-button link-button"
                 href="/signin-with-chatgpt?return_to=/"
               >
                 ChatGPTでログインする
               </a>
+              <a
+                className="primary-button link-button"
+                href="/signin-with-google?return_to=/"
+              >
+                Googleでログインする
+              </a>
+              </>
             )}
           </div>
         </div>

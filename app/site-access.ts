@@ -10,13 +10,17 @@ export async function getSiteUser(email: string) {
 }
 
 export async function linkChatGPTIdentity(siteUserId: string, identity: Identity) {
+  return linkIdentity(siteUserId, "chatgpt", identity.email, identity.email);
+}
+
+export async function linkIdentity(siteUserId: string, provider: "google" | "microsoft" | "email_link" | "chatgpt", providerSubject: string, verifiedEmail: string) {
   const db = getDb();
   await db.insert(authIdentities).values({
     id: crypto.randomUUID(),
     siteUserId,
-    provider: "chatgpt",
-    providerSubject: identity.email,
-    verifiedEmail: identity.email,
+    provider,
+    providerSubject,
+    verifiedEmail,
   }).onConflictDoNothing();
 }
 
@@ -55,6 +59,36 @@ export async function ensureSiteAccess(identity: Identity) {
   }
 
   return null;
+}
+
+export async function ensureProviderAccess(input: {
+  email: string;
+  displayName: string;
+  provider: "google" | "microsoft" | "email_link";
+  providerSubject: string;
+}) {
+  const existing = await getSiteUser(input.email);
+  if (existing?.status === "active") {
+    await linkIdentity(existing.id, input.provider, input.providerSubject, input.email);
+    return existing;
+  }
+  if (existing?.status === "suspended") return null;
+
+  const now = new Date().toISOString();
+  const [invitation] = await getDb().select().from(siteInvitations)
+    .where(and(eq(siteInvitations.email, input.email), eq(siteInvitations.status, "pending"), gt(siteInvitations.expiresAt, now)))
+    .limit(1);
+  if (!invitation) return null;
+
+  const siteUserId = existing?.id ?? crypto.randomUUID();
+  await getDb().batch([
+    existing
+      ? getDb().update(siteUsers).set({ displayName: input.displayName, status: "active", updatedAt: now }).where(eq(siteUsers.id, siteUserId))
+      : getDb().insert(siteUsers).values({ id: siteUserId, userEmail: input.email, displayName: input.displayName, status: "active" }),
+    getDb().update(siteInvitations).set({ status: "accepted", acceptedAt: now }).where(eq(siteInvitations.id, invitation.id)),
+  ]);
+  await linkIdentity(siteUserId, input.provider, input.providerSubject, input.email);
+  return getSiteUser(input.email);
 }
 
 export async function requireSiteAdmin(email: string) {

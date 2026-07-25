@@ -53,8 +53,10 @@ type Detail = {
   memberAvailability?: MemberAvailability[];
   requests?: RequestRow[];
   requestSubmissions?: RequestSubmission[];
+  memberPreferences?: Array<Preference & { userEmail: string }>;
 };
 type Preference = {
+  userEmail?: string;
   minDays: number;
   maxDays: number;
   minHours: number;
@@ -240,6 +242,12 @@ export default function ShiftAdjustment({
   );
   const memberSummary = useMemo(() => {
     if (!detail) return [];
+    const start = new Date(`${detail.plan.startDate}T00:00:00Z`);
+    const end = new Date(`${detail.plan.endDate}T00:00:00Z`);
+    const periodWeeks = Math.max(
+      1 / 7,
+      (end.getTime() - start.getTime()) / 86400000 + 1,
+    ) / 7;
     return detail.members.map((member) => {
       const slots = detail.slots.filter((slot) =>
         (assignments[slot.id] ?? []).includes(member.userEmail),
@@ -249,13 +257,31 @@ export default function ShiftAdjustment({
         (sum, slot) => sum + hours(slot.startTime, slot.endTime),
         0,
       );
-      const pref = preferences[detail.plan.groupId];
+      const pref = detail.memberPreferences?.find(
+        (candidate) => candidate.userEmail === member.userEmail,
+      );
+      const weeklyDays = days / periodWeeks;
+      const weeklyHours = totalHours / periodWeeks;
       const warnings =
         pref &&
-        (days < pref.minDays ||
-          days > pref.maxDays ||
-          totalHours < pref.minHours ||
-          totalHours > pref.maxHours);
+        (weeklyDays < pref.minDays ||
+          weeklyDays > pref.maxDays ||
+          weeklyHours < pref.minHours ||
+          weeklyHours > pref.maxHours);
+      const dayDifference = pref
+        ? weeklyDays < pref.minDays
+          ? weeklyDays - pref.minDays
+          : weeklyDays > pref.maxDays
+            ? weeklyDays - pref.maxDays
+            : 0
+        : 0;
+      const hourDifference = pref
+        ? weeklyHours < pref.minHours
+          ? weeklyHours - pref.minHours
+          : weeklyHours > pref.maxHours
+            ? weeklyHours - pref.maxHours
+            : 0
+        : 0;
       const updatedAt =
         detail.requestSubmissions?.find(
           (submission) => submission.userEmail === member.userEmail,
@@ -263,9 +289,21 @@ export default function ShiftAdjustment({
       const requestComment = detail.requestSubmissions?.find(
         (submission) => submission.userEmail === member.userEmail,
       )?.requestComment?.trim() ?? "";
-      return { member, days, totalHours, warnings, updatedAt, requestComment };
+      return {
+        member,
+        days,
+        totalHours,
+        weeklyDays,
+        weeklyHours,
+        pref,
+        warnings,
+        dayDifference,
+        hourDifference,
+        updatedAt,
+        requestComment,
+      };
     });
-  }, [detail, assignments, preferences]);
+  }, [detail, assignments]);
   function preferenceFor(slot: Slot, userEmail: string) {
     const request = detail?.requests?.find(
       (row) =>
@@ -577,6 +615,14 @@ export default function ShiftAdjustment({
           ) : null}</>}
           <div className="member-summary">
             <h3>勤務状況サマリ</h3>
+            <div className="member-summary-head" aria-hidden="true">
+              <span>メンバー</span>
+              <span>希望日数</span>
+              <span>希望時間</span>
+              <span>割当</span>
+              <span>差分・判定</span>
+              <span>希望更新</span>
+            </div>
             {memberSummary.map((row) => (
               <div
                 className={`member-summary-row ${row.warnings ? "has-warning" : ""}`}
@@ -585,15 +631,22 @@ export default function ShiftAdjustment({
                 <strong>
                   {row.member.displayName || row.member.userEmail.split("@")[0]}
                 </strong>
-                <span>{row.days}日</span>
-                <span>{row.totalHours.toFixed(1)}時間</span>
+                <span>{row.pref ? `週${row.pref.minDays}〜${row.pref.maxDays}日` : "未設定"}</span>
+                <span>{row.pref ? `週${row.pref.minHours}〜${row.pref.maxHours}時間` : "未設定"}</span>
+                <span>{row.days}日 / {row.totalHours.toFixed(1)}時間</span>
+                <span className={row.warnings ? "summary-warning" : "summary-ok"}>
+                  {row.pref
+                    ? row.warnings
+                      ? `範囲外（差分 ${row.dayDifference >= 0 ? "+" : ""}${row.dayDifference.toFixed(1)}日 / ${row.hourDifference >= 0 ? "+" : ""}${row.hourDifference.toFixed(1)}時間）`
+                      : "範囲内"
+                    : "希望未設定"}
+                </span>
                 <span className={row.updatedAt ? "" : "not-registered"}>
                   希望更新：{formatSubmissionTime(row.updatedAt)}
                 </span>
                 {row.requestComment && (
                   <span className="member-request-comment">今回の希望: {row.requestComment}</span>
                 )}
-                {row.warnings && <em>基本設定の範囲外</em>}
               </div>
             ))}
           </div>

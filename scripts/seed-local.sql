@@ -10,6 +10,8 @@ DELETE FROM work_records;
 DELETE FROM mcp_confirmations;
 DELETE FROM assistant_contexts;
 DELETE FROM assistant_message_executions;
+DELETE FROM shift_swap_candidates;
+DELETE FROM shift_swap_requests;
 DELETE FROM assistant_announcement_drafts;
 DELETE FROM assistant_messages;
 DELETE FROM assistant_read_states;
@@ -33,6 +35,9 @@ DELETE FROM groups;
 DELETE FROM account_profiles;
 DELETE FROM api_tokens;
 DELETE FROM demo_clocks;
+DELETE FROM group_invitations;
+DELETE FROM site_invitations;
+DELETE FROM site_users;
 
 INSERT INTO demo_clocks (scope, current_at) VALUES
   ('public-demo', '2026-07-21T09:00:00+09:00');
@@ -48,6 +53,18 @@ INSERT INTO account_profiles (user_email, nickname) VALUES
   ('member07@local.test', 'フリーターB'),
   ('member08@local.test', 'パートA'),
   ('member09@local.test', 'パートB');
+
+INSERT INTO site_users (id, user_email, display_name, status, is_site_admin, can_create_groups) VALUES
+  ('seed-site-owner', 'tanaka@local.test', '蠎鈴聞', 'active', 1, 1),
+  ('seed-site-editor', 'member01@local.test', '蜑ｯ蠎鈴聞', 'active', 0, 1),
+  ('seed-site-member-02', 'member02@local.test', '蟄ｦ逕蘗', 'active', 0, 0),
+  ('seed-site-member-03', 'member03@local.test', '蟄ｦ逕檻', 'active', 0, 0),
+  ('seed-site-member-04', 'member04@local.test', '荳ｻ蟀ｦA', 'active', 0, 0),
+  ('seed-site-member-05', 'member05@local.test', '荳ｻ蟀ｦB', 'active', 0, 0),
+  ('seed-site-member-06', 'member06@local.test', '繝輔Μ繝ｼ繧ｿ繝ｼA', 'active', 0, 0),
+  ('seed-site-member-07', 'member07@local.test', '繝輔Μ繝ｼ繧ｿ繝ｼB', 'active', 0, 0),
+  ('seed-site-member-08', 'member08@local.test', '繝代・繝・', 'active', 0, 0),
+  ('seed-site-member-09', 'member09@local.test', '繝代・繝・', 'active', 0, 0);
 
 INSERT INTO groups (id, name, description, owner_email) VALUES
   ('seed-group-store', 'サンプル店', '勤務枠・シフト・勤務申告のテスト用グループ', 'tanaka@local.test');
@@ -526,6 +543,260 @@ INSERT INTO shift_request_periods (id, group_id, plan_id, name, opens_on, closes
   ('seed-hospital-request-august', 'seed-group-hospital', 'seed-hospital-plan-august', '8月第2週勤務希望', '2026-07-25', '2026-07-30', 'closed', 'hospital-director@local.test');
 INSERT INTO group_announcements (id, group_id, created_by, title, body) VALUES
   ('seed-hospital-announcement-01', 'seed-group-hospital', 'hospital-director@local.test', '休日夜間の体制について', '休日夜間は受付なし。緊急時は看護師が初期対応し、必要に応じて医師へ連絡してください。研修医単独の配置は行いません。');
+
+-- Demo clock and attendance scenario normalization.
+-- The demo date is intentionally fixed so all three scenarios can be reviewed
+-- consistently. July 20 is the previous day and remains unapproved.
+UPDATE demo_clocks
+SET current_at = '2026-07-21T09:00:00+09:00'
+WHERE scope = 'public-demo';
+
+-- The restaurant runs daily time-clock operations. Keep the previous day
+-- pending, keep one older rejection for the review flow, and leave one older
+-- day unsubmitted to demonstrate a missing declaration.
+UPDATE work_records
+SET status = 'submitted', approved_by = NULL, approved_at = NULL,
+    manager_note = '', updated_at = '2026-07-21T09:00:00+09:00'
+WHERE group_id = 'seed-group-store' AND scheduled_date = '2026-07-20';
+UPDATE work_records
+SET status = 'rejected', approved_by = NULL, approved_at = NULL,
+    manager_note = '終了時刻を確認して再申告してください。',
+    updated_at = '2026-07-21T09:00:00+09:00'
+WHERE group_id = 'seed-group-store'
+  AND scheduled_date = '2026-07-18'
+  AND user_email = 'member07@local.test';
+UPDATE work_records
+SET status = 'unsubmitted', approved_by = NULL, approved_at = NULL,
+    manager_note = '', updated_at = '2026-07-21T09:00:00+09:00'
+WHERE group_id = 'seed-group-store'
+  AND scheduled_date = '2026-07-19'
+  AND user_email = 'member05@local.test';
+
+-- Nightclub: time-clock operation is active for both staff and cast groups.
+-- Past days are approved except for one realistic exception; July 20 is
+-- submitted and waiting for the manager. 26:00 is stored as next-day 02:00
+-- in timestamps while retaining the original 26:00 schedule text.
+INSERT INTO work_records (
+  id, group_id, plan_id, slot_id, user_email, scheduled_date,
+  scheduled_start_time, scheduled_end_time, started_at, ended_at,
+  claimed_start_at, claimed_end_at, claimed_break_minutes, status,
+  employee_note, manager_note, approved_by, approved_at
+)
+SELECT
+  'wr-night-' || lower(hex(randomblob(8))),
+  CASE WHEN slots.plan_id = 'seed-night-staff-plan-july'
+    THEN 'seed-group-night-staff' ELSE 'seed-group-night-cast' END,
+  slots.plan_id,
+  slots.id,
+  assignments.user_email,
+  slots.date,
+  slots.start_time,
+  slots.end_time,
+  slots.date || 'T' || slots.start_time || ':05:00+09:00',
+  CASE
+    WHEN assignments.user_email = 'night-cast-a@local.test'
+      AND slots.date = '2026-07-19' AND slots.end_time = '26:00'
+      THEN date(slots.date, '+1 day') || 'T01:00:00+09:00'
+    WHEN assignments.user_email = 'night-cast-b@local.test'
+      AND slots.date = '2026-07-18' AND slots.end_time = '26:00'
+      THEN date(slots.date, '+1 day') || 'T03:00:00+09:00'
+    WHEN slots.end_time = '26:00' THEN date(slots.date, '+1 day') || 'T02:05:00+09:00'
+    WHEN slots.end_time = '24:00' THEN date(slots.date, '+1 day') || 'T00:05:00+09:00'
+    ELSE slots.date || 'T' || slots.end_time || ':05:00+09:00'
+  END,
+  slots.date || 'T' || slots.start_time || ':00+09:00',
+  CASE
+    WHEN slots.end_time = '26:00' THEN date(slots.date, '+1 day') || 'T02:00:00+09:00'
+    WHEN slots.end_time = '24:00' THEN date(slots.date, '+1 day') || 'T00:00:00+09:00'
+    ELSE slots.date || 'T' || slots.end_time || ':00+09:00'
+  END,
+  CASE WHEN slots.end_time = '26:00' THEN 45 ELSE 0 END,
+  CASE
+    WHEN slots.date = '2026-07-20' THEN 'submitted'
+    WHEN slots.date = '2026-07-19'
+      AND assignments.user_email = 'night-cast-a@local.test' THEN 'rejected'
+    ELSE 'approved'
+  END,
+  CASE
+    WHEN assignments.user_email = 'night-cast-a@local.test' AND slots.date = '2026-07-19'
+      THEN '同伴のため開始が遅れました。'
+    WHEN assignments.user_email = 'night-cast-b@local.test' AND slots.date = '2026-07-18'
+      THEN '延長営業で終了が遅くなりました。'
+    ELSE ''
+  END,
+  CASE
+    WHEN assignments.user_email = 'night-cast-a@local.test' AND slots.date = '2026-07-19'
+      THEN '開始時刻と理由を確認して再申告してください。'
+    ELSE ''
+  END,
+  CASE WHEN slots.date < '2026-07-20' AND NOT (
+    slots.date = '2026-07-19' AND assignments.user_email = 'night-cast-a@local.test'
+  ) THEN 'night-manager@local.test' ELSE NULL END,
+  CASE WHEN slots.date < '2026-07-20' AND NOT (
+    slots.date = '2026-07-19' AND assignments.user_email = 'night-cast-a@local.test'
+  ) THEN '2026-07-20T09:00:00.000Z' ELSE NULL END
+FROM shift_slots slots
+JOIN shift_assignments assignments ON assignments.slot_id = slots.id
+WHERE slots.plan_id IN ('seed-night-staff-plan-july', 'seed-night-cast-plan-july')
+  AND slots.date <= '2026-07-20';
+
+INSERT INTO work_breaks (id, work_record_id, started_at, ended_at)
+SELECT
+  'break-night-' || lower(hex(randomblob(8))),
+  records.id,
+  records.scheduled_date || 'T23:30:00+09:00',
+  date(records.scheduled_date, '+1 day') || 'T00:15:00+09:00'
+FROM work_records records
+WHERE records.group_id IN ('seed-group-night-staff', 'seed-group-night-cast')
+  AND records.scheduled_end_time = '26:00';
+
+-- Hospital is intentionally monthly-only in this demo. Keep its published
+-- future schedule, but do not create time-clock or daily-review records.
+DELETE FROM work_breaks
+WHERE work_record_id IN (SELECT id FROM work_records WHERE group_id = 'seed-group-hospital');
+DELETE FROM work_records WHERE group_id = 'seed-group-hospital';
+UPDATE group_assistants
+SET can_review_daily_work = false, can_review_monthly_work = true
+WHERE group_id = 'seed-group-hospital';
+INSERT INTO monthly_work_claims (id, group_id, user_email, month_key, status, submitted_at, approved_at, approved_by, manager_note) VALUES
+  ('monthly-hospital-july-director', 'seed-group-hospital', 'hospital-director@local.test', '2026-07', 'approved', '2026-07-31T18:00:00.000Z', '2026-08-01T09:00:00.000Z', 'hospital-director@local.test', '月末まとめ運用。'),
+  ('monthly-hospital-july-doctor', 'seed-group-hospital', 'hospital-doctor-senior@local.test', '2026-07', 'submitted', '2026-07-31T18:30:00.000Z', NULL, NULL, ''),
+  ('monthly-hospital-july-nurse', 'seed-group-hospital', 'hospital-nurse-chief@local.test', '2026-07', 'submitted', '2026-07-31T19:00:00.000Z', NULL, NULL, ''),
+  ('monthly-hospital-july-reception', 'seed-group-hospital', 'hospital-reception-a@local.test', '2026-07', 'unsubmitted', NULL, NULL, NULL, '月末にまとめて申告予定。');
+
+-- Do not pre-create attendance records for future days. The published shift
+-- remains visible as a schedule, while actual time-clock data starts on the
+-- previous day and can be entered for today by the demo user.
+DELETE FROM work_breaks
+WHERE work_record_id IN (
+  SELECT id FROM work_records
+  WHERE group_id = 'seed-group-store' AND scheduled_date > '2026-07-20'
+);
+DELETE FROM work_records
+WHERE group_id = 'seed-group-store' AND scheduled_date > '2026-07-20';
+
+-- Normalize the labels used by the demo cards and calendars. The original
+-- fixtures used legacy encoded labels; IDs and business conditions are kept.
+-- Normalize declared timestamps. Older fixtures accidentally generated values
+-- such as 09:30:05:00, which made the start time unparsable in the UI. Except
+-- for rejected/unsubmitted records, declarations follow the scheduled slot.
+UPDATE work_records
+SET claimed_start_at = scheduled_date || 'T' || scheduled_start_time || ':05+09:00',
+    claimed_end_at = CASE
+      WHEN scheduled_end_time = '26:00' THEN date(scheduled_date, '+1 day') || 'T02:00:00+09:00'
+      WHEN scheduled_end_time = '24:00' THEN date(scheduled_date, '+1 day') || 'T00:00:00+09:00'
+      ELSE scheduled_date || 'T' || scheduled_end_time || ':00+09:00'
+    END
+WHERE group_id = 'seed-group-store'
+  AND status <> 'rejected'
+  AND scheduled_date <= '2026-07-20';
+
+-- July 19 actual stamps: exact, a few minutes off, and roughly 30 minutes
+-- off are intentionally mixed for the attendance comparison screen.
+UPDATE work_records
+SET started_at = '2026-07-19T14:03:00+09:00',
+    ended_at = '2026-07-19T17:02:00+09:00'
+WHERE group_id = 'seed-group-store' AND scheduled_date = '2026-07-19'
+  AND user_email = 'member02@local.test' AND scheduled_start_time = '14:00';
+UPDATE work_records
+SET started_at = '2026-07-19T17:02:00+09:00',
+    ended_at = '2026-07-19T22:04:00+09:00'
+WHERE group_id = 'seed-group-store' AND scheduled_date = '2026-07-19'
+  AND user_email = 'member03@local.test' AND scheduled_start_time = '17:00';
+UPDATE work_records
+SET started_at = '2026-07-19T14:30:00+09:00',
+    ended_at = '2026-07-19T17:30:00+09:00'
+WHERE group_id = 'seed-group-store' AND scheduled_date = '2026-07-19'
+  AND user_email = 'member06@local.test' AND scheduled_start_time = '14:00';
+UPDATE work_records
+SET started_at = '2026-07-19T22:04:00+09:00',
+    ended_at = '2026-07-20T02:03:00+09:00'
+WHERE group_id = 'seed-group-store' AND scheduled_date = '2026-07-19'
+  AND user_email = 'member07@local.test' AND scheduled_start_time = '22:00';
+
+UPDATE account_profiles SET nickname = CASE user_email
+  WHEN 'tanaka@local.test' THEN '店長'
+  WHEN 'member01@local.test' THEN '副店長'
+  WHEN 'member02@local.test' THEN '学生A'
+  WHEN 'member03@local.test' THEN '学生B'
+  WHEN 'member04@local.test' THEN '主婦A'
+  WHEN 'member05@local.test' THEN '主婦B'
+  WHEN 'member06@local.test' THEN 'フリーターA'
+  WHEN 'member07@local.test' THEN 'フリーターB'
+  WHEN 'member08@local.test' THEN 'パートA'
+  WHEN 'member09@local.test' THEN 'パートB'
+  ELSE nickname END
+WHERE user_email LIKE 'member%@local.test' OR user_email = 'tanaka@local.test';
+
+UPDATE groups SET name = 'サンプル店', description = '飲食店のシフト・打刻・日次承認サンプル'
+WHERE id = 'seed-group-store';
+UPDATE groups SET name = 'A店スタッフ', description = 'ナイトクラブのスタッフ勤務サンプル'
+WHERE id = 'seed-group-night-staff';
+UPDATE groups SET name = 'A店キャスト', description = 'ナイトクラブのキャスト勤務サンプル'
+WHERE id = 'seed-group-night-cast';
+
+UPDATE shift_slots SET role = CASE role
+  WHEN '繝帙・繝ｫ' THEN 'ホール'
+  WHEN '蜴ｨ謌ｿ' THEN '厨房'
+  ELSE role END
+WHERE plan_id IN ('seed-plan-june','seed-plan-first-half','seed-plan-second-half','seed-plan-august-first');
+
+UPDATE group_members SET display_name = CASE user_email
+  WHEN 'tanaka@local.test' THEN '店長'
+  WHEN 'member01@local.test' THEN '副店長'
+  WHEN 'member02@local.test' THEN '学生A'
+  WHEN 'member03@local.test' THEN '学生B'
+  WHEN 'member04@local.test' THEN '主婦A'
+  WHEN 'member05@local.test' THEN '主婦B'
+  WHEN 'member06@local.test' THEN 'フリーターA'
+  WHEN 'member07@local.test' THEN 'フリーターB'
+  WHEN 'member08@local.test' THEN 'パートA'
+  WHEN 'member09@local.test' THEN 'パートB'
+  ELSE display_name END,
+  admin_note = CASE user_email
+  WHEN 'tanaka@local.test' THEN '代表管理者。全体確認を行う。'
+  WHEN 'member01@local.test' THEN '副店長。店長の補佐。'
+  WHEN 'member02@local.test' THEN '学生。夕方・土日中心。22:00以降は勤務不可。'
+  WHEN 'member03@local.test' THEN '学生。平日夕方中心。短時間勤務。'
+  WHEN 'member04@local.test' THEN '主婦。平日日中中心。'
+  WHEN 'member05@local.test' THEN '主婦。平日日中中心。主婦Aとは同じシフトを避ける。'
+  WHEN 'member06@local.test' THEN 'フリーター。夕方から深夜まで対応。'
+  WHEN 'member07@local.test' THEN 'フリーター。深夜帯も対応。'
+  WHEN 'member08@local.test' THEN 'パート。週3日程度。'
+  WHEN 'member09@local.test' THEN 'パート。曜日相談可。'
+  ELSE admin_note END
+WHERE group_id = 'seed-group-store';
+
+UPDATE group_assistants SET display_name = 'KINBANアシスタント'
+WHERE group_id IN ('seed-group-store','seed-group-night-staff','seed-group-night-cast','seed-group-hospital');
+
+UPDATE account_profiles SET nickname = CASE user_email
+  WHEN 'night-manager@local.test' THEN '店長'
+  WHEN 'night-staff-a@local.test' THEN 'スタッフA'
+  WHEN 'night-staff-b@local.test' THEN 'スタッフB'
+  WHEN 'night-staff-c@local.test' THEN 'スタッフC'
+  WHEN 'night-cast-a@local.test' THEN 'キャストA'
+  WHEN 'night-cast-b@local.test' THEN 'キャストB'
+  WHEN 'night-cast-c@local.test' THEN 'キャストC'
+  WHEN 'night-cast-d@local.test' THEN 'キャストD'
+  WHEN 'night-cast-e@local.test' THEN 'キャストE'
+  WHEN 'night-cast-f@local.test' THEN 'キャストF'
+  ELSE nickname END
+WHERE user_email LIKE 'night-%@local.test';
+
+UPDATE group_members SET display_name = CASE user_email
+  WHEN 'night-manager@local.test' THEN '店長'
+  WHEN 'night-staff-a@local.test' THEN 'スタッフA'
+  WHEN 'night-staff-b@local.test' THEN 'スタッフB'
+  WHEN 'night-staff-c@local.test' THEN 'スタッフC'
+  WHEN 'night-cast-a@local.test' THEN 'キャストA'
+  WHEN 'night-cast-b@local.test' THEN 'キャストB'
+  WHEN 'night-cast-c@local.test' THEN 'キャストC'
+  WHEN 'night-cast-d@local.test' THEN 'キャストD'
+  WHEN 'night-cast-e@local.test' THEN 'キャストE'
+  WHEN 'night-cast-f@local.test' THEN 'キャストF'
+  ELSE display_name END
+WHERE group_id IN ('seed-group-night-staff','seed-group-night-cast');
 
 INSERT INTO audit_logs (id, group_id, user_email, action, entity_type, entity_id, summary, details, created_at) VALUES
   ('seed-audit-01', 'seed-group-store', 'tanaka@local.test', 'shift.publish', 'shiftPlan', 'seed-plan-second-half', '7月後半シフトを公開', '{"status":"published"}', '2026-07-16T08:00:00.000Z'),

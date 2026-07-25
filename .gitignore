@@ -43,6 +43,14 @@ next-env.d.ts
 /pet_runs/
 /tmp/
 
+# Local runtime and review artifacts
+*.log
+/.codex-remote-attachments/
+/_kinban_review/
+
+# QA screenshots are kept locally; scenario scripts and reports remain tracked.
+/qa/**/evidence/
+
 # Separate reference materials kept outside this application repository
 /docs/
 /assets/

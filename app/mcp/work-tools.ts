@@ -28,15 +28,17 @@ export async function getMcpWorkRecords(db: Db, groupId: string, email: string, 
   const [membership] = await db.select().from(groupMembers).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userEmail, email))).limit(1);
   if (!membership || membership.status !== "active") return error("Active group membership is required.");
   const manager = membership.role === "owner" || membership.role === "editor";
-  const requestedEmail = manager && typeof args.userEmail === "string" ? args.userEmail : email;
+  // 管理者が対象者を指定しない場合は、シフト外・手動申告を含めて
+  // グループ全体を確認できるようにする。指定時は従来どおり個人に絞る。
+  const requestedEmail = manager && typeof args.userEmail === "string" ? args.userEmail : manager ? "" : email;
   const from = typeof args.from === "string" ? args.from : "";
   const to = typeof args.to === "string" ? args.to : "";
   const status = typeof args.status === "string" ? args.status : "";
-  const filters = [eq(workRecords.groupId, groupId), eq(workRecords.userEmail, requestedEmail), from ? gte(workRecords.scheduledDate, from) : undefined, to ? lte(workRecords.scheduledDate, to) : undefined, status ? eq(workRecords.status, status) : undefined];
+  const filters = [eq(workRecords.groupId, groupId), requestedEmail ? eq(workRecords.userEmail, requestedEmail) : undefined, from ? gte(workRecords.scheduledDate, from) : undefined, to ? lte(workRecords.scheduledDate, to) : undefined, status ? eq(workRecords.status, status) : undefined];
   const records = await db.select().from(workRecords).where(and(...filters)).limit(200);
   const ids = records.map((record) => record.id);
   const breaks = ids.length ? await db.select().from(workBreaks).where(inArray(workBreaks.workRecordId, ids)) : [];
-  return { ok: true, records, breaks, filters: { userEmail: requestedEmail, from, to, status } };
+  return { ok: true, records, breaks, filters: { userEmail: requestedEmail || null, from, to, status } };
 }
 
 export async function mcpClock(db: Db, groupId: string, email: string, action: string, recordId?: string) {

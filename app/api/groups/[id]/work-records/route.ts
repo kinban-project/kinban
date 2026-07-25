@@ -25,6 +25,66 @@ const chunk = <T>(items: T[], size: number) =>
     items.slice(index * size, (index + 1) * size),
   );
 
+function localRangeMinutes(
+  date: string,
+  startTime?: string | null,
+  endTime?: string | null,
+) {
+  if (!startTime || !endTime) return null;
+  const start = shiftDateTime(date, startTime);
+  const end = shiftDateTime(date, endTime);
+  const startAt = new Date(`${start.date}T${start.time}:00+09:00`).getTime();
+  const endAt = new Date(`${end.date}T${end.time}:00+09:00`).getTime();
+  if (!Number.isFinite(startAt) || !Number.isFinite(endAt) || endAt <= startAt)
+    return null;
+  return Math.round((endAt - startAt) / 60000);
+}
+
+function recordHasDifference(
+  record: {
+    scheduledDate: string;
+    scheduledStartTime?: string | null;
+    scheduledEndTime?: string | null;
+    claimedStartAt?: string | null;
+    claimedEndAt?: string | null;
+    claimedBreakMinutes?: number | null;
+  },
+  breaks: Array<{ startedAt: string; endedAt?: string | null }>,
+) {
+  const planned = localRangeMinutes(
+    record.scheduledDate,
+    record.scheduledStartTime,
+    record.scheduledEndTime,
+  );
+  if (!record.claimedStartAt || !record.claimedEndAt || planned === null)
+    return true;
+  const start = new Date(record.claimedStartAt).getTime();
+  const end = new Date(record.claimedEndAt).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start)
+    return true;
+  const breakMinutesFromPunches = breaks.reduce(
+    (total, item) =>
+      item.endedAt
+        ? total +
+          Math.max(
+            0,
+            Math.round(
+              (new Date(item.endedAt).getTime() -
+                new Date(item.startedAt).getTime()) /
+                60000,
+            ),
+          )
+        : total,
+    0,
+  );
+  const claimed = Math.max(
+    0,
+    Math.round((end - start) / 60000) -
+      (record.claimedBreakMinutes ?? breakMinutesFromPunches),
+  );
+  return Math.abs(claimed - planned) >= 15;
+}
+
 function error(message: string, status: number) {
   return Response.json({ error: message }, { status });
 }
@@ -69,13 +129,20 @@ export async function GET(request: Request, context: Context) {
   const current = await contextData(groupId, user.email);
   if ("error" in current) return current.error;
   const { db, group, membership } = current;
-  const demoNow = await getDemoNow(groupId);
-  const manager = managerRoles.has(membership.role);
   const query = new URL(request.url).searchParams;
+  const demoNow = await getDemoNow(groupId);
+  // Managers can open 勤務申告 as a regular member.  Keep the authenticated
+  // manager role, but switch the read scope to the current user's records so
+  // the declaration screen is identical for managers and members.
+  const personalView = query.get("view") === "personal";
+  const manager = managerRoles.has(membership.role) && !personalView;
   const requestedUser = query.get("userEmail")?.trim() ?? "";
   const from = query.get("from")?.trim() ?? "";
   const to = query.get("to")?.trim() ?? "";
   const status = query.get("status")?.trim() ?? "";
+  const month = query.get("month")?.trim() ?? "";
+  const day = query.get("day")?.trim() ?? "";
+  const difference = query.get("difference")?.trim() ?? "";
   const page = Math.max(1, Number.parseInt(query.get("page") ?? "1", 10) || 1);
   const pageSize = Math.min(200, Math.max(1, Number.parseInt(query.get("pageSize") ?? "100", 10) || 100));
   const plans = await db
@@ -112,26 +179,15 @@ export async function GET(request: Request, context: Context) {
     to ? lte(workRecords.scheduledDate, to) : undefined,
     status ? eq(workRecords.status, status) : undefined,
   ];
-  const pagedRecords = await db
+  const recordRows = await db
     .select()
     .from(workRecords)
-    .where(and(...recordFilters))
-    .limit(pageSize + 1)
-    .offset((page - 1) * pageSize);
-  const hasNext = pagedRecords.length > pageSize;
-  const records = pagedRecords.slice(0, pageSize);
-  const recordsWithState = records.map((record) => ({
-    ...record,
-    attendanceExpired:
-      record.status === "working" &&
-      !record.endedAt &&
-      attendanceExpired(record.startedAt, demoNow),
-  }));
-  const recordIds = records.map((record) => record.id);
-  const breaks = recordIds.length
+    .where(and(...recordFilters));
+  const allRecordIds = recordRows.map((record) => record.id);
+  const allBreaks = allRecordIds.length
     ? (
         await Promise.all(
-          chunk(recordIds, 50).map((ids) =>
+          chunk(allRecordIds, 50).map((ids) =>
             db
               .select()
               .from(workBreaks)
@@ -140,6 +196,56 @@ export async function GET(request: Request, context: Context) {
         )
       ).flat()
     : [];
+  const breaksByRecord = new Map<string, typeof allBreaks>();
+  for (const item of allBreaks) {
+    const rows = breaksByRecord.get(item.workRecordId) ?? [];
+    rows.push(item);
+    breaksByRecord.set(item.workRecordId, rows);
+  }
+  const filteredRecords = recordRows.filter((record) => {
+    if (month && !record.scheduledDate.startsWith(month)) return false;
+    if (day && record.scheduledDate !== day) return false;
+    if (difference === "issue" && !recordHasDifference(record, breaksByRecord.get(record.id) ?? []))
+      return false;
+    if (difference === "none" && recordHasDifference(record, breaksByRecord.get(record.id) ?? []))
+      return false;
+    return true;
+  });
+  const hasNext = filteredRecords.length > pageSize;
+  const records = filteredRecords.slice((page - 1) * pageSize, page * pageSize);
+  const recordsWithState = records.map((record) => ({
+    ...record,
+    attendanceExpired:
+      record.status === "working" &&
+      !record.endedAt &&
+      attendanceExpired(record.startedAt, demoNow),
+  }));
+  // Managers receive a paged list of every member's records. Keep the
+  // current user's active clock record separate so the home controls do not
+  // miss it when it falls outside the first page.
+  const currentUserActiveRows = await db
+    .select()
+    .from(workRecords)
+    .where(
+      and(
+        eq(workRecords.groupId, groupId),
+        eq(workRecords.userEmail, user.email),
+        eq(workRecords.status, "working"),
+        isNull(workRecords.endedAt),
+      ),
+    )
+    .limit(10);
+  const currentUserActive = currentUserActiveRows.map((record) => ({
+    ...record,
+    attendanceExpired: attendanceExpired(record.startedAt, demoNow),
+  }));
+  const recordIds = Array.from(
+    new Set([
+      ...records.map((record) => record.id),
+      ...currentUserActive.map((record) => record.id),
+    ]),
+  );
+  const breaks = allBreaks.filter((item) => recordIds.includes(item.workRecordId));
   const members = manager
     ? await db
         .select()
@@ -174,6 +280,7 @@ export async function GET(request: Request, context: Context) {
       group,
       currentUserEmail: user.email,
       records: recordsWithState,
+      currentUserActive: currentUserActive.find((record) => !record.attendanceExpired) ?? currentUserActive[0] ?? null,
       breaks,
       schedule,
       members,
@@ -199,6 +306,8 @@ export async function POST(request: Request, context: Context) {
     slotId?: string;
     scheduledDate?: string;
     note?: string;
+    employeeNote?: string;
+    claimedBreakMinutes?: number;
     claimedStartAt?: string;
     claimedEndAt?: string;
   };
@@ -268,8 +377,9 @@ export async function POST(request: Request, context: Context) {
       scheduledEndTime: slot.endTime,
       claimedStartAt,
       claimedEndAt,
+      claimedBreakMinutes: Math.max(0, Math.round(Number(body.claimedBreakMinutes) || 0)),
       status: "unsubmitted",
-      employeeNote: "",
+      employeeNote: String(body.employeeNote ?? ""),
       createdAt: now,
       updatedAt: now,
     };
@@ -286,14 +396,17 @@ export async function POST(request: Request, context: Context) {
   }
 
   if (body.action === "create-manual-claim") {
-    if (!body.scheduledDate || !body.claimedStartAt || !body.claimedEndAt)
-      return error("scheduledDate and claim times are required.", 400);
-    const claimedStartAt = inputToIso(body.claimedStartAt);
-    const claimedEndAt = inputToIso(body.claimedEndAt);
+    if (!body.scheduledDate)
+      return error("scheduledDate is required.", 400);
+    const employeeNote = String(body.employeeNote ?? "").trim().slice(0, 500);
+    if (!body.claimedStartAt && !body.claimedEndAt && !employeeNote)
+      return error("claim times or employeeNote are required.", 400);
+    const claimedStartAt = body.claimedStartAt ? inputToIso(body.claimedStartAt) : null;
+    const claimedEndAt = body.claimedEndAt ? inputToIso(body.claimedEndAt) : null;
     if (
-      !claimedStartAt ||
-      !claimedEndAt ||
-      new Date(claimedEndAt).getTime() <= new Date(claimedStartAt).getTime()
+      (body.claimedStartAt && !claimedStartAt) ||
+      (body.claimedEndAt && !claimedEndAt) ||
+      (claimedStartAt && claimedEndAt && new Date(claimedEndAt).getTime() <= new Date(claimedStartAt).getTime())
     )
       return error("Invalid claim time.", 400);
     const existing = await db
@@ -323,7 +436,8 @@ export async function POST(request: Request, context: Context) {
       claimedStartAt,
       claimedEndAt,
       status: "unsubmitted",
-      employeeNote: "",
+      claimedBreakMinutes: Math.max(0, Math.round(Number(body.claimedBreakMinutes) || 0)),
+      employeeNote,
       createdAt: now,
       updatedAt: now,
     };
@@ -522,23 +636,66 @@ export async function PATCH(request: Request, context: Context) {
   const { id: groupId } = await context.params;
   const current = await contextData(groupId, user.email);
   if ("error" in current) return current.error;
+  const demoNow = await getDemoNow(groupId);
+  const nowIso = demoNow.toISOString();
   const body = (await request.json().catch(() => ({}))) as {
     action?: string;
     recordId?: string;
     status?: string;
     managerNote?: string;
+    slotId?: string;
     employeeNote?: string;
     claimedBreakMinutes?: number;
     confirm?: boolean;
     monthKey?: string;
   };
+  if (body.action === "start-edit") {
+    if (!body.recordId) return error("recordId is required.", 400);
+    const [record] = await current.db
+      .select()
+      .from(workRecords)
+      .where(
+        and(
+          eq(workRecords.id, body.recordId),
+          eq(workRecords.groupId, groupId),
+          eq(workRecords.userEmail, user.email),
+        ),
+      )
+      .limit(1);
+    if (!record) return error("Work record not found.", 404);
+    if (record.monthlyClosedAt)
+      return error(
+        "This month has been approved and cannot be changed until an administrator reopens it.",
+        409,
+      );
+    if (!["submitted", "approved"].includes(record.status))
+      return error("This work record is already editable.", 400);
+    await current.db
+      .update(workRecords)
+      .set({
+        status: "unsubmitted",
+        approvedBy: null,
+        approvedAt: null,
+        updatedAt: nowIso,
+      })
+      .where(eq(workRecords.id, record.id));
+    await recordAudit({
+      groupId,
+      userEmail: user.email,
+      action: "work.claim.edit.start",
+      entityType: "workRecord",
+      entityId: record.id,
+      summary: "承認済みの勤務申告を修正開始しました",
+    });
+    return Response.json({ ok: true, recordId: record.id, status: "unsubmitted" });
+  }
   if (body.action === "save-claim") {
     const claimBody = body as typeof body & {
       claimedStartAt?: string;
       claimedEndAt?: string;
     };
-    if (!body.recordId || !claimBody.claimedStartAt)
-      return error("recordId and claimedStartAt are required.", 400);
+    if (!body.recordId)
+      return error("recordId is required.", 400);
     const [record] = await current.db
       .select()
       .from(workRecords)
@@ -556,9 +713,17 @@ export async function PATCH(request: Request, context: Context) {
         "This month has been closed and cannot be changed until an administrator reopens it.",
         409,
       );
-    const claimedStartAt = inputToIso(claimBody.claimedStartAt);
-    const claimedEndAt = inputToIso(claimBody.claimedEndAt);
-    if (!claimedStartAt || (claimBody.claimedEndAt && !claimedEndAt))
+    if (["submitted", "approved"].includes(record.status))
+      return error("申告を修正する場合は、先に「申告を修正」を実行してください。", 409);
+    const claimedStartAt =
+      claimBody.claimedStartAt === undefined
+        ? record.claimedStartAt
+        : inputToIso(claimBody.claimedStartAt);
+    const claimedEndAt =
+      claimBody.claimedEndAt === undefined
+        ? record.claimedEndAt
+        : inputToIso(claimBody.claimedEndAt);
+    if ((claimBody.claimedStartAt && !claimedStartAt) || (claimBody.claimedEndAt && !claimedEndAt))
       return error("Invalid claim time.", 400);
     if (
       claimedEndAt &&
@@ -612,13 +777,57 @@ export async function PATCH(request: Request, context: Context) {
       )
       .limit(1);
     if (!record) return error("Work record not found.", 404);
-    if (!record.scheduledStartTime || !record.scheduledEndTime)
-      return error("A scheduled shift is not linked to this record.", 409);
     if (record.monthlyClosedAt)
       return error(
         "This month has been closed and cannot be changed until an administrator reopens it.",
         409,
       );
+    let scheduledDate = record.scheduledDate;
+    let scheduledStartTime = record.scheduledStartTime;
+    let scheduledEndTime = record.scheduledEndTime;
+    let planId = record.planId;
+    let linkedSlotId = record.slotId;
+    if ((!scheduledStartTime || !scheduledEndTime) && body.slotId) {
+      const [slot] = await current.db
+        .select()
+        .from(shiftSlots)
+        .where(eq(shiftSlots.id, body.slotId))
+        .limit(1);
+      const [plan] = slot
+        ? await current.db
+            .select()
+            .from(shiftPlans)
+            .where(
+              and(
+                eq(shiftPlans.id, slot.planId),
+                eq(shiftPlans.groupId, groupId),
+                eq(shiftPlans.status, "published"),
+              ),
+            )
+            .limit(1)
+        : [];
+      const [assignment] = slot
+        ? await current.db
+            .select()
+            .from(shiftAssignments)
+            .where(
+              and(
+                eq(shiftAssignments.slotId, slot.id),
+                eq(shiftAssignments.userEmail, user.email),
+              ),
+            )
+            .limit(1)
+        : [];
+      if (!slot || !plan || !assignment || slot.date !== record.scheduledDate)
+        return error("The selected shift is not assigned to this record.", 409);
+      scheduledDate = slot.date;
+      scheduledStartTime = slot.startTime;
+      scheduledEndTime = slot.endTime;
+      planId = plan.id;
+      linkedSlotId = slot.id;
+    }
+    if (!scheduledStartTime || !scheduledEndTime)
+      return error("A scheduled shift is not linked to this record.", 409);
     const resetDailyApproval =
       record.status === "submitted" ||
       record.status === "approved" ||
@@ -627,8 +836,13 @@ export async function PATCH(request: Request, context: Context) {
     await current.db
       .update(workRecords)
       .set({
-        claimedStartAt: jstIso(record.scheduledDate, record.scheduledStartTime),
-        claimedEndAt: jstIso(record.scheduledDate, record.scheduledEndTime),
+        planId,
+        slotId: linkedSlotId,
+        scheduledDate,
+        scheduledStartTime,
+        scheduledEndTime,
+        claimedStartAt: jstIso(scheduledDate, scheduledStartTime),
+        claimedEndAt: jstIso(scheduledDate, scheduledEndTime),
         status: resetDailyApproval ? "unsubmitted" : record.status,
         approvedBy: resetDailyApproval ? null : record.approvedBy,
         approvedAt: resetDailyApproval ? null : record.approvedAt,
@@ -656,8 +870,15 @@ export async function PATCH(request: Request, context: Context) {
         "This month has been closed and cannot be changed until an administrator reopens it.",
         409,
       );
-    if (!record.claimedStartAt || !record.claimedEndAt)
-      return error("申告の開始・終了時刻を入力してください。", 400);
+    if (!record.claimedStartAt || !record.claimedEndAt) {
+      if (!record.employeeNote?.trim())
+        return error("申告時刻または備考を入力してください。", 400);
+      await current.db
+        .update(workRecords)
+        .set({ status: "submitted", updatedAt: nowIso })
+        .where(eq(workRecords.id, record.id));
+      return Response.json({ ok: true, warnings: [] });
+    }
     const start = new Date(record.claimedStartAt).getTime();
     const end = new Date(record.claimedEndAt).getTime();
     if (!(start < end))

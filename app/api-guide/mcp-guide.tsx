@@ -50,14 +50,14 @@ export default function McpGuide() {
       <div className="guide-warning">
         <strong>Manager messages authorise assistant operations</strong>
         <p>
-          The assistant uses its group-bound key for operational reads. A saved message ID from an active manager is supplied as <code>sourceMessageId</code> only when creating shifts, publishing, reviewing attendance, or distributing announcements. Group settings decide which of those manager instructions may be executed.
+          The assistant uses its group-bound key for operational reads. For a direct task, the key owner is checked as the active manager and <code>sourceMessageId</code>/<code>claimId</code> may be omitted. When processing a member message, the current claimed message must still be supplied and its sender permissions are checked. Group settings decide which operations may be executed.
         </p>
       </div>
       <div className="guide-warning">
         <strong>運営支援AIは専用キーを使用してください</strong>
         <p>
           グループ管理者は <code>POST /api/groups/&lt;groupId&gt;/assistant/access</code> から、対象グループだけに制限された運営支援AIキーを発行できます。
-          このキーでは、対象グループのメンバー情報・シフト・勤務記録などを運営支援のために参照できます。変更操作は、管理者メッセージの <code>sourceMessageId</code> とグループごとの実行許可の両方が必要です。
+          このキーでは、対象グループのメンバー情報・シフト・勤務記録などを運営支援のために参照できます。管理者がこのタスクへ直接指示する場合は、キー発行者の管理者権限とグループごとの実行許可を確認するため、管理者メッセージの <code>sourceMessageId</code> は不要です。メンバー問い合わせの処理中だけ、claimした管理者メッセージの <code>sourceMessageId</code> と <code>claimId</code> を指定します。
         </p>
       </div>
       <p className="guide-note">

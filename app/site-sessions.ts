@@ -27,3 +27,28 @@ export async function revokeSiteSession(token: string) {
   if (!token) return;
   await getDb().delete(siteSessions).where(eq(siteSessions.sessionHash, await sha256(token)));
 }
+
+export const SITE_SESSION_COOKIE = "kinban_session";
+
+export function readCookie(header: string | null, name: string): string | null {
+  if (!header) return null;
+  for (const part of header.split(";")) {
+    const [key, ...value] = part.trim().split("=");
+    if (key === name) return value.join("=") ? decodeURIComponent(value.join("=")) : "";
+  }
+  return null;
+}
+
+export function serializeCookie(
+  name: string,
+  value: string,
+  options: { maxAge?: number; httpOnly?: boolean; secure?: boolean; sameSite?: "Lax" | "Strict"; path?: string } = {},
+) {
+  const parts = [`${name}=${encodeURIComponent(value)}`];
+  if (options.maxAge !== undefined) parts.push(`Max-Age=${options.maxAge}`);
+  if (options.path) parts.push(`Path=${options.path}`);
+  if (options.httpOnly) parts.push("HttpOnly");
+  if (options.secure) parts.push("Secure");
+  if (options.sameSite) parts.push(`SameSite=${options.sameSite}`);
+  return parts.join("; ");
+}

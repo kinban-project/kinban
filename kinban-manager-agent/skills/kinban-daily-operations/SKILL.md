@@ -17,4 +17,4 @@ description: KINBANの運営AIとして、日次の確認事項と対応候補�
 
 ## 変更
 
-管理者の明示指示を処理する場合だけ、現在claim中のメッセージIDを `sourceMessageId`、同じ `claimId` を指定し、グループで有効な操作だけを実行する。
+管理者がこのタスクへ直接指示した場合は、運営支援AIキーの発行者を管理者として扱い、`sourceMessageId` と `claimId` は指定しない。メンバー問い合わせを起点にする場合だけ、現在claim中の管理者メッセージIDを `sourceMessageId`、同じ `claimId` として指定し、グループで有効な操作だけを実行する。
