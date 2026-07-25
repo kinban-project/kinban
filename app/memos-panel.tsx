@@ -5,6 +5,7 @@ import { localApiFetch } from "./local-api";
 
 type Folder = { id: string; name: string; createdBy: string };
 type Note = { id: string; folderId: string; authorEmail: string; authorName: string; targetDate: string; title: string; body: string; visibility: "group" | "managers" | "private"; canEdit: boolean };
+type MemberOption = { email: string; name: string };
 type Props = { groupId: string };
 
 function today() { return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(new Date()); }
@@ -17,6 +18,8 @@ export default function MemosPanel({ groupId }: Props) {
   const [selectedFolderId, setSelectedFolderId] = useState("");
   const [query, setQuery] = useState("");
   const [dateFilter, setDateFilter] = useState("");
+  const [selectedAuthorEmail, setSelectedAuthorEmail] = useState("");
+  const [members, setMembers] = useState<MemberOption[]>([]);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<Note | null>(null);
   const [draft, setDraft] = useState({ folderId: "", targetDate: today(), title: "", body: "", visibility: "group" });
@@ -26,18 +29,26 @@ export default function MemosPanel({ groupId }: Props) {
 
   const canManageFolders = role === "owner" || role === "editor";
 
-  async function load() {
+  async function load(overrides: { folderId?: string; authorEmail?: string } = {}) {
     const params = new URLSearchParams();
-    if (selectedFolderId) params.set("folderId", selectedFolderId);
+    const folderId = overrides.folderId ?? selectedFolderId;
+    const authorEmail = overrides.authorEmail ?? selectedAuthorEmail;
+    if (folderId) params.set("folderId", folderId);
     if (query.trim()) params.set("q", query.trim());
     if (dateFilter) params.set("date", dateFilter);
+    if (authorEmail) params.set("authorEmail", authorEmail);
     const response = await localApiFetch(`/api/groups/${groupId}/memos?${params}`);
     if (!response.ok) { setError("業務メモを読み込めませんでした"); return; }
-    const data = await response.json() as { folders: Folder[]; notes: Note[]; role: string };
+    const data = await response.json() as { folders: Folder[]; notes: Note[]; role: string; currentEmail?: string; members?: MemberOption[] };
     setFolders(data.folders);
     setNotes(data.notes);
     setRole(data.role);
-    if (!selectedFolderId && data.folders[0]) setSelectedFolderId(data.folders[0].id);
+    setMembers(data.members ?? []);
+    if (!selectedAuthorEmail && data.currentEmail) setSelectedAuthorEmail(data.currentEmail);
+    if (!selectedFolderId && data.folders[0]) {
+      setSelectedFolderId(data.folders[0].id);
+      if (!folderId) void load({ folderId: data.folders[0].id, authorEmail: authorEmail || data.currentEmail });
+    }
   }
 
   useEffect(() => { void load(); }, [groupId]);
@@ -93,9 +104,14 @@ export default function MemosPanel({ groupId }: Props) {
     </div>
     {error && <p className="form-error">{error}</p>}
     <div className="memos-toolbar">
-      <select value={selectedFolderId} onChange={(event) => setSelectedFolderId(event.target.value)} aria-label="フォルダ">
+      <select value={selectedFolderId} onChange={(event) => { const folderId = event.target.value; setSelectedFolderId(folderId); setEditing(null); void load({ folderId }); }} aria-label="フォルダ">
         {folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
       </select>
+      {canManageFolders && <select className="memo-member-filter" value={selectedAuthorEmail || "self"} onChange={(event) => { const authorEmail = event.target.value; setSelectedAuthorEmail(authorEmail); void load({ authorEmail }); }} aria-label="確認するメンバー">
+        <option value="self">確認するメンバー：自分</option>
+        <option value="all">確認するメンバー：全員</option>
+        {members.map((member) => <option key={member.email} value={member.email}>{`確認するメンバー：${member.name}`}</option>)}
+      </select>}
       <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="タイトル・本文を検索" />
       <input type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} aria-label="対象日で絞り込み" />
       <button className="ghost-button" type="button" onClick={() => void load()}>検索</button>
@@ -103,7 +119,7 @@ export default function MemosPanel({ groupId }: Props) {
     <div className="memos-layout">
       <aside className="memo-folders">
         <p className="eyebrow">FOLDERS</p>
-        {folders.map((folder) => <button key={folder.id} className={`memo-folder-button${folder.id === selectedFolderId ? " selected" : ""}`} type="button" onClick={() => { setSelectedFolderId(folder.id); setEditing(null); }}>{folder.name}</button>)}
+        {folders.map((folder) => <button key={folder.id} className={`memo-folder-button${folder.id === selectedFolderId ? " selected" : ""}`} type="button" onClick={() => { setSelectedFolderId(folder.id); setEditing(null); void load({ folderId: folder.id }); }}>{folder.name}</button>)}
         {canManageFolders && <div className="memo-folder-create"><input value={folderName} onChange={(event) => setFolderName(event.target.value)} placeholder="新しいフォルダ" /><button className="ghost-button" type="button" disabled={busy} onClick={() => void createFolder()}>追加</button></div>}
       </aside>
       <section className="memo-list" aria-label={`${currentFolderName}のメモ`}>

@@ -565,6 +565,7 @@ button { cursor: pointer; }
 .memos-head h2 { margin: 4px 0 6px; }
 .memos-toolbar { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 0; border-bottom: 1px solid var(--line, #dce5df); }
 .memos-toolbar select, .memos-toolbar input { min-height: 40px; flex: 1 1 190px; }
+.memos-toolbar .memo-member-filter { flex-basis: 250px; }
 .memos-layout { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 20px; padding-top: 20px; }
 .memo-folders { display: flex; flex-direction: column; gap: 6px; }
 .memo-folder-button { border: 0; background: transparent; border-radius: 10px; padding: 10px 12px; text-align: left; color: inherit; cursor: pointer; }

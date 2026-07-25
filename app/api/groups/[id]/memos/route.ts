@@ -44,13 +44,18 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const folderId = params.get("folderId")?.trim() ?? "";
   const q = params.get("q")?.trim() ?? "";
   const targetDate = params.get("date")?.trim() ?? "";
+  const requestedAuthorEmail = params.get("authorEmail")?.trim() ?? "";
+  const isManager = membership.role === "owner" || membership.role === "editor";
   const folders = await db.select().from(memoFolders).where(eq(memoFolders.groupId, groupId)).orderBy(asc(memoFolders.name));
   const conditions = [eq(memos.groupId, groupId), isNull(memos.deletedAt)];
   if (folderId) conditions.push(eq(memos.folderId, folderId));
   if (targetDate) conditions.push(eq(memos.targetDate, targetDate));
   if (q) conditions.push(or(like(memos.title, `%${q}%`), like(memos.body, `%${q}%`))!);
-  if (membership.role !== "owner" && membership.role !== "editor") {
+  if (!isManager) {
+    conditions.push(eq(memos.authorEmail, user.email));
     conditions.push(or(eq(memos.visibility, "group"), eq(memos.authorEmail, user.email))!);
+  } else if (requestedAuthorEmail && requestedAuthorEmail !== "all") {
+    conditions.push(eq(memos.authorEmail, requestedAuthorEmail === "self" ? user.email : requestedAuthorEmail));
   }
   const rows = await db.select().from(memos).where(and(...conditions)).orderBy(desc(memos.targetDate), desc(memos.updatedAt));
   const members = await db.select().from(groupMembers).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.status, "active")));
@@ -58,6 +63,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   return Response.json({
     folders,
     notes: rows.map((note) => ({ ...note, authorName: displayNames.get(note.authorEmail) ?? note.authorEmail, canEdit: note.authorEmail === user.email || membership.role === "owner" || membership.role === "editor" })),
+    members: isManager ? members.map((member) => ({ email: member.userEmail, name: displayNames.get(member.userEmail) ?? member.userEmail })) : [],
     currentEmail: user.email,
     role: membership.role,
   });
