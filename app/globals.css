@@ -534,3 +534,40 @@ button { cursor: pointer; }
     margin: 0;
   }
 }
+/* 業務メモ */
+.memos-modal { width: min(96vw, 1400px); max-height: calc(100vh - 24px); overflow-y: auto; }
+.memos-panel { padding: 28px; }
+.memos-head { align-items: flex-start; gap: 24px; }
+.memos-head h2 { margin: 4px 0 6px; }
+.memos-toolbar { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 0; border-bottom: 1px solid var(--line, #dce5df); }
+.memos-toolbar select, .memos-toolbar input { min-height: 40px; flex: 1 1 190px; }
+.memos-layout { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 20px; padding-top: 20px; }
+.memo-folders { display: flex; flex-direction: column; gap: 6px; }
+.memo-folder-button { border: 0; background: transparent; border-radius: 10px; padding: 10px 12px; text-align: left; color: inherit; cursor: pointer; }
+.memo-folder-button:hover, .memo-folder-button.selected { background: #e6f2ef; color: #176e68; font-weight: 700; }
+.memo-folder-create { display: flex; gap: 5px; margin-top: 12px; }
+.memo-folder-create input { min-width: 0; width: 100%; }
+.memo-folder-create .ghost-button { white-space: nowrap; padding: 7px 10px; }
+.memo-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); align-content: start; gap: 10px; }
+.memo-card { display: flex; flex-direction: column; gap: 6px; min-height: 112px; padding: 14px; border: 1px solid #dce5df; border-radius: 12px; background: #fff; text-align: left; color: inherit; cursor: pointer; }
+.memo-card:hover { border-color: #2c8a82; box-shadow: 0 4px 14px rgba(28, 77, 70, .08); }
+.memo-card-title { font-weight: 700; }
+.memo-card-meta { font-size: 12px; color: #66827d; }
+.memo-card-body { display: -webkit-box; overflow: hidden; color: #53635f; font-size: 13px; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.memo-editor { margin-top: 20px; padding: 18px; border: 1px solid #c9dfd9; border-radius: 14px; background: #f8fbf9; }
+.memo-editor-head, .memo-editor-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.memo-editor-actions { justify-content: flex-start; margin-top: 14px; }
+.memo-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+.memo-form label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; }
+.memo-form .memo-body-label { grid-column: 1 / -1; }
+.memo-form textarea { resize: vertical; min-height: 140px; }
+.memo-hint, .empty-state { padding: 22px; color: #6d7e79; text-align: center; }
+.danger-button { border: 1px solid #e2b8b1; border-radius: 9px; padding: 10px 15px; color: #a24e42; background: #fff2f0; cursor: pointer; }
+@media (max-width: 720px) {
+  .memos-panel { padding: 18px 14px; }
+  .memos-layout { grid-template-columns: 1fr; }
+  .memo-folders { flex-direction: row; flex-wrap: wrap; }
+  .memo-folder-create { flex-basis: 100%; }
+  .memo-form { grid-template-columns: 1fr; }
+  .memo-form .memo-body-label { grid-column: auto; }
+}

@@ -24,6 +24,7 @@ type Props = {
   onShiftAdjustment: (id: string) => void;
   onMembers: (id: string) => void;
   onAnnouncements: (id: string) => void;
+  onMemos: (id: string) => void;
   onAnnouncementManage: (id: string) => void;
   onDashboard: (id: string) => void;
   onAuditLogs: (id: string) => void;
@@ -107,6 +108,7 @@ export default function GroupMenu({
   onShiftAdjustment,
   onMembers,
   onAnnouncements,
+  onMemos,
   onAnnouncementManage,
   onDashboard,
   onAuditLogs,
@@ -176,6 +178,9 @@ export default function GroupMenu({
                 お知らせ・連絡
                 {unread > 0 && <span className="unread-badge">{unread}</span>}
                 {unreadAssistant && <span className="assistant-unread-dot" title="KINBANアシスタントに未読があります" aria-label="KINBANアシスタントに未読があります" />}
+              </button>
+              <button className="group-menu-button" type="button" onClick={() => onMemos(group.groupId)}>
+                業務メモ
               </button>
               <WorkDeclareButton groupId={group.groupId} onClick={() => onWorkDeclare(group.groupId)} />
               {manager && (

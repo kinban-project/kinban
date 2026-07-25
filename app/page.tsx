@@ -16,6 +16,7 @@ import DashboardPanel from "./dashboard-panel";
 import WorkRecordsPanel from "./work-records-panel";
 import MonthlyWorkPanel from "./monthly-work-panel";
 import SiteAdminPanel from "./site-admin-panel";
+import MemosPanel from "./memos-panel";
 import { localApiFetch } from "./local-api";
 import { displayShiftTime } from "./shift-time";
 
@@ -180,6 +181,7 @@ export default function Home() {
   const [workRecordsManager, setWorkRecordsManager] = useState(false);
   const [monthlyWorkOpen, setMonthlyWorkOpen] = useState(false);
   const [monthlyWorkManager, setMonthlyWorkManager] = useState(false);
+  const [memosOpen, setMemosOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [groupId, setGroupId] = useState("");
   const [form, setForm] = useState<FormState>(emptyForm(todayKey));
@@ -464,6 +466,10 @@ export default function Home() {
           setAnnouncementsManager(false);
           setAnnouncementsTab("announcements");
           setAnnouncementsOpen(true);
+        }}
+        onMemos={(groupId) => {
+          setMenuGroupId(groupId);
+          setMemosOpen(true);
         }}
         onAnnouncementManage={(groupId) => {
           setMenuGroupId(groupId);
@@ -957,6 +963,11 @@ export default function Home() {
               manager={announcementsManager}
             />
           </div>
+        </div>
+      )}
+      {memosOpen && menuGroupId && (
+        <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setMemosOpen(false); }}>
+          <div className="modal groups-modal memos-modal"><ModalClose onClose={() => setMemosOpen(false)} /><MemosPanel groupId={menuGroupId} /></div>
         </div>
       )}
       {dashboardOpen && menuGroupId && (

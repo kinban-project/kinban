@@ -190,6 +190,35 @@ export const assistantContexts = sqliteTable("assistant_contexts", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const memoFolders = sqliteTable("memo_folders", {
+  id: text("id").primaryKey(),
+  groupId: text("group_id").notNull(),
+  name: text("name").notNull(),
+  createdBy: text("created_by").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("memo_folder_group_name_idx").on(table.groupId, table.name),
+]);
+
+export const memos = sqliteTable("memos", {
+  id: text("id").primaryKey(),
+  groupId: text("group_id").notNull(),
+  folderId: text("folder_id").notNull(),
+  authorEmail: text("author_email").notNull(),
+  targetDate: text("target_date").notNull().default(""),
+  title: text("title").notNull(),
+  body: text("body").notNull().default(""),
+  visibility: text("visibility", { enum: ["group", "managers", "private"] })
+    .notNull()
+    .default("group"),
+  deletedAt: text("deleted_at"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("memo_group_folder_date_idx").on(table.groupId, table.folderId, table.targetDate),
+  index("memo_group_updated_idx").on(table.groupId, table.updatedAt),
+]);
+
 export const siteUsers = sqliteTable("site_users", {
   id: text("id").primaryKey(),
   userEmail: text("user_email").notNull().unique(),
