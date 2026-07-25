@@ -1,5 +1,5 @@
-"use client";
-
+import { redirect } from "next/navigation";
+import { isDemoModeServer } from "../demo-mode";
 import DemoClockPanel from "./demo-clock-panel";
 
 const scenarios = [
@@ -42,6 +42,8 @@ const scenarios = [
 ] as const;
 
 export default function DemoPage() {
+  if (!isDemoModeServer()) redirect("/");
+
   return (
     <main className="shell demo-page">
       <header className="topbar demo-topbar">

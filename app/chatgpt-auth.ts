@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { env } from "cloudflare:workers";
 import { ensureSiteAccess } from "./site-access";
 import { getSiteSession, readCookie, SITE_SESSION_COOKIE } from "./site-sessions";
+import { isDemoModeServer } from "./demo-mode";
 
 export type ChatGPTUser = {
   displayName: string;
@@ -21,9 +22,8 @@ const CALLBACK_PATH = "/callback";
 
 export async function getChatGPTIdentity(): Promise<ChatGPTUser | null> {
   const requestHeaders = await headers();
-  const localMode = process.env.LOCAL_MODE === "true" || (env as { LOCAL_MODE?: string }).LOCAL_MODE === "true";
-  if (localMode) {
-    const localId = requestHeaders.get("x-dev-user-id") || process.env.LOCAL_USER_ID || (env as { LOCAL_USER_ID?: string }).LOCAL_USER_ID || "local-user";
+  if (isDemoModeServer()) {
+    const localId = requestHeaders.get("x-demo-user-id") || process.env.DEMO_DEFAULT_USER_ID || (env as { DEMO_DEFAULT_USER_ID?: string }).DEMO_DEFAULT_USER_ID || "demo-user";
     const email = localId.includes("@") ? localId : `${localId}@local.test`;
     return { displayName: localId, email, fullName: localId };
   }
@@ -54,8 +54,7 @@ export async function getChatGPTIdentity(): Promise<ChatGPTUser | null> {
 export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
   const identity = await getChatGPTIdentity();
   if (!identity) return null;
-  const localMode = process.env.LOCAL_MODE === "true" || (env as { LOCAL_MODE?: string }).LOCAL_MODE === "true";
-  if (localMode) return identity;
+  if (isDemoModeServer()) return identity;
   const siteUser = await ensureSiteAccess(identity);
   return siteUser ? identity : null;
 }

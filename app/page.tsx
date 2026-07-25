@@ -148,13 +148,13 @@ export default function Home() {
   );
   const [selectedDate, setSelectedDate] = useState(todayKey);
   const [events, setEvents] = useState<EventItem[]>(
-    process.env.NEXT_PUBLIC_LOCAL_MODE === "true" ? [] : demoEvents,
+    process.env.NEXT_PUBLIC_DEMO_MODE === "true" ? [] : demoEvents,
   );
   const [groups, setGroups] = useState<GroupMembership[]>([]);
   const [siteAccess, setSiteAccess] = useState<SiteAccess>({ isSiteAdmin: false, canCreateGroups: false });
   const [userEmail, setUserEmail] = useState<string | null>(
-    process.env.NEXT_PUBLIC_LOCAL_MODE === "true"
-      ? `${process.env.NEXT_PUBLIC_LOCAL_USER_ID || "tanaka"}@local.test`
+    process.env.NEXT_PUBLIC_DEMO_MODE === "true"
+      ? `${process.env.NEXT_PUBLIC_DEMO_DEFAULT_USER_ID || "tanaka"}@local.test`
       : null,
   );
   const [accountNickname, setAccountNickname] = useState("");
@@ -423,9 +423,11 @@ export default function Home() {
           <span className="brand-pill">シフト、勤怠管理をひとつに。</span>
         </button>
         <div className="top-actions">
-          <a className="ghost-button demo-entry-button" href="/demo">
-            体験版（ユーザー切替）
-          </a>
+          {process.env.NEXT_PUBLIC_DEMO_MODE === "true" && (
+            <a className="ghost-button demo-entry-button" href="/demo">
+              体験版（ユーザー切替）
+            </a>
+          )}
           {userEmail ? (
             <button
               className="ghost-button"
@@ -712,7 +714,7 @@ export default function Home() {
             </label>
             <div className="modal-footer">
               <span>
-                {process.env.NEXT_PUBLIC_LOCAL_MODE === "true"
+                {process.env.NEXT_PUBLIC_DEMO_MODE === "true"
                   ? "ローカル開発モード：認証なし"
                   : "ログイン中のアカウントに保存されます"}
               </span>
