@@ -70,7 +70,7 @@ export default function MonthlyWorkPanel({ groupId, manager }: { groupId: string
   const options = useMemo(() => monthOptions(demoNow ?? new Date()), [demoNow]);
 
   useEffect(() => {
-    if (!groupId.startsWith("seed-group-")) {
+    if (process.env.NEXT_PUBLIC_DEMO_MODE !== "true") {
       setDemoNow(null);
       return;
     }

@@ -250,7 +250,7 @@ export default function Home() {
     setEvents(data.events);
     setSiteAccess(data.siteAccess ?? { isSiteAdmin: false, canCreateGroups: false });
     const memberships = data.groups ?? [];
-    if (memberships.some((group) => group.groupId.startsWith("seed-group-"))) {
+    if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
       const clockResponse = await fetch("/api/demo-clock", { cache: "no-store" });
       if (clockResponse.ok) {
         const clock = (await clockResponse.json()) as { currentAt?: string };

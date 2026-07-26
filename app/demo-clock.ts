@@ -1,15 +1,13 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "../db";
 import { demoClocks } from "../db/schema";
+import { isDemoModeServer } from "./demo-mode";
 
 export const DEMO_DEFAULT_NOW = "2026-07-21T09:00:00+09:00";
 
-export function isDemoGroupId(groupId: string) {
-  return groupId.startsWith("seed-group-");
-}
-
 export async function getDemoNow(groupId: string) {
-  if (!isDemoGroupId(groupId)) return new Date();
+  void groupId;
+  if (!isDemoModeServer()) return new Date();
   const [clock] = await getDb().select().from(demoClocks).where(eq(demoClocks.scope, "public-demo")).limit(1);
   return new Date(clock?.currentAt ?? DEMO_DEFAULT_NOW);
 }
@@ -19,7 +17,7 @@ export async function getDemoTimeContext(groupId: string) {
   const today = jstDate(current);
   return {
     groupId,
-    demoMode: isDemoGroupId(groupId),
+    demoMode: isDemoModeServer(),
     currentAt: current.toISOString(),
     today,
     month: today.slice(0, 7),

@@ -327,7 +327,7 @@ export default function WorkRecordsPanel({
   const [notice, setNotice] = useState("");
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   useEffect(() => {
-    if (!groupId.startsWith("seed-group-")) {
+    if (process.env.NEXT_PUBLIC_DEMO_MODE !== "true") {
       setDemoNow(null);
       return;
     }
