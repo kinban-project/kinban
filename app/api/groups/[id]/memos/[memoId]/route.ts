@@ -28,13 +28,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const [folder] = await db.select().from(memoFolders).where(and(eq(memoFolders.id, body.folderId), eq(memoFolders.groupId, input.id))).limit(1);
     if (!folder) return Response.json({ error: "フォルダが見つかりません" }, { status: 404 });
   }
-  const visibility = body.visibility && ["group", "managers", "private"].includes(body.visibility) ? body.visibility : note.visibility;
   await db.update(memos).set({
     folderId: body.folderId ?? note.folderId,
     targetDate: body.targetDate?.trim() || note.targetDate,
     title: body.title?.trim().slice(0, 120) || note.title,
     body: body.body === undefined ? note.body : body.body.trim().slice(0, 10000),
-    visibility: visibility as "group" | "managers" | "private",
+    visibility: "managers",
     updatedAt: new Date().toISOString(),
   }).where(eq(memos.id, input.memoId));
   await recordAudit({ groupId: input.id, userEmail: input.user.email, action: "memo.update", entityType: "memo", entityId: input.memoId, summary: `業務メモを更新: ${body.title?.trim() || note.title}` });

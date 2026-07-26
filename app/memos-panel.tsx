@@ -9,7 +9,7 @@ type MemberOption = { email: string; name: string };
 type Props = { groupId: string };
 
 function today() { return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(new Date()); }
-function visibilityLabel(value: Note["visibility"]) { return value === "managers" ? "管理者のみ" : value === "private" ? "自分のみ" : "グループ共有"; }
+function visibilityLabel(_value: Note["visibility"]) { return "本人とグループ管理者"; }
 
 export default function MemosPanel({ groupId }: Props) {
   const [folders, setFolders] = useState<Folder[]>([]);
@@ -18,11 +18,11 @@ export default function MemosPanel({ groupId }: Props) {
   const [selectedFolderId, setSelectedFolderId] = useState("");
   const [query, setQuery] = useState("");
   const [dateFilter, setDateFilter] = useState("");
-  const [selectedAuthorEmail, setSelectedAuthorEmail] = useState("");
+  const [selectedAuthorEmail, setSelectedAuthorEmail] = useState("self");
   const [members, setMembers] = useState<MemberOption[]>([]);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<Note | null>(null);
-  const [draft, setDraft] = useState({ folderId: "", targetDate: today(), title: "", body: "", visibility: "group" });
+  const [draft, setDraft] = useState({ folderId: "", targetDate: today(), title: "", body: "", visibility: "managers" });
   const [folderName, setFolderName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,9 +45,10 @@ export default function MemosPanel({ groupId }: Props) {
     setRole(data.role);
     setMembers(data.members ?? []);
     if (!selectedAuthorEmail && data.currentEmail) setSelectedAuthorEmail(data.currentEmail);
-    if (!selectedFolderId && data.folders[0]) {
-      setSelectedFolderId(data.folders[0].id);
-      if (!folderId) void load({ folderId: data.folders[0].id, authorEmail: authorEmail || data.currentEmail });
+    const defaultFolder = data.folders.find((folder) => folder.name === "日報") ?? data.folders[0];
+    if (!selectedFolderId && defaultFolder) {
+      setSelectedFolderId(defaultFolder.id);
+      if (!folderId) void load({ folderId: defaultFolder.id });
     }
   }
 
@@ -58,7 +59,7 @@ export default function MemosPanel({ groupId }: Props) {
     const targetDate = today();
     setEditing(null);
     setEditorOpen(true);
-    setDraft({ folderId: folder?.id ?? "", targetDate, title: folder?.name === "日報" ? `${targetDate} 日報` : "", body: "", visibility: "group" });
+    setDraft({ folderId: folder?.id ?? "", targetDate, title: folder?.name === "日報" ? `${targetDate} 日報` : "", body: "", visibility: "managers" });
     setError(null);
   }
 
@@ -99,7 +100,7 @@ export default function MemosPanel({ groupId }: Props) {
 
   return <div className="memos-panel">
     <div className="modal-head memos-head">
-      <div><p className="eyebrow">WORK NOTES</p><h2>業務メモ</h2><p className="panel-copy">日報・申し送り・気づきをグループで整理できます。</p></div>
+      <div><p className="eyebrow">WORK NOTES</p><h2>業務メモ</h2><p className="panel-copy">日報・課題改善・気づきを整理できます。</p></div>
       <button className="primary-button" type="button" onClick={newNote}>新規メモ</button>
     </div>
     {error && <p className="form-error">{error}</p>}
@@ -108,9 +109,9 @@ export default function MemosPanel({ groupId }: Props) {
         {folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
       </select>
       {canManageFolders && <select className="memo-member-filter" value={selectedAuthorEmail || "self"} onChange={(event) => { const authorEmail = event.target.value; setSelectedAuthorEmail(authorEmail); void load({ authorEmail }); }} aria-label="確認するメンバー">
-        <option value="self">確認するメンバー：自分</option>
-        <option value="all">確認するメンバー：全員</option>
-        {members.map((member) => <option key={member.email} value={member.email}>{`確認するメンバー：${member.name}`}</option>)}
+        <option value="self">自分</option>
+        <option value="all">全員</option>
+        {members.map((member) => <option key={member.email} value={member.email}>{member.name}</option>)}
       </select>}
       <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="タイトル・本文を検索" />
       <input type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} aria-label="対象日で絞り込み" />
@@ -135,5 +136,5 @@ export default function MemosPanel({ groupId }: Props) {
 }
 
 function MemoForm({ draft, folders, setDraft }: { draft: { folderId: string; targetDate: string; title: string; body: string; visibility: string }; folders: Folder[]; setDraft: (value: { folderId: string; targetDate: string; title: string; body: string; visibility: string }) => void }) {
-  return <div className="memo-form"><label>フォルダ<select value={draft.folderId} onChange={(event) => setDraft({ ...draft, folderId: event.target.value })}>{folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label><label>対象日<input type="date" value={draft.targetDate} onChange={(event) => setDraft({ ...draft, targetDate: event.target.value })} /></label><label>タイトル<input value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label><label>公開範囲<select value={draft.visibility} onChange={(event) => setDraft({ ...draft, visibility: event.target.value })}><option value="group">グループ共有</option><option value="managers">管理者のみ</option><option value="private">自分のみ</option></select></label><label className="memo-body-label">本文<textarea rows={8} value={draft.body} onChange={(event) => setDraft({ ...draft, body: event.target.value })} /></label></div>;
+  return <div className="memo-form"><label>フォルダ<select value={draft.folderId} onChange={(event) => setDraft({ ...draft, folderId: event.target.value })}>{folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label><label>対象日<input type="date" value={draft.targetDate} onChange={(event) => setDraft({ ...draft, targetDate: event.target.value })} /></label><label>タイトル<input value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label><p className="memo-visibility-note">公開範囲：本人とグループ管理者</p><label className="memo-body-label">本文<textarea rows={8} value={draft.body} onChange={(event) => setDraft({ ...draft, body: event.target.value })} /></label></div>;
 }

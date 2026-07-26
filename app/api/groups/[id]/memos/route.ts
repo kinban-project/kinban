@@ -17,20 +17,18 @@ async function currentUser() {
   return user;
 }
 
-async function ensureDailyFolder(groupId: string, email: string) {
+async function ensureDefaultFolders(groupId: string, email: string) {
   const db = getDb();
-  const [existing] = await db.select().from(memoFolders)
-    .where(and(eq(memoFolders.groupId, groupId), eq(memoFolders.name, "日報"))).limit(1);
-  if (existing) return existing;
-  const folder = { id: crypto.randomUUID(), groupId, name: "日報", createdBy: email };
-  try {
-    await db.insert(memoFolders).values(folder);
-    return folder;
-  } catch {
-    const [created] = await db.select().from(memoFolders)
-      .where(and(eq(memoFolders.groupId, groupId), eq(memoFolders.name, "日報"))).limit(1);
-    return created ?? folder;
+  for (const name of ["日報", "課題・改善"]) {
+    const [existing] = await db.select().from(memoFolders)
+      .where(and(eq(memoFolders.groupId, groupId), eq(memoFolders.name, name))).limit(1);
+    if (!existing) {
+      try { await db.insert(memoFolders).values({ id: crypto.randomUUID(), groupId, name, createdBy: email }); } catch { /* another request created it */ }
+    }
   }
+  const folders = await db.select().from(memoFolders)
+    .where(eq(memoFolders.groupId, groupId)).orderBy(asc(memoFolders.createdAt));
+  return folders.find((folder) => folder.name === "日報") ?? folders[0];
 }
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -39,21 +37,20 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const { id: groupId } = await context.params;
   const membership = await requireGroupMembership(groupId, user.email);
   const db = getDb();
-  await ensureDailyFolder(groupId, user.email);
+  await ensureDefaultFolders(groupId, user.email);
   const params = new URL(request.url).searchParams;
   const folderId = params.get("folderId")?.trim() ?? "";
   const q = params.get("q")?.trim() ?? "";
   const targetDate = params.get("date")?.trim() ?? "";
   const requestedAuthorEmail = params.get("authorEmail")?.trim() ?? "";
   const isManager = membership.role === "owner" || membership.role === "editor";
-  const folders = await db.select().from(memoFolders).where(eq(memoFolders.groupId, groupId)).orderBy(asc(memoFolders.name));
+  const folders = await db.select().from(memoFolders).where(eq(memoFolders.groupId, groupId)).orderBy(asc(memoFolders.createdAt));
   const conditions = [eq(memos.groupId, groupId), isNull(memos.deletedAt)];
   if (folderId) conditions.push(eq(memos.folderId, folderId));
   if (targetDate) conditions.push(eq(memos.targetDate, targetDate));
   if (q) conditions.push(or(like(memos.title, `%${q}%`), like(memos.body, `%${q}%`))!);
   if (!isManager) {
     conditions.push(eq(memos.authorEmail, user.email));
-    conditions.push(or(eq(memos.visibility, "group"), eq(memos.authorEmail, user.email))!);
   } else if (requestedAuthorEmail && requestedAuthorEmail !== "all") {
     conditions.push(eq(memos.authorEmail, requestedAuthorEmail === "self" ? user.email : requestedAuthorEmail));
   }
@@ -90,13 +87,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   if (body.action !== "create") return Response.json({ error: "不正な操作です" }, { status: 400 });
   const folder = body.folderId
     ? (await db.select().from(memoFolders).where(and(eq(memoFolders.id, body.folderId), eq(memoFolders.groupId, groupId))).limit(1))[0]
-    : await ensureDailyFolder(groupId, user.email);
+    : await ensureDefaultFolders(groupId, user.email);
   if (!folder) return Response.json({ error: "フォルダが見つかりません" }, { status: 404 });
   const targetDate = body.targetDate?.trim() || todayKey();
   const title = body.title?.trim().slice(0, 120) || (folder.name === "日報" ? `${targetDate} 日報` : "");
   if (!title) return Response.json({ error: "タイトルを入力してください" }, { status: 400 });
-  const visibility = ["group", "managers", "private"].includes(body.visibility ?? "") ? body.visibility! : "group";
-  const note = { id: crypto.randomUUID(), groupId, folderId: folder.id, authorEmail: user.email, targetDate, title, body: body.body?.trim().slice(0, 10000) ?? "", visibility: visibility as "group" | "managers" | "private" };
+  const note = { id: crypto.randomUUID(), groupId, folderId: folder.id, authorEmail: user.email, targetDate, title, body: body.body?.trim().slice(0, 10000) ?? "", visibility: "managers" as const };
   await db.insert(memos).values(note);
   await recordAudit({ groupId, userEmail: user.email, action: "memo.create", entityType: "memo", entityId: note.id, summary: `業務メモを作成: ${title}` });
   return Response.json({ note }, { status: 201 });

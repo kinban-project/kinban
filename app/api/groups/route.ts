@@ -53,7 +53,10 @@ export async function POST(request: Request) {
     db.insert(groups).values({ id, name, description: body.description?.trim() ?? "", ownerEmail: user.email, visibility: "private", participationMode: "invite_only" }),
     db.insert(groupMembers).values({ id: crypto.randomUUID(), groupId: id, userEmail: user.email, role: "owner", showInPersonal: true }),
     db.insert(groupAssistants).values({ groupId: id }),
-    db.insert(memoFolders).values({ id: crypto.randomUUID(), groupId: id, name: "日報", createdBy: user.email }),
+    db.insert(memoFolders).values([
+      { id: crypto.randomUUID(), groupId: id, name: "日報", createdBy: user.email },
+      { id: crypto.randomUUID(), groupId: id, name: "課題・改善", createdBy: user.email },
+    ]),
   ]);
   await recordAudit({ groupId: id, userEmail: user.email, action: "group.create", entityType: "group", entityId: id, summary: `グループを作成: ${name}` });
   return Response.json({ group: { id, name, description: body.description?.trim() ?? "", ownerEmail: user.email, membership: { role: "owner", showInPersonal: true } } }, { status: 201 });
