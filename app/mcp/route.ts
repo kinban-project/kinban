@@ -29,6 +29,8 @@ import {
   groupMembers,
   groupPreferences,
   groups,
+  knowledgeFolders,
+  knowledgePages,
   shiftAssignments,
   shiftSwapCandidates,
   shiftSwapRequests,
@@ -77,6 +79,9 @@ const assistantTools = new Set([
   "get_group_members",
   "list_shift_plans",
   "get_shift_plan",
+  "list_knowledge_pages",
+  "search_knowledge_pages",
+  "get_knowledge_page",
   "check_shift_assignments",
   "get_shift_request_overview",
   "get_work_records",
@@ -114,6 +119,9 @@ const personalTools = new Set([
   "save_group_preferences",
   "list_shift_plans",
   "get_shift_plan",
+  "list_knowledge_pages",
+  "search_knowledge_pages",
+  "get_knowledge_page",
   "get_shift_requests",
   "save_shift_requests",
   "get_work_records",
@@ -474,6 +482,46 @@ const tools = [
       type: "object",
       required: ["planId"],
       properties: { planId: { type: "string" } },
+    },
+  },
+  {
+    name: "list_knowledge_pages",
+    description:
+      "List published business guide pages in the authenticated member's group. Draft and private pages are never returned.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId"],
+      properties: {
+        groupId: { type: "string" },
+        folderId: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "search_knowledge_pages",
+    description:
+      "Search published business guide pages by title or Markdown body within the authenticated member's group.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId", "query"],
+      properties: {
+        groupId: { type: "string" },
+        query: { type: "string" },
+        folderId: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "get_knowledge_page",
+    description:
+      "Get one published business guide page, including its Markdown body, image description, and update time.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId", "pageId"],
+      properties: {
+        groupId: { type: "string" },
+        pageId: { type: "string" },
+      },
     },
   },
   {
@@ -1893,6 +1941,94 @@ export async function POST(request: Request) {
         details: { source: "mcp", availabilityCount: entries.length },
       });
       return rpc(payload.id, { ok: true, availabilityCount: entries.length });
+    }
+    if (name === "list_knowledge_pages" || name === "search_knowledge_pages") {
+      const groupId = text(args.groupId);
+      const restricted = assistantGroupError(identity, groupId);
+      if (restricted) return rpcError(payload.id, restricted);
+      if (!(await membership(db, groupId, identity.email)))
+        return rpcError(payload.id, "Group membership required");
+      const folderId = text(args.folderId);
+      const query = text(args.query);
+      if (name === "search_knowledge_pages" && !query)
+        return rpcError(payload.id, "query is required");
+      const filters = [
+        eq(knowledgePages.groupId, groupId),
+        eq(knowledgePages.status, "published"),
+        ...(folderId ? [eq(knowledgePages.folderId, folderId)] : []),
+        ...(query
+          ? [
+              or(
+                like(knowledgePages.title, `%${query}%`),
+                like(knowledgePages.body, `%${query}%`),
+              ),
+            ]
+          : []),
+      ];
+      const [pages, folders] = await Promise.all([
+        db
+          .select()
+          .from(knowledgePages)
+          .where(and(...filters))
+          .orderBy(desc(knowledgePages.updatedAt)),
+        db
+          .select({ id: knowledgeFolders.id, name: knowledgeFolders.name })
+          .from(knowledgeFolders)
+          .where(eq(knowledgeFolders.groupId, groupId)),
+      ]);
+      const folderNames = new Map(folders.map((folder) => [folder.id, folder.name]));
+      return rpc(
+        payload.id,
+        pages.map((page) => ({
+          id: page.id,
+          groupId: page.groupId,
+          folderId: page.folderId,
+          folderName: folderNames.get(page.folderId) ?? "",
+          title: page.title,
+          status: page.status,
+          imageUrl: page.imageUrl,
+          imageAlt: page.imageAlt,
+          updatedAt: page.updatedAt,
+        })),
+      );
+    }
+    if (name === "get_knowledge_page") {
+      const groupId = text(args.groupId);
+      const pageId = text(args.pageId);
+      const restricted = assistantGroupError(identity, groupId);
+      if (restricted) return rpcError(payload.id, restricted);
+      if (!pageId) return rpcError(payload.id, "pageId is required");
+      if (!(await membership(db, groupId, identity.email)))
+        return rpcError(payload.id, "Group membership required");
+      const [page] = await db
+        .select()
+        .from(knowledgePages)
+        .where(
+          and(
+            eq(knowledgePages.id, pageId),
+            eq(knowledgePages.groupId, groupId),
+            eq(knowledgePages.status, "published"),
+          ),
+        )
+        .limit(1);
+      if (!page) return rpcError(payload.id, "Published business guide page not found");
+      const [folder] = await db
+        .select({ id: knowledgeFolders.id, name: knowledgeFolders.name })
+        .from(knowledgeFolders)
+        .where(eq(knowledgeFolders.id, page.folderId))
+        .limit(1);
+      return rpc(payload.id, {
+        id: page.id,
+        groupId: page.groupId,
+        folderId: page.folderId,
+        folderName: folder?.name ?? "",
+        title: page.title,
+        body: page.body,
+        status: page.status,
+        imageUrl: page.imageUrl,
+        imageAlt: page.imageAlt,
+        updatedAt: page.updatedAt,
+      });
     }
     if (name === "list_shift_plans") {
       const groupId = text(args.groupId);
