@@ -24,6 +24,16 @@ CREATE TABLE IF NOT EXISTS knowledge_pages (
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS knowledge_page_group_folder_idx ON knowledge_pages(group_id, folder_id, updated_at);
+CREATE TABLE IF NOT EXISTS knowledge_assets (
+  id TEXT PRIMARY KEY NOT NULL,
+  group_id TEXT NOT NULL,
+  object_key TEXT NOT NULL UNIQUE,
+  file_name TEXT NOT NULL,
+  content_type TEXT NOT NULL,
+  size INTEGER NOT NULL,
+  created_by TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
 DELETE FROM work_breaks;
 DELETE FROM push_deliveries;
@@ -63,6 +73,7 @@ DELETE FROM site_invitations;
 DELETE FROM site_users;
 DELETE FROM knowledge_pages;
 DELETE FROM knowledge_folders;
+DELETE FROM knowledge_assets;
 
 INSERT INTO demo_clocks (scope, current_at) VALUES
   ('public-demo', '2026-07-21T09:00:00+09:00');

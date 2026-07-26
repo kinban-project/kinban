@@ -245,6 +245,17 @@ export const knowledgePages = sqliteTable("knowledge_pages", {
   index("knowledge_page_group_folder_idx").on(table.groupId, table.folderId, table.updatedAt),
 ]);
 
+export const knowledgeAssets = sqliteTable("knowledge_assets", {
+  id: text("id").primaryKey(),
+  groupId: text("group_id").notNull(),
+  objectKey: text("object_key").notNull().unique(),
+  fileName: text("file_name").notNull(),
+  contentType: text("content_type").notNull(),
+  size: integer("size").notNull(),
+  createdBy: text("created_by").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const siteUsers = sqliteTable("site_users", {
   id: text("id").primaryKey(),
   userEmail: text("user_email").notNull().unique(),
