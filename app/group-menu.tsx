@@ -227,6 +227,7 @@ export default function GroupMenu({
                       onClick={() => onAnnouncementManage(group.groupId)}
                     >
                       お知らせ・連絡管理
+                      {managerAssistantUnread && <span className="assistant-unread-dot" title="KINBAN未処理があります" aria-label="KINBAN未処理があります" />}
                     </button>
                     <button
                       className="group-menu-button admin"
@@ -271,6 +272,7 @@ export default function GroupMenu({
                         </button>
                         <button className={managerAssistantUnread ? "has-unread" : ""} onClick={() => onAnnouncementManage(group.groupId)}>
                           お知らせ・連絡管理
+                          {managerAssistantUnread && <span className="assistant-unread-dot" title="KINBAN未処理があります" aria-label="KINBAN未処理があります" />}
                         </button>
                         <button onClick={() => onDashboard(group.groupId)}>
                           ダッシュボード
