@@ -209,6 +209,7 @@ export async function PATCH(
     announcementBody?: string;
     managerNote?: string;
     status?: "active" | "inactive";
+    displayName?: string;
     permissions?: {
       canCreateShifts?: boolean;
       canPublishShifts?: boolean;
@@ -492,14 +493,16 @@ export async function PATCH(
   }
 
   const statusChanged = body.status === "active" || body.status === "inactive";
+  const displayNameChanged = typeof body.displayName === "string";
   const permissions =
     body.permissions && typeof body.permissions === "object"
       ? body.permissions
       : null;
-  if (!statusChanged && !permissions)
+  if (!statusChanged && !displayNameChanged && !permissions)
     return Response.json({ error: "変更内容がありません" }, { status: 400 });
   const values = {
     ...(statusChanged ? { status: body.status } : {}),
+    ...(displayNameChanged ? { displayName: body.displayName?.trim().slice(0, 80) || "KINBANアシスタント" } : {}),
     ...(permissions && typeof permissions.canCreateShifts === "boolean"
       ? { canCreateShifts: permissions.canCreateShifts }
       : {}),
@@ -524,13 +527,13 @@ export async function PATCH(
   await recordAudit({
     groupId: id,
     userEmail: user.email,
-    action: statusChanged ? "assistant.status" : "assistant.permissions",
+    action: statusChanged ? "assistant.status" : displayNameChanged ? "assistant.display_name" : "assistant.permissions",
     entityType: "groupAssistant",
     entityId: id,
     summary: statusChanged
       ? `KINBANアシスタントを${body.status === "active" ? "再開" : "停止"}しました`
       : "KINBANアシスタントの実行権限を変更しました",
-    details: permissions ?? {},
+    details: { ...(permissions ?? {}), ...(displayNameChanged ? { displayName: body.displayName?.trim().slice(0, 80) || "KINBANアシスタント" } : {}) },
   });
   return Response.json({ ok: true, assistant });
 }
