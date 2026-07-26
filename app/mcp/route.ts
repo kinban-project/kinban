@@ -145,12 +145,15 @@ function assistantGroupError(
   identity: Awaited<ReturnType<typeof requireApiIdentity>>,
   groupId: string,
 ) {
-  if (identity instanceof Response || identity.tokenType !== "assistant")
+  if (identity instanceof Response) return null;
+  if (identity.tokenType !== "assistant" && identity.tokenType !== "personal")
     return null;
   if (!groupId)
     return "groupId is required. Use the exact groupId returned by list_groups.";
+  if (identity.tokenType === "personal" && !identity.groupId)
+    return "This personal AI key is not bound to a group. Issue a new key from group settings.";
   if (identity.groupId !== groupId)
-    return `Assistant key is restricted to groupId "${identity.groupId}"; received "${groupId}".`;
+    return `${identity.tokenType === "personal" ? "Personal" : "Assistant"} key is restricted to groupId "${identity.groupId}"; received "${groupId}".`;
   return null;
 }
 
@@ -1371,9 +1374,12 @@ export async function POST(request: Request) {
         : completeManagedExecution(result);
     }
     if (name === "clock_work") {
+      const groupId = text(args.groupId);
+      const restricted = assistantGroupError(identity, groupId);
+      if (restricted) return rpcError(payload.id, restricted);
       const result = await mcpClock(
         db,
-        text(args.groupId),
+        groupId,
         identity.email,
         text(args.action),
         text(args.recordId) || undefined,
@@ -1384,6 +1390,8 @@ export async function POST(request: Request) {
     }
     if (name === "submit_work_record") {
       const groupId = text(args.groupId);
+      const restricted = assistantGroupError(identity, groupId);
+      if (restricted) return rpcError(payload.id, restricted);
       const status = text(args.status);
       if (identity.tokenType === "personal" && status !== "submitted")
         return rpcError(
@@ -1408,9 +1416,12 @@ export async function POST(request: Request) {
         : completeManagedExecution(result);
     }
     if (name === "submit_monthly_work") {
+      const groupId = text(args.groupId);
+      const restricted = assistantGroupError(identity, groupId);
+      if (restricted) return rpcError(payload.id, restricted);
       const result = await mcpSubmitMonthly(
         db,
-        text(args.groupId),
+        groupId,
         identity.email,
         text(args.month),
       );
@@ -1505,6 +1516,8 @@ export async function POST(request: Request) {
       return rpc(payload.id, { ...row, ...next });
     }
     if (name === "list_groups") {
+      if (identity.tokenType === "personal" && !identity.groupId)
+        return rpcError(payload.id, "This personal AI key is not bound to a group. Issue a new key from group settings.");
       const ms = await db
         .select()
         .from(groupMembers)
@@ -1515,7 +1528,7 @@ export async function POST(request: Request) {
           ),
         );
       const visible =
-        identity.tokenType === "assistant" && identity.groupId
+        (identity.tokenType === "assistant" || identity.tokenType === "personal") && identity.groupId
           ? ms.filter((m) => m.groupId === identity.groupId)
           : ms;
       const gs = visible.length
@@ -1763,6 +1776,8 @@ export async function POST(request: Request) {
     }
     if (name === "get_group_preferences") {
       const groupId = text(args.groupId);
+      const restricted = assistantGroupError(identity, groupId);
+      if (restricted) return rpcError(payload.id, restricted);
       if (!(await membership(db, groupId, identity.email)))
         return rpcError(payload.id, "Group membership required");
       const [preferences] = await db
@@ -1792,6 +1807,8 @@ export async function POST(request: Request) {
     if (name === "save_group_preferences") {
       if (args.confirm !== true) return rpcError(payload.id, mutating);
       const groupId = text(args.groupId);
+      const restricted = assistantGroupError(identity, groupId);
+      if (restricted) return rpcError(payload.id, restricted);
       if (!(await membership(db, groupId, identity.email)))
         return rpcError(payload.id, "Group membership required");
       const entries = Array.isArray(args.availability)
@@ -2511,6 +2528,8 @@ export async function POST(request: Request) {
     }
     if (name === "get_shift_requests") {
       const groupId = text(args.groupId);
+      const restricted = assistantGroupError(identity, groupId);
+      if (restricted) return rpcError(payload.id, restricted);
       if (!(await membership(db, groupId, identity.email)))
         return rpcError(payload.id, "Group membership required");
       const periods = await db
@@ -2656,6 +2675,8 @@ export async function POST(request: Request) {
     if (name === "save_shift_requests") {
       if (args.confirm !== true) return rpcError(payload.id, mutating);
       const groupId = text(args.groupId);
+      const restricted = assistantGroupError(identity, groupId);
+      if (restricted) return rpcError(payload.id, restricted);
       if (!(await membership(db, groupId, identity.email)))
         return rpcError(payload.id, "Group membership required");
       const [period] = await db
@@ -3715,6 +3736,8 @@ export async function POST(request: Request) {
         !(await membership(db, announcement.groupId, identity.email))
       )
         return rpcError(payload.id, "Announcement not found");
+      const restricted = assistantGroupError(identity, announcement.groupId);
+      if (restricted) return rpcError(payload.id, restricted);
       const [read] = await db
         .select()
         .from(announcementReads)
@@ -3857,6 +3880,8 @@ export async function POST(request: Request) {
       const encodingIssue = textEncodingIssue(body, "manager message body");
       if (encodingIssue) return rpcError(payload.id, encodingIssue);
       if (!groupId || !body) return rpcError(payload.id, "groupId and body are required");
+      const restricted = assistantGroupError(identity, groupId);
+      if (restricted) return rpcError(payload.id, restricted);
       const member = await membership(db, groupId, identity.email);
       if (!member || member.status !== "active") return rpcError(payload.id, "Active group membership is required");
       const row = {
@@ -3910,6 +3935,8 @@ export async function POST(request: Request) {
         !(await membership(db, announcement.groupId, identity.email))
       )
         return rpcError(payload.id, "Announcement not found");
+      const restricted = assistantGroupError(identity, announcement.groupId);
+      if (restricted) return rpcError(payload.id, restricted);
       const row = {
         id: crypto.randomUUID(),
         announcementId: id,
