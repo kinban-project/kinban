@@ -1,5 +1,7 @@
+import { isDemoModeClient } from "./client-demo-mode";
+
 export function localApiFetch(input: RequestInfo | URL, init: RequestInit = {}) {
-  if (process.env.NEXT_PUBLIC_DEMO_MODE !== "true") return fetch(input, init);
+  if (!isDemoModeClient()) return fetch(input, init);
   const headers = new Headers(init.headers);
   const params = new URLSearchParams(typeof window === "undefined" ? "" : window.location.search);
   const userId = params.get("user") || (typeof window !== "undefined" && window.localStorage.getItem("kinban-demo-user")) || process.env.NEXT_PUBLIC_DEMO_DEFAULT_USER_ID || "tanaka";

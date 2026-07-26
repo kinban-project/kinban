@@ -19,6 +19,7 @@ import SiteAdminPanel from "./site-admin-panel";
 import MemosPanel from "./memos-panel";
 import KnowledgePanel from "./knowledge-panel";
 import { localApiFetch } from "./local-api";
+import { isDemoModeClient } from "./client-demo-mode";
 import { displayShiftTime } from "./shift-time";
 
 type EventItem = {
@@ -59,7 +60,10 @@ function ModalClose({ onClose }: { onClose: () => void }) {
   return <button type="button" className="modal-global-close" onClick={onClose} aria-label="閉じる">×</button>;
 }
 
-const today = new Date();
+// Keep the server and first browser render identical. The real clock is loaded
+// after mount (and the demo clock is loaded from the API), avoiding hydration
+// errors when the hosting runtime clock differs from the browser clock.
+const today = new Date("2000-01-01T00:00:00.000Z");
 const todayKey = keyForDate(today);
 const monthNames = [
   "1月",
@@ -151,14 +155,12 @@ export default function Home() {
   );
   const [selectedDate, setSelectedDate] = useState(todayKey);
   const [events, setEvents] = useState<EventItem[]>(
-    process.env.NEXT_PUBLIC_DEMO_MODE === "true" ? [] : demoEvents,
+    [],
   );
   const [groups, setGroups] = useState<GroupMembership[]>([]);
   const [siteAccess, setSiteAccess] = useState<SiteAccess>({ isSiteAdmin: false, canCreateGroups: false });
   const [userEmail, setUserEmail] = useState<string | null>(
-    process.env.NEXT_PUBLIC_DEMO_MODE === "true"
-      ? `${process.env.NEXT_PUBLIC_DEMO_DEFAULT_USER_ID || "tanaka"}@local.test`
-      : null,
+    null,
   );
   const [accountNickname, setAccountNickname] = useState("");
   const [editorOpen, setEditorOpen] = useState(false);
@@ -191,6 +193,7 @@ export default function Home() {
   const [form, setForm] = useState<FormState>(emptyForm(todayKey));
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [hydrated, setHydrated] = useState(false);
   const notificationTargetRef = useRef<string | null>(null);
   const days = useMemo(
     () => daysForMonth(cursor.getFullYear(), cursor.getMonth()),
@@ -204,6 +207,12 @@ export default function Home() {
   );
 
   useEffect(() => {
+    setHydrated(true);
+    const browserToday = new Date();
+    setTodayDate(browserToday);
+    setTodayKeyState(keyForDate(browserToday));
+    setSelectedDate(keyForDate(browserToday));
+    setCursor(new Date(browserToday.getFullYear(), browserToday.getMonth(), 1));
     void loadCalendar();
   }, []);
 
@@ -250,7 +259,7 @@ export default function Home() {
     setEvents(data.events);
     setSiteAccess(data.siteAccess ?? { isSiteAdmin: false, canCreateGroups: false });
     const memberships = data.groups ?? [];
-    if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
+    if (isDemoModeClient()) {
       const clockResponse = await fetch("/api/demo-clock", { cache: "no-store" });
       if (clockResponse.ok) {
         const clock = (await clockResponse.json()) as { currentAt?: string };
@@ -427,7 +436,7 @@ export default function Home() {
           <span className="brand-pill">シフト、勤怠管理をひとつに。</span>
         </button>
         <div className="top-actions">
-          {process.env.NEXT_PUBLIC_DEMO_MODE === "true" && (
+          {hydrated && isDemoModeClient() && (
             <a className="ghost-button demo-entry-button" href="/demo">
               体験版（ユーザー切替）
             </a>
@@ -728,7 +737,7 @@ export default function Home() {
             </label>
             <div className="modal-footer">
               <span>
-                {process.env.NEXT_PUBLIC_DEMO_MODE === "true"
+                {isDemoModeClient()
                   ? "ローカル開発モード：認証なし"
                   : "ログイン中のアカウントに保存されます"}
               </span>

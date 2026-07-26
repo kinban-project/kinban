@@ -23,7 +23,7 @@ const CALLBACK_PATH = "/callback";
 export async function getChatGPTIdentity(): Promise<ChatGPTUser | null> {
   const requestHeaders = await headers();
   if (isDemoModeServer()) {
-    const localId = requestHeaders.get("x-demo-user-id") || process.env.DEMO_DEFAULT_USER_ID || (env as { DEMO_DEFAULT_USER_ID?: string }).DEMO_DEFAULT_USER_ID || "demo-user";
+    const localId = requestHeaders.get("x-demo-user-id") || process.env.DEMO_DEFAULT_USER_ID || (env as { DEMO_DEFAULT_USER_ID?: string }).DEMO_DEFAULT_USER_ID || "tanaka";
     const email = localId.includes("@") ? localId : `${localId}@local.test`;
     return { displayName: localId, email, fullName: localId };
   }

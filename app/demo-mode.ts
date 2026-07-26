@@ -10,5 +10,7 @@ export function isDemoModeServer(): boolean {
 
 /** Client-side demo mode flag, embedded at build time. */
 export function isDemoModeClient(): boolean {
-  return process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") return true;
+  if (typeof window === "undefined") return false;
+  return window.location.hostname === "kinban-demo.chita256.chatgpt.site";
 }
