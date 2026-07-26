@@ -13,6 +13,7 @@ import {
 } from "../../../../../db/schema";
 import { recordAudit } from "../../../../audit-log";
 import { getMembership } from "../../group-access";
+import { getDemoNow } from "../../../../demo-clock";
 import {
   activeGroupEmails,
   sendBusinessPush,
@@ -94,7 +95,7 @@ export async function GET(
     )
     .orderBy(asc(assistantMessages.createdAt));
   const readerConversation = isManager(membership.role) ? "*" : user.email;
-  const now = new Date().toISOString();
+  const now = (await getDemoNow(id)).toISOString();
   await db.insert(assistantReadStates).values({ id: crypto.randomUUID(), groupId: id, readerEmail: user.email, memberEmail: readerConversation, lastReadAt: now }).onConflictDoUpdate({ target: [assistantReadStates.groupId, assistantReadStates.readerEmail, assistantReadStates.memberEmail], set: { lastReadAt: now } });
   const members = isManager(membership.role)
     ? await db
@@ -169,6 +170,7 @@ export async function POST(
       { status: 409 },
     );
   const messageId = crypto.randomUUID();
+  const createdAt = (await getDemoNow(id)).toISOString();
   await db.insert(assistantMessages).values({
     id: messageId,
     groupId: id,
@@ -179,6 +181,7 @@ export async function POST(
     senderEmail: user.email,
     body: text,
     status: manager ? "processed" : "pending",
+    createdAt,
   });
   await recordAudit({
     groupId: id,
@@ -245,7 +248,7 @@ export async function PATCH(
         { error: "お知らせ案が見つかりません" },
         { status: 404 },
       );
-    const now = new Date().toISOString();
+    const now = (await getDemoNow(id)).toISOString();
 
     if (body.action === "updateAnnouncementDraft") {
       if (draft.status === "published")

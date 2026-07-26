@@ -4,6 +4,7 @@ import { getDb } from "../../../db";
 import { accountProfiles, assistantMessages, assistantReadStates, events, groupAssistants, groupJoinRequests, groupMembers, groups as groupTable, shiftAssignments, shiftSlots, siteUsers } from "../../../db/schema";
 import { getMembership } from "../groups/group-access";
 import { toPublicMember } from "../groups/member-dto";
+import { getDemoNow } from "../../demo-clock";
 
 export const dynamic = "force-dynamic";
 
@@ -34,9 +35,9 @@ export async function GET() {
   const pendingMemberRequests = memberships.length ? await db.select().from(groupJoinRequests).where(inArray(groupJoinRequests.groupId, memberships.map((item) => item.groupId))) : [];
   const assistantRows = memberships.length ? await db.select().from(groupAssistants).where(inArray(groupAssistants.groupId, memberships.map((item) => item.groupId))) : [];
   const assistantMessagesRows = memberships.length ? await db.select().from(assistantMessages).where(inArray(assistantMessages.groupId, memberships.map((item) => item.groupId))) : [];
-  const managerAttentionCutoff = Date.now() - 10 * 60 * 1000;
   const managerAttentionStatuses = new Set(["pending", "processing", "needs_review", "failed"]);
   const assistantReadRows = memberships.length ? await db.select().from(assistantReadStates).where(and(eq(assistantReadStates.readerEmail, user.email), inArray(assistantReadStates.groupId, memberships.map((item) => item.groupId)))) : [];
+  const demoNowByGroup = new Map(await Promise.all(memberships.map(async (membership) => [membership.groupId, await getDemoNow(membership.groupId)] as const)));
   const visibleGroupIds = memberships.filter((item) => item.showInPersonal).map((item) => item.groupId);
   const personalDisplayName = memberships.find((item) => item.userEmail === user.email)?.displayName?.trim() || profile?.nickname?.trim() || user.email.split("@")[0];
   const personalRows = await db.select().from(events).where(eq(events.ownerEmail, user.email));
@@ -91,17 +92,13 @@ export async function GET() {
     siteAccess: { isSiteAdmin: Boolean(siteUser?.isSiteAdmin), canCreateGroups: Boolean(siteUser?.isSiteAdmin || siteUser?.canCreateGroups) },
     groups: memberships.map((membership) => {
       const manager = membership.role === "owner" || membership.role === "editor";
-      const readState = assistantReadRows.find((row) => row.groupId === membership.groupId && row.memberEmail === (manager ? "*" : user.email));
-      const lastReadAt = readState?.lastReadAt ?? "";
-      const lastReadTimestamp = lastReadAt ? timestamp(lastReadAt) : 0;
-      const unreadAssistant = assistantMessagesRows.some((message) => {
-        if (message.groupId !== membership.groupId) return false;
-        if (!manager && timestamp(message.createdAt) <= lastReadTimestamp) return false;
-        return manager
-          ? message.senderType === "member" && message.memberEmail !== user.email && managerAttentionStatuses.has(message.status) && timestamp(message.createdAt) <= managerAttentionCutoff
-          : message.memberEmail === user.email && (message.senderType === "assistant" || message.senderType === "system" || message.senderType === "manager");
-      });
-      return { ...toPublicMember(membership, false), name: groupTableRows.find((group) => group.id === membership.groupId)?.name ?? membership.groupId, assistantDisplayName: assistantRows.find((assistant) => assistant.groupId === membership.groupId)?.displayName?.trim() || "KINBANアシスタント", unreadAssistant, pendingMemberRequests: groupTableRows.find((group) => group.id === membership.groupId)?.ownerEmail === user.email ? pendingMemberRequests.filter((request) => request.groupId === membership.groupId && request.status === "pending").length : 0 };
+      const memberReadState = assistantReadRows.find((row) => row.groupId === membership.groupId && row.memberEmail === user.email);
+      const lastMemberReadTimestamp = memberReadState?.lastReadAt ? timestamp(memberReadState.lastReadAt) : 0;
+      const demoNow = demoNowByGroup.get(membership.groupId) ?? new Date();
+      const managerAttentionCutoff = demoNow.getTime() - 10 * 60 * 1000;
+      const memberAssistantUnread = assistantMessagesRows.some((message) => message.groupId === membership.groupId && message.memberEmail === user.email && timestamp(message.createdAt) > lastMemberReadTimestamp && (message.senderType === "assistant" || message.senderType === "system" || message.senderType === "manager"));
+      const managerAssistantUnread = manager && assistantMessagesRows.some((message) => message.groupId === membership.groupId && message.senderType === "member" && message.memberEmail !== user.email && managerAttentionStatuses.has(message.status) && timestamp(message.createdAt) <= managerAttentionCutoff);
+      return { ...toPublicMember(membership, false), name: groupTableRows.find((group) => group.id === membership.groupId)?.name ?? membership.groupId, assistantDisplayName: assistantRows.find((assistant) => assistant.groupId === membership.groupId)?.displayName?.trim() || "KINBANアシスタント", unreadAssistant: memberAssistantUnread, managerAssistantUnread, pendingMemberRequests: groupTableRows.find((group) => group.id === membership.groupId)?.ownerEmail === user.email ? pendingMemberRequests.filter((request) => request.groupId === membership.groupId && request.status === "pending").length : 0 };
     }),
     events: rows.map((event) => {
       const membership = event.groupId ? memberships.find((item) => item.groupId === event.groupId) : null;

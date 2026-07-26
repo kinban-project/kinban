@@ -9,6 +9,7 @@ type Group = {
   assistantDisplayName?: string;
   unreadAnnouncements?: number;
   unreadAssistant?: boolean;
+  managerAssistantUnread?: boolean;
   pendingMemberRequests?: number;
   nextRequestCloseDate?: string | null;
 };
@@ -144,6 +145,7 @@ export default function GroupMenu({
         const manager = group.role === "owner" || group.role === "editor";
         const unread = group.unreadAnnouncements ?? 0;
         const assistantUnread = Boolean(group.unreadAssistant);
+        const managerAssistantUnread = Boolean(group.managerAssistantUnread);
         const pendingMembers = group.pendingMemberRequests ?? 0;
         return (
           <div className="group-menu-row" key={group.groupId}>
@@ -220,7 +222,7 @@ export default function GroupMenu({
                       {pendingMembers > 0 && <span className="unread-badge">{pendingMembers}</span>}
                     </button>
                     <button
-                      className="group-menu-button admin"
+                      className={`group-menu-button admin${managerAssistantUnread ? " has-unread" : ""}`}
                       type="button"
                       onClick={() => onAnnouncementManage(group.groupId)}
                     >
@@ -267,7 +269,7 @@ export default function GroupMenu({
                           メンバー管理
                           {pendingMembers > 0 && <span className="unread-badge">{pendingMembers}</span>}
                         </button>
-                        <button onClick={() => onAnnouncementManage(group.groupId)}>
+                        <button className={managerAssistantUnread ? "has-unread" : ""} onClick={() => onAnnouncementManage(group.groupId)}>
                           お知らせ・連絡管理
                         </button>
                         <button onClick={() => onDashboard(group.groupId)}>

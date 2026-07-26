@@ -13,6 +13,7 @@ import {
   or,
 } from "drizzle-orm";
 import { getDb } from "../../db";
+import { getDemoNow } from "../demo-clock";
 import {
   accountProfiles,
   assistantAnnouncementDrafts,
@@ -2964,6 +2965,7 @@ export async function POST(request: Request) {
       if (!self || self.status !== "active" || !editorRoles.has(self.role))
         return rpcError(payload.id, "Active editor membership required");
       const now = new Date().toISOString();
+      const messageCreatedAt = (await getDemoNow(groupId)).toISOString();
       const base = and(
         eq(assistantMessages.groupId, groupId),
         inArray(assistantMessages.senderType, ["member", "manager"]),
@@ -3446,8 +3448,8 @@ export async function POST(request: Request) {
         ...remaining.map((email) => db.insert(shiftAssignments).values({ id: crypto.randomUUID(), slotId: slot.id, userEmail: email })),
         db.update(events).set({ notes: `Assigned: ${remaining.map((email) => email === replacementEmail ? replacementName : email === swapRequest.requesterEmail ? requesterName : email).join(", ")}` }).where(and(eq(events.shiftPlanId, found.plan.id), eq(events.date, eventDate.date), eq(events.startTime, eventDate.time), eq(events.endDate, eventEnd.date), eq(events.endTime, eventEnd.time))),
         db.update(shiftSwapRequests).set({ status: "confirmed", replacementEmail, managerNote: text(args.managerNote).slice(0, 500), reviewedBy: identity.email, confirmedAt: now, version: swapRequest.version + 1, updatedAt: now }).where(and(eq(shiftSwapRequests.id, requestId), inArray(shiftSwapRequests.status, ["open", "candidate_review"]))),
-        db.insert(assistantMessages).values({ id: crypto.randomUUID(), groupId, memberEmail: swapRequest.requesterEmail, senderType: "assistant", senderEmail: identity.email, body: "Your shift replacement has been confirmed. Please review the updated shift.", status: "processed", eventType: "shift_swap_confirmed", eventId: `shift-swap:${requestId}:requester` }).onConflictDoNothing(),
-        db.insert(assistantMessages).values({ id: crypto.randomUUID(), groupId, memberEmail: replacementEmail, senderType: "assistant", senderEmail: identity.email, body: "You have been assigned to the replacement shift. Please review the updated shift.", status: "processed", eventType: "shift_swap_confirmed", eventId: `shift-swap:${requestId}:replacement` }).onConflictDoNothing(),
+        db.insert(assistantMessages).values({ id: crypto.randomUUID(), groupId, memberEmail: swapRequest.requesterEmail, senderType: "assistant", senderEmail: identity.email, body: "Your shift replacement has been confirmed. Please review the updated shift.", status: "processed", eventType: "shift_swap_confirmed", eventId: `shift-swap:${requestId}:requester`, createdAt: messageCreatedAt }).onConflictDoNothing(),
+        db.insert(assistantMessages).values({ id: crypto.randomUUID(), groupId, memberEmail: replacementEmail, senderType: "assistant", senderEmail: identity.email, body: "You have been assigned to the replacement shift. Please review the updated shift.", status: "processed", eventType: "shift_swap_confirmed", eventId: `shift-swap:${requestId}:replacement`, createdAt: messageCreatedAt }).onConflictDoNothing(),
       ]);
       await Promise.all([
         sendBusinessPush(db, { recipients: [swapRequest.requesterEmail], eventId: `shift-swap:${requestId}:requester`, title: "KINBAN", body: "Your shift replacement has been confirmed.", url: `/?group=${encodeURIComponent(groupId)}&view=shifts`, urgency: "high" }),
@@ -3563,6 +3565,7 @@ export async function POST(request: Request) {
           payload.id,
           "The message claim is no longer current. Claim the message again before replying.",
         );
+      const createdAt = (await getDemoNow(groupId)).toISOString();
       await db.insert(assistantMessages).values({
         id: replyId,
         groupId,
@@ -3571,6 +3574,7 @@ export async function POST(request: Request) {
         senderEmail: identity.email,
         body: replyBody,
         status: "processed",
+        createdAt,
       });
       await recordAudit({
         groupId,
@@ -3844,6 +3848,7 @@ export async function POST(request: Request) {
       const recipient = await membership(db, groupId, recipientEmail);
       if (!recipient || recipient.status !== "active")
         return rpcError(payload.id, "Recipient must be an active member of this group");
+      const createdAt = (await getDemoNow(groupId)).toISOString();
       const message = {
         id: crypto.randomUUID(),
         groupId,
@@ -3852,6 +3857,7 @@ export async function POST(request: Request) {
         senderEmail: identity.email,
         body,
         status: "processed" as const,
+        createdAt,
       };
       await db.insert(assistantMessages).values(message);
       await recordAudit({
@@ -3888,6 +3894,7 @@ export async function POST(request: Request) {
       if (restricted) return rpcError(payload.id, restricted);
       const member = await membership(db, groupId, identity.email);
       if (!member || member.status !== "active") return rpcError(payload.id, "Active group membership is required");
+      const createdAt = (await getDemoNow(groupId)).toISOString();
       const row = {
         id: crypto.randomUUID(),
         groupId,
@@ -3896,6 +3903,7 @@ export async function POST(request: Request) {
         senderEmail: identity.email,
         body,
         status: "pending" as const,
+        createdAt,
       };
       await db.insert(assistantMessages).values(row);
       await recordAudit({

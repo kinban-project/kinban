@@ -50,6 +50,7 @@ type GroupMembership = {
   assistantDisplayName?: string;
   unreadAnnouncements?: number;
   unreadAssistant?: boolean;
+  managerAssistantUnread?: boolean;
 };
 type SiteAccess = { isSiteAdmin: boolean; canCreateGroups: boolean };
 
@@ -973,8 +974,8 @@ export default function Home() {
               groupId={menuGroupId}
               initialTab={announcementsTab}
               assistantName={groups.find((group) => group.groupId === menuGroupId)?.assistantDisplayName}
-              assistantUnread={groups.find((group) => group.groupId === menuGroupId)?.unreadAssistant ?? false}
-              onAssistantRead={() => setGroups((current) => current.map((group) => group.groupId === menuGroupId ? { ...group, unreadAssistant: false } : group))}
+              assistantUnread={announcementsManager ? groups.find((group) => group.groupId === menuGroupId)?.managerAssistantUnread ?? false : groups.find((group) => group.groupId === menuGroupId)?.unreadAssistant ?? false}
+              onAssistantRead={() => { if (!announcementsManager) setGroups((current) => current.map((group) => group.groupId === menuGroupId ? { ...group, unreadAssistant: false } : group)); }}
               manager={announcementsManager}
             />
           </div>

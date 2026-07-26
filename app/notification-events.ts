@@ -1,6 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { assistantMessages, groupMembers } from "../db/schema";
 import { sendWebPushToUsers } from "./push";
+import { getDemoNow } from "./demo-clock";
 
 type Database = ReturnType<typeof import("../db").getDb>;
 type Urgency = "very-low" | "low" | "normal" | "high";
@@ -29,10 +30,11 @@ export async function sendBusinessPush(db: Database, input: { recipients: string
 export async function createSystemMessagesAndPush(db: Database, input: { groupId: string; recipients: string[]; eventId: string; eventType: string; body: string; pushTitle: string; pushBody: string; url: string }) {
   const recipients = [...new Set(input.recipients)];
   if (!recipients.length) return;
+  const createdAt = (await getDemoNow(input.groupId)).toISOString();
   for (const memberEmail of recipients) {
     await db.insert(assistantMessages).values({
       id: crypto.randomUUID(), groupId: input.groupId, memberEmail, senderType: "system", body: input.body,
-      status: "processed", eventType: input.eventType, eventId: input.eventId,
+      status: "processed", eventType: input.eventType, eventId: input.eventId, createdAt,
     }).onConflictDoNothing();
   }
   await sendBusinessPush(db, { recipients, eventId: input.eventId, title: input.pushTitle, body: input.pushBody, url: input.url, urgency: "high" });
