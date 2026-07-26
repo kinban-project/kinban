@@ -153,9 +153,6 @@ const personalTools = new Set([
   "create_my_memo",
   "update_my_memo",
   "delete_my_memo",
-  "list_my_group_invitations",
-  "accept_group_invitation",
-  "request_group_join",
 ]);
 const chunk = <T>(items: T[], size: number) => {
   const chunks: T[][] = [];
@@ -413,27 +410,12 @@ const tools = [
   {
     name: "update_my_memo",
     description: "Update the authenticated member's own work memo. Requires confirm:true.",
-    inputSchema: { type: "object", required: ["groupId", "memoId", "confirm"], properties: { groupId: { type: "string" }, memoId: { type: "string" }, targetDate: { type: "string" }, title: { type: "string" }, body: { type: "string" }, confirm: { type: "boolean" } } },
+    inputSchema: { type: "object", required: ["groupId", "memoId", "confirm"], properties: { groupId: { type: "string" }, memoId: { type: "string" }, folderId: { type: "string" }, targetDate: { type: "string" }, title: { type: "string" }, body: { type: "string" }, confirm: { type: "boolean" } } },
   },
   {
     name: "delete_my_memo",
     description: "Delete the authenticated member's own work memo. Requires confirm:true.",
     inputSchema: { type: "object", required: ["groupId", "memoId", "confirm"], properties: { groupId: { type: "string" }, memoId: { type: "string" }, confirm: { type: "boolean" } } },
-  },
-  {
-    name: "list_my_group_invitations",
-    description: "List pending invitations addressed to the authenticated member in the group.",
-    inputSchema: { type: "object", required: ["groupId"], properties: { groupId: { type: "string" } } },
-  },
-  {
-    name: "accept_group_invitation",
-    description: "Accept an invitation addressed to the authenticated member. Requires confirm:true.",
-    inputSchema: { type: "object", required: ["groupId", "confirm"], properties: { groupId: { type: "string" }, invitationId: { type: "string" }, confirm: { type: "boolean" } } },
-  },
-  {
-    name: "request_group_join",
-    description: "Request to join a request-to-join group as the authenticated member. Requires confirm:true.",
-    inputSchema: { type: "object", required: ["groupId", "confirm"], properties: { groupId: { type: "string" }, confirm: { type: "boolean" } } },
   },
   {
     name: "list_groups",
@@ -1734,6 +1716,8 @@ export async function POST(request: Request) {
           if (folder) folderId = folder.id;
         }
         if (!folderId) return rpcError(payload.id, "folderId is required; call list_my_memos first.");
+        const [folder] = await db.select().from(memoFolders).where(and(eq(memoFolders.id, folderId), eq(memoFolders.groupId, groupId))).limit(1);
+        if (!folder) return rpcError(payload.id, "folderId must belong to the requested group.");
         const title = text(args.title);
         if (!title) return rpcError(payload.id, "title is required");
         const note = { id: crypto.randomUUID(), groupId, folderId, authorEmail: identity.email, targetDate: text(args.targetDate), title: title.slice(0, 120), body: text(args.body).slice(0, 10000), visibility: "managers" as const, deletedAt: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
@@ -1748,10 +1732,25 @@ export async function POST(request: Request) {
         await recordAudit({ groupId, userEmail: identity.email, action: "memo.delete", entityType: "memo", entityId: note.id, summary: "業務メモを削除しました", details: { source: "mcp" } });
         return completeManagedExecution({ ok: true, memoId: note.id });
       }
-      const next = { targetDate: args.targetDate === undefined ? note.targetDate : text(args.targetDate), title: args.title === undefined ? note.title : text(args.title).slice(0, 120), body: args.body === undefined ? note.body : text(args.body).slice(0, 10000), updatedAt: new Date().toISOString() };
+      let nextFolderId = note.folderId;
+      if (args.folderId !== undefined) {
+        const [folder] = await db.select().from(memoFolders).where(and(eq(memoFolders.id, text(args.folderId)), eq(memoFolders.groupId, groupId))).limit(1);
+        if (!folder) return rpcError(payload.id, "folderId must belong to the requested group.");
+        nextFolderId = folder.id;
+      }
+      const next = { folderId: nextFolderId, targetDate: args.targetDate === undefined ? note.targetDate : text(args.targetDate), title: args.title === undefined ? note.title : text(args.title).slice(0, 120), body: args.body === undefined ? note.body : text(args.body).slice(0, 10000), updatedAt: new Date().toISOString() };
       await db.update(memos).set(next).where(eq(memos.id, note.id));
       await recordAudit({ groupId, userEmail: identity.email, action: "memo.update", entityType: "memo", entityId: note.id, summary: "業務メモを更新しました", details: { source: "mcp" } });
       return completeManagedExecution({ ...note, ...next });
+    }
+    /* Group invitations and join requests remain screen-managed. Personal keys
+       are bound to an existing group, so they cannot safely discover or join
+       another group. */
+    if (name === "list_my_group_invitations") {
+      return rpcError(payload.id, "Group invitations and join requests are managed from the KINBAN screen.");
+    }
+    if (name === "accept_group_invitation" || name === "request_group_join") {
+      return rpcError(payload.id, "Group invitations and join requests are managed from the KINBAN screen.");
     }
     if (name === "list_my_group_invitations") {
       const groupId = text(args.groupId);

@@ -172,7 +172,7 @@ export async function mcpCreateWorkRecord(db: Db, groupId: string, actorEmail: s
     if (!slot) return error("Assigned shift slot not found.");
     const [plan] = await db.select().from(shiftPlans).where(eq(shiftPlans.id, slot.planId)).limit(1);
     const [assignment] = await db.select().from(shiftAssignments).where(and(eq(shiftAssignments.slotId, slot.id), eq(shiftAssignments.userEmail, actorEmail))).limit(1);
-    if (!plan || plan.status !== "published" || !assignment) return error("You are not assigned to this published shift.");
+    if (!plan || plan.groupId !== groupId || plan.status !== "published" || !assignment) return error("You are not assigned to this published shift in the requested group.");
     planId = plan.id;
     scheduledDate = slot.date;
     scheduledStartTime = slot.startTime;
