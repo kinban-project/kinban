@@ -12,6 +12,7 @@ import {
 import { getMembership } from "../groups/group-access";
 import { isValidShiftTime, minutesToShiftTime, shiftTimeToMinutes } from "../../shift-time";
 import { recordAudit } from "../../audit-log";
+import { getDemoNow, jstDate } from "../../demo-clock";
 
 export const dynamic = "force-dynamic";
 
@@ -34,10 +35,7 @@ function dateMinusDays(value: string, days: number) {
   date.setUTCDate(date.getUTCDate() - days);
   return date.toISOString().slice(0, 10);
 }
-function defaultRequestCloseDate(startDate: string) {
-  const minimum = new Date();
-  minimum.setDate(minimum.getDate() + 2);
-  const minimumDate = `${minimum.getFullYear()}-${String(minimum.getMonth() + 1).padStart(2, "0")}-${String(minimum.getDate()).padStart(2, "0")}`;
+function defaultRequestCloseDate(startDate: string, minimumDate: string) {
   return dateMinusDays(startDate, 15) > minimumDate
     ? dateMinusDays(startDate, 15)
     : minimumDate;
@@ -234,9 +232,10 @@ export async function POST(request: Request) {
   const name = body.name?.trim() ?? "";
   const startDate = body.startDate ?? "";
   const endDate = body.endDate ?? "";
+  const demoNow = await getDemoNow(groupId);
   const requestCloseDate =
     body.requestCloseDate ??
-    (startDate ? defaultRequestCloseDate(startDate) : "");
+    (startDate ? defaultRequestCloseDate(startDate, jstDate(new Date(demoNow.getTime() + 2 * 86400000))) : "");
   const openingTime = body.openingTime ?? "09:00";
   const closingTime = body.closingTime ?? "18:00";
   const slotMinutes = body.slotMinutes ?? 60;
@@ -378,6 +377,7 @@ export async function POST(request: Request) {
   await recordAudit({ groupId, userEmail: user.email, action: "shift.create", entityType: "shiftPlan", entityId: id, summary: `シフトを作成: ${name}`, details: { startDate, endDate, slotCount: slots.length } });
   return Response.json(
     {
+      demoTime: { currentAt: demoNow.toISOString(), today: jstDate(demoNow), timezone: "Asia/Tokyo" },
       plan: {
         id,
         groupId,

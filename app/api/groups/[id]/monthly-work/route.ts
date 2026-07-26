@@ -14,6 +14,7 @@ import { getChatGPTUser } from "../../../../chatgpt-auth";
 import { toPublicMember } from "../../member-dto";
 import { shiftTimeToMinutes } from "../../../../shift-time";
 import { sendBusinessPush } from "../../../../notification-events";
+import { getDemoNow, jstDate } from "../../../../demo-clock";
 
 export const dynamic = "force-dynamic";
 
@@ -67,7 +68,8 @@ export async function GET(request: Request, context: Context) {
   if (!membership) return jsonError("グループのメンバーではありません", 403);
   const manager = membership.role === "owner" || membership.role === "editor";
   const requestedEmail = manager ? new URL(request.url).searchParams.get("userEmail") ?? userEmail : userEmail;
-  const month = new URL(request.url).searchParams.get("month") ?? new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(new Date()).slice(0, 7);
+  const demoNow = await getDemoNow(groupId);
+  const month = new URL(request.url).searchParams.get("month") ?? jstDate(demoNow).slice(0, 7);
   const bounds = monthBounds(month);
   if (!bounds) return jsonError("monthはYYYY-MM形式で指定してください", 400);
   const db = getDb();
@@ -109,7 +111,7 @@ export async function GET(request: Request, context: Context) {
     planned: assignments.filter((assignment) => { const slot = slotMap.get(assignment.slotId); return slot?.date === date && assignment.userEmail === requestedEmail; }).map((assignment) => { const slot = slotMap.get(assignment.slotId)!; return { startTime: slot.startTime, endTime: slot.endTime, role: slot.role, planName: planMap.get(slot.planId)?.name ?? "" }; }),
     records: records.filter((record) => record.userEmail === requestedEmail && record.scheduledDate === date).map((record) => ({ ...record, workedMinutes: workedMinutes(record), breakMinutes: record.claimedBreakMinutes ?? breakMinutesByRecord.get(record.id) ?? 0 })),
   }));
-  return Response.json({ month, members: visibleMembers.map((member) => toPublicMember(member, manager)), claims, summaries, days, viewedUserEmail: requestedEmail, canManage: manager, currentUserEmail: userEmail });
+  return Response.json({ month, demoTime: { currentAt: demoNow.toISOString(), today: jstDate(demoNow), timezone: "Asia/Tokyo" }, members: visibleMembers.map((member) => toPublicMember(member, manager)), claims, summaries, days, viewedUserEmail: requestedEmail, canManage: manager, currentUserEmail: userEmail });
 }
 
 export async function POST(request: Request, context: Context) {
@@ -123,7 +125,7 @@ export async function POST(request: Request, context: Context) {
   if (!membership) return jsonError("グループのメンバーではありません", 403);
   const manager = membership.role === "owner" || membership.role === "editor";
   const targetEmail = manager && body.userEmail ? body.userEmail : userEmail;
-  const now = new Date().toISOString();
+  const now = (await getDemoNow(groupId)).toISOString();
   const db = getDb();
   const [existing] = await db.select().from(monthlyWorkClaims).where(and(eq(monthlyWorkClaims.groupId, groupId), eq(monthlyWorkClaims.userEmail, targetEmail), eq(monthlyWorkClaims.monthKey, month))).limit(1);
   if (body.action === "submit") {

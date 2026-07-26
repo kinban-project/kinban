@@ -14,6 +14,19 @@ export async function getDemoNow(groupId: string) {
   return new Date(clock?.currentAt ?? DEMO_DEFAULT_NOW);
 }
 
+export async function getDemoTimeContext(groupId: string) {
+  const current = await getDemoNow(groupId);
+  const today = jstDate(current);
+  return {
+    groupId,
+    demoMode: isDemoGroupId(groupId),
+    currentAt: current.toISOString(),
+    today,
+    month: today.slice(0, 7),
+    timezone: "Asia/Tokyo",
+  };
+}
+
 export async function advanceDemoClock(minutes: number) {
   const db = getDb();
   const [clock] = await db.select().from(demoClocks).where(eq(demoClocks.scope, "public-demo")).limit(1);

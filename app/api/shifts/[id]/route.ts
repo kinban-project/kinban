@@ -7,6 +7,7 @@ import { isValidShiftTime, shiftDateTime, shiftTimeToMinutes } from "../../../sh
 import { recordAudit } from "../../../audit-log";
 import { canViewAdminNote, toPublicMember } from "../../groups/member-dto";
 import { createSystemMessagesAndPush } from "../../../notification-events";
+import { getDemoNow, jstDate } from "../../../demo-clock";
 
 export const dynamic = "force-dynamic";
 
@@ -121,13 +122,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     if (!requestPeriod || requestPeriod.status !== "pending") return Response.json({ error: "この勤務枠はすでに受付開始済みです" }, { status: 409 });
     const closesOn = body.requestCloseDate ?? requestPeriod.closesOn;
     if (!closesOn) return Response.json({ error: "シフト希望受付期限を設定してください" }, { status: 400 });
-    const opensOn = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(new Date());
+    const demoNow = await getDemoNow(plan.groupId);
+    const opensOn = jstDate(demoNow);
     await db.batch([
       db.update(shiftRequestPeriods).set({ opensOn, closesOn, status: "open" }).where(eq(shiftRequestPeriods.id, requestPeriod.id)),
       ...(expectedVersion === undefined ? [db.update(shiftPlans).set({ version: nextVersion }).where(eq(shiftPlans.id, id))] : []),
     ]);
     await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: "shift.request.open", entityType: "shiftRequestPeriod", entityId: requestPeriod.id, summary: `勤務希望受付を開始: ${plan.name}`, details: { closesOn } });
-    return Response.json({ ok: true, status: "open", opensOn, closesOn });
+    return Response.json({ ok: true, status: "open", opensOn, closesOn, demoTime: { currentAt: demoNow.toISOString(), today: opensOn, timezone: "Asia/Tokyo" } });
   }
   const members = await db.select().from(groupMembers).where(and(eq(groupMembers.groupId, plan.groupId), eq(groupMembers.status, "active")));
   const validUsers = new Set(members.map((member) => member.userEmail));

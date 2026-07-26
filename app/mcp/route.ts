@@ -13,7 +13,7 @@ import {
   or,
 } from "drizzle-orm";
 import { getDb } from "../../db";
-import { getDemoNow } from "../demo-clock";
+import { getDemoNow, getDemoTimeContext } from "../demo-clock";
 import {
   accountProfiles,
   assistantAnnouncementDrafts,
@@ -74,6 +74,7 @@ const mutating =
 const editorRoles = new Set(["owner", "editor"]);
 const preferenceValues = new Set(preferenceStatuses);
 const assistantTools = new Set([
+  "get_demo_time",
   "get_profile",
   "list_groups",
   "get_group_members",
@@ -112,6 +113,7 @@ const assistantTools = new Set([
 // also a group manager. Keep this allowlist server-side; prompt text and
 // user-supplied IDs must never grant manager capabilities.
 const personalTools = new Set([
+  "get_demo_time",
   "list_groups",
   "get_profile",
   "set_profile_nickname",
@@ -295,6 +297,16 @@ async function assistantPermissionError(
 }
 
 const tools = [
+  {
+    name: "get_demo_time",
+    description:
+      "Get the group's authoritative business date and time. In demo mode, use this before interpreting relative dates such as today, tomorrow, next week, deadlines, or month-end. The returned currentAt, today, month, and timezone are the date context for subsequent operations.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId"],
+      properties: { groupId: { type: "string" } },
+    },
+  },
   {
     name: "list_my_tasks",
     description: "List the authenticated user's personal tasks.",
@@ -1192,6 +1204,12 @@ export async function POST(request: Request) {
   const assistantStatusError = await assistantActiveError(db, identity);
   if (assistantStatusError) return rpcError(payload.id, assistantStatusError);
   try {
+    if (name === "get_demo_time") {
+      const groupId = text(args.groupId);
+      const restricted = assistantGroupError(identity, groupId);
+      if (restricted) return rpcError(payload.id, restricted);
+      return rpc(payload.id, await getDemoTimeContext(groupId));
+    }
     if (
       identity.tokenType === "assistant" &&
       assistantManagementTools.has(name)
@@ -2058,12 +2076,14 @@ export async function POST(request: Request) {
       ]);
       return rpc(
         payload.id,
-        plans
-          .filter(
-            (plan) =>
-              identity.tokenType !== "personal" || plan.status === "published",
-          )
-          .map((plan) => {
+        {
+          demoTime: await getDemoTimeContext(groupId),
+          plans: plans
+            .filter(
+              (plan) =>
+                identity.tokenType !== "personal" || plan.status === "published",
+            )
+            .map((plan) => {
           const linkedPeriods = requestPeriods.filter(
             (period) => period.planId === plan.id,
           );
@@ -2072,7 +2092,8 @@ export async function POST(request: Request) {
             requestPeriodId: linkedPeriods[0]?.id ?? null,
             requestPeriods: linkedPeriods,
           };
-          }),
+            }),
+        },
       );
     }
     if (name === "get_shift_plan") {
@@ -2107,6 +2128,7 @@ export async function POST(request: Request) {
       );
       const allAssignments = assignmentChunks.flat();
       return rpc(payload.id, {
+        demoTime: await getDemoTimeContext(found.plan.groupId),
         plan: found.plan,
         slots,
         assignments:
@@ -2359,6 +2381,7 @@ export async function POST(request: Request) {
       const errors = issues.filter((issue) => issue.severity === "error");
       const warnings = issues.filter((issue) => issue.severity === "warning");
       return rpc(payload.id, {
+        demoTime: await getDemoTimeContext(found.plan.groupId),
         ok: errors.length === 0,
         canPublish: errors.length === 0,
         plan: {
