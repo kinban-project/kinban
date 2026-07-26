@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     if (!body.subscription || !validSubscription(body.subscription)) return Response.json({ error: "Invalid push subscription." }, { status: 400 });
     const now = new Date().toISOString();
     const existing = await db.select().from(pushSubscriptions).where(eq(pushSubscriptions.endpoint, body.subscription.endpoint!)).limit(1);
-    if (existing[0] && existing[0].userEmail !== user.email) return Response.json({ error: "This browser subscription belongs to another account." }, { status: 409 });
+    if (existing[0] && existing[0].userEmail !== user.email) return Response.json({ error: "このブラウザの通知登録は別のアカウントに紐づいています。先に通知を解除するか、別のブラウザをご利用ください。" }, { status: 409 });
     if (existing[0]) await db.update(pushSubscriptions).set({ p256dh: body.subscription.keys!.p256dh!, auth: body.subscription.keys!.auth!, active: true, userAgent: request.headers.get("user-agent")?.slice(0, 500) ?? "", lastSeenAt: now }).where(eq(pushSubscriptions.id, existing[0].id));
     else await db.insert(pushSubscriptions).values({ id: crypto.randomUUID(), userEmail: user.email, endpoint: body.subscription.endpoint!, p256dh: body.subscription.keys!.p256dh!, auth: body.subscription.keys!.auth!, userAgent: request.headers.get("user-agent")?.slice(0, 500) ?? "", lastSeenAt: now });
     return Response.json({ ok: true });
