@@ -24,7 +24,9 @@ export default function AssistantChat({ groupId, manager = false, assistantName 
   const [draftEdits, setDraftEdits] = useState<Record<string, { title: string; body: string; managerNote: string }>>({});
 
   const load = useCallback(async (member?: string) => {
-    const query = member ? `?member=${encodeURIComponent(member)}` : "";
+    const params = new URLSearchParams({ view: manager ? "manager" : "member" });
+    if (member) params.set("member", member);
+    const query = `?${params.toString()}`;
     const response = await localApiFetch(`/api/groups/${groupId}/assistant${query}`);
     if (!response.ok) return;
     const next = await response.json() as ChatData;
@@ -38,7 +40,7 @@ export default function AssistantChat({ groupId, manager = false, assistantName 
     event.preventDefault();
     if (!message.trim() || sending) return;
     setSending(true);
-    const response = await localApiFetch(`/api/groups/${groupId}/assistant`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body: message, ...(manager && selectedMember ? { memberEmail: selectedMember } : {}) }) });
+    const response = await localApiFetch(`/api/groups/${groupId}/assistant`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body: message, view: manager ? "manager" : "member", ...(manager && selectedMember ? { memberEmail: selectedMember } : {}) }) });
     const result = await response.json().catch(() => ({})) as { error?: string };
     setNotice(response.ok ? "KINBANアシスタントへ送りました。AI接続後に順次確認します。" : result.error ?? "送信できませんでした");
     if (response.ok) { setMessage(""); await load(); }

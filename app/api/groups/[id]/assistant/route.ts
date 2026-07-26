@@ -39,11 +39,12 @@ export async function GET(
       { error: "このグループのメンバーではありません" },
       { status: 403 },
     );
-  const requestedMember = new URL(request.url).searchParams
-    .get("member")
-    ?.trim();
+  const searchParams = new URL(request.url).searchParams;
+  const memberView = searchParams.get("view") === "member";
+  const managerView = isManager(membership.role) && !memberView;
+  const requestedMember = searchParams.get("member")?.trim();
   const memberEmail =
-    isManager(membership.role) && requestedMember
+    managerView && requestedMember
       ? requestedMember
       : user.email;
   const db = getDb();
@@ -64,14 +65,14 @@ export async function GET(
       .from(groupAssistants)
       .where(eq(groupAssistants.groupId, id))
       .limit(1),
-    isManager(membership.role)
+    managerView
       ? db
           .select()
           .from(assistantAnnouncementDrafts)
           .where(eq(assistantAnnouncementDrafts.groupId, id))
           .orderBy(asc(assistantAnnouncementDrafts.createdAt))
       : Promise.resolve([]),
-    isManager(membership.role)
+    managerView
       ? db
           .select()
           .from(shiftSwapRequests)
@@ -94,10 +95,10 @@ export async function GET(
       ),
     )
     .orderBy(asc(assistantMessages.createdAt));
-  const readerConversation = isManager(membership.role) ? "*" : user.email;
+  const readerConversation = managerView ? "*" : user.email;
   const now = (await getDemoNow(id)).toISOString();
   await db.insert(assistantReadStates).values({ id: crypto.randomUUID(), groupId: id, readerEmail: user.email, memberEmail: readerConversation, lastReadAt: now }).onConflictDoUpdate({ target: [assistantReadStates.groupId, assistantReadStates.readerEmail, assistantReadStates.memberEmail], set: { lastReadAt: now } });
-  const members = isManager(membership.role)
+  const members = managerView
     ? await db
         .select({
           userEmail: groupMembers.userEmail,
@@ -125,7 +126,7 @@ export async function GET(
     })),
     currentEmail: user.email,
     selectedMember: memberEmail,
-    manager: isManager(membership.role),
+    manager: managerView,
   });
 }
 
@@ -143,7 +144,7 @@ export async function POST(
       { error: "このグループのメンバーではありません" },
       { status: 403 },
     );
-  const body = (await request.json()) as { body?: string; memberEmail?: string };
+  const body = (await request.json()) as { body?: string; memberEmail?: string; view?: "member" | "manager" };
   const text = body.body?.trim().slice(0, 2000) ?? "";
   if (!text)
     return Response.json(
@@ -151,7 +152,7 @@ export async function POST(
       { status: 400 },
     );
   const db = getDb();
-  const manager = isManager(membership.role);
+  const manager = isManager(membership.role) && body.view !== "member";
   const targetEmail = manager && body.memberEmail?.trim() ? body.memberEmail.trim().toLowerCase() : user.email;
   if (manager && targetEmail !== user.email) {
     const targetMembership = await getMembership(id, targetEmail);
