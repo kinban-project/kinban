@@ -8,9 +8,9 @@ type Announcement = { id: string; title: string; body: string; createdBy: string
 type Reply = { id: string; announcementId: string; userEmail: string; body: string; createdAt: string };
 type Member = { userEmail: string; displayName?: string | null };
 type ReadDetail = { announcementId: string; userEmail: string; readAt: string };
-type Props = { groupId: string; manager?: boolean; initialTab?: "announcements" | "assistant"; assistantUnread?: boolean; onAssistantRead?: () => void };
+type Props = { groupId: string; manager?: boolean; initialTab?: "announcements" | "assistant"; assistantName?: string; assistantUnread?: boolean; onAssistantRead?: () => void };
 
-export default function AnnouncementsPanel({ groupId, manager = false, initialTab = "announcements", assistantUnread = false, onAssistantRead }: Props) {
+export default function AnnouncementsPanel({ groupId, manager = false, initialTab = "announcements", assistantName, assistantUnread = false, onAssistantRead }: Props) {
   const [items, setItems] = useState<Announcement[]>([]);
   const [replies, setReplies] = useState<Reply[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
@@ -70,9 +70,9 @@ export default function AnnouncementsPanel({ groupId, manager = false, initialTa
   }
 
   return <div className="announcements-panel">
-    <div className="modal-head"><div><p className="eyebrow">MESSAGES</p><h2>お知らせ・連絡{selectedGroupName ? `（${selectedGroupName}）` : ""}</h2></div></div>
-    <div className="message-tabs" role="tablist"><button className={tab === "announcements" ? "active" : ""} onClick={() => setTab("announcements")} role="tab" aria-selected={tab === "announcements"}>お知らせ</button><button className={tab === "assistant" ? "active" : ""} onClick={openAssistantTab} role="tab" aria-selected={tab === "assistant"}>KINBANアシスタント{showAssistantUnread && <span className="assistant-unread-label">未読</span>}</button></div>
-    {tab === "assistant" ? <AssistantChat groupId={groupId} manager={manager} /> : <>
+    <div className="modal-head"><div><p className="eyebrow">MESSAGES</p><h2>{tab === "assistant" ? (assistantName?.trim() || "KINBANアシスタント") : "お知らせ・連絡"}{selectedGroupName ? `（${selectedGroupName}）` : ""}</h2></div></div>
+    <div className="message-tabs" role="tablist"><button className={tab === "announcements" ? "active" : ""} onClick={() => setTab("announcements")} role="tab" aria-selected={tab === "announcements"}>お知らせ</button><button className={tab === "assistant" ? "active" : ""} onClick={openAssistantTab} role="tab" aria-selected={tab === "assistant"}>{assistantName?.trim() || "KINBANアシスタント"}{showAssistantUnread && <span className="assistant-unread-label">未読</span>}</button></div>
+    {tab === "assistant" ? <AssistantChat groupId={groupId} manager={manager} assistantName={assistantName} /> : <>
     {manager && <form className="announcement-create" onSubmit={(event) => { event.preventDefault(); void post("create"); }}><input required value={title} onChange={(event) => setTitle(event.target.value)} placeholder="タイトル" /><textarea required rows={3} value={body} onChange={(event) => setBody(event.target.value)} placeholder="メンバーへのお知らせ" /><label>通知レベル<select value={notificationLevel} onChange={(event) => setNotificationLevel(event.target.value as "normal" | "important" | "urgent")}><option value="normal">通常（アプリ内のみ）</option><option value="important">重要（アプリ内のみ）</option><option value="urgent">緊急（Web Push）</option></select></label><button className="primary-button">お知らせを作成</button></form>}
     <div className="announcement-list">
       {items.length ? items.map((item) => {

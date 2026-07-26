@@ -6,6 +6,7 @@ type Group = {
   groupId: string;
   name?: string;
   role: string;
+  assistantDisplayName?: string;
   unreadAnnouncements?: number;
   unreadAssistant?: boolean;
   pendingMemberRequests?: number;
@@ -24,6 +25,7 @@ type Props = {
   onShiftAdjustment: (id: string) => void;
   onMembers: (id: string) => void;
   onAnnouncements: (id: string) => void;
+  onAssistant: (id: string) => void;
   onMemos: (id: string) => void;
   onAnnouncementManage: (id: string) => void;
   onDashboard: (id: string) => void;
@@ -108,6 +110,7 @@ export default function GroupMenu({
   onShiftAdjustment,
   onMembers,
   onAnnouncements,
+  onAssistant,
   onMemos,
   onAnnouncementManage,
   onDashboard,
@@ -140,7 +143,7 @@ export default function GroupMenu({
       {groups.map((group) => {
         const manager = group.role === "owner" || group.role === "editor";
         const unread = group.unreadAnnouncements ?? 0;
-        const unreadAssistant = Boolean(group.unreadAssistant);
+        const assistantUnread = Boolean(group.unreadAssistant);
         const pendingMembers = group.pendingMemberRequests ?? 0;
         return (
           <div className="group-menu-row" key={group.groupId}>
@@ -177,7 +180,15 @@ export default function GroupMenu({
               >
                 お知らせ・連絡
                 {unread > 0 && <span className="unread-badge">{unread}</span>}
-                {unreadAssistant && <span className="assistant-unread-dot" title="KINBANアシスタントに未読があります" aria-label="KINBANアシスタントに未読があります" />}
+              </button>
+              <button
+                className={`group-menu-button${assistantUnread ? " has-unread" : ""}`}
+                type="button"
+                onClick={() => onAssistant(group.groupId)}
+                title={group.assistantDisplayName ?? "KINBANアシスタント"}
+              >
+                {group.assistantDisplayName ?? "KINBANアシスタント"}
+                {assistantUnread && <span className="assistant-unread-dot" title="未読があります" aria-label="未読があります" />}
               </button>
               <button className="group-menu-button" type="button" onClick={() => onMemos(group.groupId)}>
                 業務メモ

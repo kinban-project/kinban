@@ -15,7 +15,7 @@ function memberName(member: Member) {
   return member.displayName?.trim() || member.userEmail.split("@")[0];
 }
 
-export default function AssistantChat({ groupId, manager = false }: { groupId: string; manager?: boolean }) {
+export default function AssistantChat({ groupId, manager = false, assistantName }: { groupId: string; manager?: boolean; assistantName?: string }) {
   const [data, setData] = useState<ChatData | null>(null);
   const [selectedMember, setSelectedMember] = useState("");
   const [message, setMessage] = useState("");
@@ -65,11 +65,12 @@ export default function AssistantChat({ groupId, manager = false }: { groupId: s
   if (!data) return <p className="empty-state">KINBANアシスタントを読み込んでいます…</p>;
   const active = data.assistant?.status === "active";
   const viewingOwnChat = selectedMember === data.currentEmail;
+  const assistantLabel = assistantName?.trim() || data.assistant?.displayName?.trim() || "KINBANアシスタント";
 
   return <section className="assistant-chat">
     <div className="assistant-profile">
       <div className="assistant-avatar" aria-hidden="true">AI</div>
-      <div><strong>KINBANアシスタント</strong><p>シフトや勤怠について相談できるAIです。必要に応じて管理者へ引き継ぎます。</p></div>
+      <div><strong>{assistantLabel}</strong><p>シフトや勤怠について相談できるAIです。必要に応じて管理者へ引き継ぎます。</p></div>
       <span className={`assistant-state ${active ? "active" : "inactive"}`}>{active ? "受付中" : "停止中"}</span>
     </div>
     {manager && data.members.length > 0 && <label className="assistant-member-select">確認するメンバー
@@ -105,7 +106,7 @@ export default function AssistantChat({ groupId, manager = false }: { groupId: s
     </section>}
     <div className="assistant-messages" aria-live="polite">
       {data.messages.length ? data.messages.map((item) => <div className={`assistant-message ${item.senderType}`} key={item.id}>
-        <strong>{item.senderType === "assistant" || item.senderType === "system" ? "KINBANアシスタント" : item.memberEmail === data.currentEmail ? "あなた" : item.memberEmail.split("@")[0]}</strong>
+        <strong>{item.senderType === "assistant" || item.senderType === "system" ? assistantLabel : item.memberEmail === data.currentEmail ? "あなた" : item.memberEmail.split("@")[0]}</strong>
         <p>{item.body}</p>
         <small>{item.createdAt}{item.senderType === "member" && item.status === "pending" ? "・AI確認待ち" : item.senderType === "member" && item.status === "processing" ? "・AI対応中" : item.senderType === "member" && item.status === "needs_review" ? "・管理者確認待ち" : ""}</small>
       </div>) : <p className="empty-state">まだ会話はありません。シフトや勤怠についてメッセージを送れます。</p>}
@@ -113,7 +114,7 @@ export default function AssistantChat({ groupId, manager = false }: { groupId: s
     {active && viewingOwnChat ? <form className="assistant-composer" onSubmit={send}>
       <textarea rows={3} value={message} onChange={(event) => setMessage(event.target.value)} maxLength={2000} placeholder="例：今日のシフトに行けなくなりました" />
       <button className="primary-button" disabled={!message.trim() || sending}>{sending ? "送信中…" : "送信"}</button>
-    </form> : !active ? <p className="assistant-disabled">KINBANアシスタントは管理者により停止されています。過去の会話は引き続き確認できます。</p> : null}
+    </form> : !active ? <p className="assistant-disabled">{assistantLabel}は管理者により停止されています。過去の会話は引き続き確認できます。</p> : null}
     {notice && <p className="group-notice" role="status">{notice}</p>}
   </section>;
 }

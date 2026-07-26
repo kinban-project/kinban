@@ -47,6 +47,7 @@ type GroupMembership = {
   name?: string;
   role: string;
   showInPersonal: boolean;
+  assistantDisplayName?: string;
   unreadAnnouncements?: number;
   unreadAssistant?: boolean;
 };
@@ -472,6 +473,12 @@ export default function Home() {
           setMenuGroupId(groupId);
           setAnnouncementsManager(false);
           setAnnouncementsTab("announcements");
+          setAnnouncementsOpen(true);
+        }}
+        onAssistant={(groupId) => {
+          setMenuGroupId(groupId);
+          setAnnouncementsManager(false);
+          setAnnouncementsTab("assistant");
           setAnnouncementsOpen(true);
         }}
         onMemos={(groupId) => {
@@ -965,6 +972,7 @@ export default function Home() {
             <AnnouncementsPanel
               groupId={menuGroupId}
               initialTab={announcementsTab}
+              assistantName={groups.find((group) => group.groupId === menuGroupId)?.assistantDisplayName}
               assistantUnread={groups.find((group) => group.groupId === menuGroupId)?.unreadAssistant ?? false}
               onAssistantRead={() => setGroups((current) => current.map((group) => group.groupId === menuGroupId ? { ...group, unreadAssistant: false } : group))}
               manager={announcementsManager}

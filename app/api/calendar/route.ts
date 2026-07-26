@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { getDb } from "../../../db";
-import { accountProfiles, assistantMessages, assistantReadStates, events, groupJoinRequests, groupMembers, groups as groupTable, shiftAssignments, shiftSlots, siteUsers } from "../../../db/schema";
+import { accountProfiles, assistantMessages, assistantReadStates, events, groupAssistants, groupJoinRequests, groupMembers, groups as groupTable, shiftAssignments, shiftSlots, siteUsers } from "../../../db/schema";
 import { getMembership } from "../groups/group-access";
 import { toPublicMember } from "../groups/member-dto";
 
@@ -26,6 +26,7 @@ export async function GET() {
   const [siteUser] = await db.select().from(siteUsers).where(eq(siteUsers.userEmail, user.email)).limit(1);
   const groupTableRows = memberships.length ? await db.select().from(groupTable).where(inArray(groupTable.id, memberships.map((item) => item.groupId))) : [];
   const pendingMemberRequests = memberships.length ? await db.select().from(groupJoinRequests).where(inArray(groupJoinRequests.groupId, memberships.map((item) => item.groupId))) : [];
+  const assistantRows = memberships.length ? await db.select().from(groupAssistants).where(inArray(groupAssistants.groupId, memberships.map((item) => item.groupId))) : [];
   const assistantMessagesRows = memberships.length ? await db.select().from(assistantMessages).where(inArray(assistantMessages.groupId, memberships.map((item) => item.groupId))) : [];
   const assistantReadRows = memberships.length ? await db.select().from(assistantReadStates).where(and(eq(assistantReadStates.readerEmail, user.email), inArray(assistantReadStates.groupId, memberships.map((item) => item.groupId)))) : [];
   const visibleGroupIds = memberships.filter((item) => item.showInPersonal).map((item) => item.groupId);
@@ -90,7 +91,7 @@ export async function GET() {
           ? message.senderType === "member" && message.memberEmail !== user.email
           : message.memberEmail === user.email && (message.senderType === "assistant" || message.senderType === "system");
       });
-      return { ...toPublicMember(membership, false), name: groupTableRows.find((group) => group.id === membership.groupId)?.name ?? membership.groupId, unreadAssistant, pendingMemberRequests: groupTableRows.find((group) => group.id === membership.groupId)?.ownerEmail === user.email ? pendingMemberRequests.filter((request) => request.groupId === membership.groupId && request.status === "pending").length : 0 };
+      return { ...toPublicMember(membership, false), name: groupTableRows.find((group) => group.id === membership.groupId)?.name ?? membership.groupId, assistantDisplayName: assistantRows.find((assistant) => assistant.groupId === membership.groupId)?.displayName?.trim() || "KINBANアシスタント", unreadAssistant, pendingMemberRequests: groupTableRows.find((group) => group.id === membership.groupId)?.ownerEmail === user.email ? pendingMemberRequests.filter((request) => request.groupId === membership.groupId && request.status === "pending").length : 0 };
     }),
     events: rows.map((event) => {
       const membership = event.groupId ? memberships.find((item) => item.groupId === event.groupId) : null;
