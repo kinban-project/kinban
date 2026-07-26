@@ -197,7 +197,7 @@ export default function GroupMenu({
               <button className="group-menu-button" type="button" onClick={() => onMemos(group.groupId)}>
                 業務メモ
               </button>
-              <button className="group-menu-button" type="button" onClick={() => onKnowledge(group.groupId)}>業務ナレッジ</button>
+              <button className="group-menu-button" type="button" onClick={() => onKnowledge(group.groupId)}>業務ガイド</button>
               <WorkDeclareButton groupId={group.groupId} onClick={() => onWorkDeclare(group.groupId)} />
               {manager && (
                 <>
