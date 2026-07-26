@@ -1042,7 +1042,11 @@ async function membership(
     .select()
     .from(groupMembers)
     .where(
-      and(eq(groupMembers.groupId, groupId), eq(groupMembers.userEmail, email)),
+      and(
+        eq(groupMembers.groupId, groupId),
+        eq(groupMembers.userEmail, email),
+        eq(groupMembers.status, "active"),
+      ),
     )
     .limit(1);
   return row;
