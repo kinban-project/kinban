@@ -142,7 +142,7 @@ export async function POST(
       { error: "このグループのメンバーではありません" },
       { status: 403 },
     );
-  const body = (await request.json()) as { body?: string };
+  const body = (await request.json()) as { body?: string; memberEmail?: string };
   const text = body.body?.trim().slice(0, 2000) ?? "";
   if (!text)
     return Response.json(
@@ -150,6 +150,14 @@ export async function POST(
       { status: 400 },
     );
   const db = getDb();
+  const manager = isManager(membership.role);
+  const targetEmail = manager && body.memberEmail?.trim() ? body.memberEmail.trim().toLowerCase() : user.email;
+  if (manager && targetEmail !== user.email) {
+    const targetMembership = await getMembership(id, targetEmail);
+    if (!targetMembership || targetMembership.status !== "active") {
+      return Response.json({ error: "指定されたメンバーはこのグループに所属していません" }, { status: 404 });
+    }
+  }
   const [assistant] = await db
     .select()
     .from(groupAssistants)
@@ -164,13 +172,13 @@ export async function POST(
   await db.insert(assistantMessages).values({
     id: messageId,
     groupId: id,
-    memberEmail: user.email,
+    memberEmail: targetEmail,
     // 管理者からの画面メッセージは、MCPのキュー処理でも管理者指示として
     // 扱えるように発信者のグループ権限を保存する。
-    senderType: isManager(membership.role) ? "manager" : "member",
+    senderType: manager ? "manager" : "member",
     senderEmail: user.email,
     body: text,
-    status: "pending",
+    status: manager ? "processed" : "pending",
   });
   await recordAudit({
     groupId: id,

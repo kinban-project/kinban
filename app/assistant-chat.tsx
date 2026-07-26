@@ -38,7 +38,7 @@ export default function AssistantChat({ groupId, manager = false, assistantName 
     event.preventDefault();
     if (!message.trim() || sending) return;
     setSending(true);
-    const response = await localApiFetch(`/api/groups/${groupId}/assistant`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body: message }) });
+    const response = await localApiFetch(`/api/groups/${groupId}/assistant`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body: message, ...(manager && selectedMember ? { memberEmail: selectedMember } : {}) }) });
     const result = await response.json().catch(() => ({})) as { error?: string };
     setNotice(response.ok ? "KINBANアシスタントへ送りました。AI接続後に順次確認します。" : result.error ?? "送信できませんでした");
     if (response.ok) { setMessage(""); await load(); }
@@ -65,6 +65,7 @@ export default function AssistantChat({ groupId, manager = false, assistantName 
   if (!data) return <p className="empty-state">KINBANアシスタントを読み込んでいます…</p>;
   const active = data.assistant?.status === "active";
   const viewingOwnChat = selectedMember === data.currentEmail;
+  const canCompose = active && (manager ? Boolean(selectedMember) : viewingOwnChat);
   const assistantLabel = assistantName?.trim() || data.assistant?.displayName?.trim() || "KINBANアシスタント";
 
   return <section className="assistant-chat">
@@ -78,7 +79,7 @@ export default function AssistantChat({ groupId, manager = false, assistantName 
         {data.members.map((member) => <option key={member.userEmail} value={member.userEmail}>{memberName(member)}{member.userEmail === data.currentEmail ? "（自分）" : ""}</option>)}
       </select>
     </label>}
-    {manager && !viewingOwnChat && <p className="assistant-manager-note">管理者として会話履歴を確認しています。メンバー本人の会話には送信できません。</p>}
+    {manager && !viewingOwnChat && <p className="assistant-manager-note">管理者として会話履歴を確認しています。選択中のメンバーへ返信できます。</p>}
     {manager && (data.drafts?.length ?? 0) > 0 && <section className="assistant-drafts">
       <div className="assistant-drafts-head"><strong>交代募集のお知らせ案</strong><small>メンバーの依頼だけでは配信されません。内容を確認してから承認してください。</small></div>
       {data.drafts?.map((draft) => {
@@ -106,12 +107,12 @@ export default function AssistantChat({ groupId, manager = false, assistantName 
     </section>}
     <div className="assistant-messages" aria-live="polite">
       {data.messages.length ? data.messages.map((item) => <div className={`assistant-message ${item.senderType}`} key={item.id}>
-        <strong>{item.senderType === "assistant" || item.senderType === "system" ? assistantLabel : item.memberEmail === data.currentEmail ? "あなた" : item.memberEmail.split("@")[0]}</strong>
+        <strong>{item.senderType === "assistant" || item.senderType === "system" ? assistantLabel : item.senderType === "manager" ? "管理者" : item.memberEmail === data.currentEmail ? "あなた" : item.memberEmail.split("@")[0]}</strong>
         <p>{item.body}</p>
         <small>{item.createdAt}{item.senderType === "member" && item.status === "pending" ? "・AI確認待ち" : item.senderType === "member" && item.status === "processing" ? "・AI対応中" : item.senderType === "member" && item.status === "needs_review" ? "・管理者確認待ち" : ""}</small>
       </div>) : <p className="empty-state">まだ会話はありません。シフトや勤怠についてメッセージを送れます。</p>}
     </div>
-    {active && viewingOwnChat ? <form className="assistant-composer" onSubmit={send}>
+    {canCompose ? <form className="assistant-composer" onSubmit={send}>
       <textarea rows={3} value={message} onChange={(event) => setMessage(event.target.value)} maxLength={2000} placeholder="例：今日のシフトに行けなくなりました" />
       <button className="primary-button" disabled={!message.trim() || sending}>{sending ? "送信中…" : "送信"}</button>
     </form> : !active ? <p className="assistant-disabled">{assistantLabel}は管理者により停止されています。過去の会話は引き続き確認できます。</p> : null}

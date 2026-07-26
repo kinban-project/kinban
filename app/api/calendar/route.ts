@@ -34,6 +34,8 @@ export async function GET() {
   const pendingMemberRequests = memberships.length ? await db.select().from(groupJoinRequests).where(inArray(groupJoinRequests.groupId, memberships.map((item) => item.groupId))) : [];
   const assistantRows = memberships.length ? await db.select().from(groupAssistants).where(inArray(groupAssistants.groupId, memberships.map((item) => item.groupId))) : [];
   const assistantMessagesRows = memberships.length ? await db.select().from(assistantMessages).where(inArray(assistantMessages.groupId, memberships.map((item) => item.groupId))) : [];
+  const managerAttentionCutoff = Date.now() - 10 * 60 * 1000;
+  const managerAttentionStatuses = new Set(["pending", "processing", "needs_review", "failed"]);
   const assistantReadRows = memberships.length ? await db.select().from(assistantReadStates).where(and(eq(assistantReadStates.readerEmail, user.email), inArray(assistantReadStates.groupId, memberships.map((item) => item.groupId)))) : [];
   const visibleGroupIds = memberships.filter((item) => item.showInPersonal).map((item) => item.groupId);
   const personalDisplayName = memberships.find((item) => item.userEmail === user.email)?.displayName?.trim() || profile?.nickname?.trim() || user.email.split("@")[0];
@@ -93,10 +95,11 @@ export async function GET() {
       const lastReadAt = readState?.lastReadAt ?? "";
       const lastReadTimestamp = lastReadAt ? timestamp(lastReadAt) : 0;
       const unreadAssistant = assistantMessagesRows.some((message) => {
-        if (message.groupId !== membership.groupId || timestamp(message.createdAt) <= lastReadTimestamp) return false;
+        if (message.groupId !== membership.groupId) return false;
+        if (!manager && timestamp(message.createdAt) <= lastReadTimestamp) return false;
         return manager
-          ? message.senderType === "member" && message.memberEmail !== user.email
-          : message.memberEmail === user.email && (message.senderType === "assistant" || message.senderType === "system");
+          ? message.senderType === "member" && message.memberEmail !== user.email && managerAttentionStatuses.has(message.status) && timestamp(message.createdAt) <= managerAttentionCutoff
+          : message.memberEmail === user.email && (message.senderType === "assistant" || message.senderType === "system" || message.senderType === "manager");
       });
       return { ...toPublicMember(membership, false), name: groupTableRows.find((group) => group.id === membership.groupId)?.name ?? membership.groupId, assistantDisplayName: assistantRows.find((assistant) => assistant.groupId === membership.groupId)?.displayName?.trim() || "KINBANアシスタント", unreadAssistant, pendingMemberRequests: groupTableRows.find((group) => group.id === membership.groupId)?.ownerEmail === user.email ? pendingMemberRequests.filter((request) => request.groupId === membership.groupId && request.status === "pending").length : 0 };
     }),
