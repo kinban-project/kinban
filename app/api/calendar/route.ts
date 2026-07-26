@@ -13,6 +13,12 @@ const chunk = <T,>(items: T[], size: number) => {
   return chunks;
 };
 
+function timestamp(value: string) {
+  const normalized = value.includes("T") ? value : `${value.replace(" ", "T")}Z`;
+  const parsed = Date.parse(normalized);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
 function unauthorized() {
   return Response.json({ error: "ログインが必要です" }, { status: 401 });
 }
@@ -85,8 +91,9 @@ export async function GET() {
       const manager = membership.role === "owner" || membership.role === "editor";
       const readState = assistantReadRows.find((row) => row.groupId === membership.groupId && row.memberEmail === (manager ? "*" : user.email));
       const lastReadAt = readState?.lastReadAt ?? "";
+      const lastReadTimestamp = lastReadAt ? timestamp(lastReadAt) : 0;
       const unreadAssistant = assistantMessagesRows.some((message) => {
-        if (message.groupId !== membership.groupId || message.createdAt <= lastReadAt) return false;
+        if (message.groupId !== membership.groupId || timestamp(message.createdAt) <= lastReadTimestamp) return false;
         return manager
           ? message.senderType === "member" && message.memberEmail !== user.email
           : message.memberEmail === user.email && (message.senderType === "assistant" || message.senderType === "system");
