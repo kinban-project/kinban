@@ -553,7 +553,7 @@ export default function Home() {
         </button>
       </section>
       <section className="dashboard">
-        <div className="calendar-card">
+        {calendarLoaded ? <div className="calendar-card">
           <div className="calendar-head">
             <div>
               <p className="eyebrow">CALENDAR</p>
@@ -625,7 +625,7 @@ export default function Home() {
               );
             })}
           </div>
-        </div>
+        </div> : <div className="calendar-card calendar-loading">カレンダーを読み込んでいます…</div>}
       </section>
       {editorOpen && (
         <div
