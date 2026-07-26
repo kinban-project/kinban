@@ -16,6 +16,12 @@ export const personalApiScopes = [
   "member:announcement:read",
   "member:announcement:write",
   "member:message:write",
+  "member:assistant:read",
+  "member:task:read",
+  "member:task:write",
+  "member:memo:read",
+  "member:memo:write",
+  "member:group:join",
 ] as const;
 export type ApiIdentity = {
   email: string;

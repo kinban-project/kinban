@@ -23,6 +23,7 @@ import {
   announcementReads,
   announcementReplies,
   events,
+  groupInvitations,
   groupAnnouncements,
   groupAssistants,
   groupJoinRequests,
@@ -31,6 +32,8 @@ import {
   groups,
   knowledgeFolders,
   knowledgePages,
+  memoFolders,
+  memos,
   shiftAssignments,
   shiftSwapCandidates,
   shiftSwapRequests,
@@ -50,6 +53,7 @@ import { shiftDateTime, shiftTimeToMinutes } from "../shift-time";
 import {
   getMcpWorkRecords,
   mcpClock,
+  mcpCreateWorkRecord,
   mcpDailyReview,
   mcpReopenWorkRecord,
   mcpSaveWorkRecord,
@@ -131,6 +135,7 @@ const personalTools = new Set([
   "get_work_records",
   "clock_work",
   "submit_work_record",
+  "create_work_record",
   "reopen_work_record",
   "save_work_record",
   "submit_monthly_work",
@@ -138,6 +143,19 @@ const personalTools = new Set([
   "mark_announcement_read",
   "reply_announcement",
   "send_manager_message",
+  "list_my_tasks",
+  "create_task",
+  "update_task",
+  "delete_task",
+  "list_personal_assistant_messages",
+  "list_my_memos",
+  "get_my_memo",
+  "create_my_memo",
+  "update_my_memo",
+  "delete_my_memo",
+  "list_my_group_invitations",
+  "accept_group_invitation",
+  "request_group_join",
 ]);
 const chunk = <T>(items: T[], size: number) => {
   const chunks: T[][] = [];
@@ -321,10 +339,10 @@ const tools = [
   },
   {
     name: "create_task",
-    description: "Create a personal task.",
+    description: "Create a personal task. Requires confirm:true.",
     inputSchema: {
       type: "object",
-      required: ["title", "date"],
+      required: ["title", "date", "confirm"],
       properties: {
         title: { type: "string" },
         date: { type: "string" },
@@ -332,6 +350,7 @@ const tools = [
         endTime: { type: "string" },
         category: { type: "string", enum: ["仕事", "生活", "予定"] },
         notes: { type: "string" },
+        confirm: { type: "boolean" },
       },
     },
   },
@@ -362,6 +381,59 @@ const tools = [
       required: ["id", "confirm"],
       properties: { id: { type: "string" }, confirm: { type: "boolean" } },
     },
+  },
+  {
+    name: "list_personal_assistant_messages",
+    description: "List the authenticated member's own KINBAN assistant conversation in one group. Other members and manager queues are never returned.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId"],
+      properties: { groupId: { type: "string" }, limit: { type: "number", minimum: 1, maximum: 100 } },
+    },
+  },
+  {
+    name: "list_my_memos",
+    description: "List the authenticated member's own work memos and available folders in one group.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId"],
+      properties: { groupId: { type: "string" }, folderId: { type: "string" }, query: { type: "string" } },
+    },
+  },
+  {
+    name: "get_my_memo",
+    description: "Get one of the authenticated member's own work memos.",
+    inputSchema: { type: "object", required: ["groupId", "memoId"], properties: { groupId: { type: "string" }, memoId: { type: "string" } } },
+  },
+  {
+    name: "create_my_memo",
+    description: "Create a work memo for the authenticated member. Requires confirm:true.",
+    inputSchema: { type: "object", required: ["groupId", "confirm"], properties: { groupId: { type: "string" }, folderId: { type: "string" }, targetDate: { type: "string" }, title: { type: "string" }, body: { type: "string" }, confirm: { type: "boolean" } } },
+  },
+  {
+    name: "update_my_memo",
+    description: "Update the authenticated member's own work memo. Requires confirm:true.",
+    inputSchema: { type: "object", required: ["groupId", "memoId", "confirm"], properties: { groupId: { type: "string" }, memoId: { type: "string" }, targetDate: { type: "string" }, title: { type: "string" }, body: { type: "string" }, confirm: { type: "boolean" } } },
+  },
+  {
+    name: "delete_my_memo",
+    description: "Delete the authenticated member's own work memo. Requires confirm:true.",
+    inputSchema: { type: "object", required: ["groupId", "memoId", "confirm"], properties: { groupId: { type: "string" }, memoId: { type: "string" }, confirm: { type: "boolean" } } },
+  },
+  {
+    name: "list_my_group_invitations",
+    description: "List pending invitations addressed to the authenticated member in the group.",
+    inputSchema: { type: "object", required: ["groupId"], properties: { groupId: { type: "string" } } },
+  },
+  {
+    name: "accept_group_invitation",
+    description: "Accept an invitation addressed to the authenticated member. Requires confirm:true.",
+    inputSchema: { type: "object", required: ["groupId", "confirm"], properties: { groupId: { type: "string" }, invitationId: { type: "string" }, confirm: { type: "boolean" } } },
+  },
+  {
+    name: "request_group_join",
+    description: "Request to join a request-to-join group as the authenticated member. Requires confirm:true.",
+    inputSchema: { type: "object", required: ["groupId", "confirm"], properties: { groupId: { type: "string" }, confirm: { type: "boolean" } } },
   },
   {
     name: "list_groups",
@@ -607,7 +679,7 @@ const tools = [
       "Submit one daily work record, or approve/reject it when called by a manager. Direct calls with an assistant key issued to an active manager may omit sourceMessageId and claimId; member-message processing must provide the current claim.",
     inputSchema: {
       type: "object",
-      required: ["groupId", "recordId", "status"],
+      required: ["groupId", "recordId", "status", "confirm"],
       properties: {
         groupId: { type: "string" },
         recordId: { type: "string" },
@@ -615,6 +687,25 @@ const tools = [
         managerNote: { type: "string" },
         sourceMessageId: { type: "string" },
         claimId: { type: "string" },
+        confirm: { type: "boolean" },
+      },
+    },
+  },
+  {
+    name: "create_work_record",
+    description: "Create the authenticated member's daily work declaration. With slotId it uses an assigned published shift as the initial value; without slotId it creates a manual declaration. Requires confirm:true.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId", "scheduledDate", "confirm"],
+      properties: {
+        groupId: { type: "string" },
+        slotId: { type: "string" },
+        scheduledDate: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+        claimedStartAt: { type: "string" },
+        claimedEndAt: { type: "string" },
+        claimedBreakMinutes: { type: "number", minimum: 0, maximum: 1440 },
+        employeeNote: { type: "string", maxLength: 500 },
+        confirm: { type: "boolean" },
       },
     },
   },
@@ -624,10 +715,11 @@ const tools = [
       "Return the authenticated member's submitted or approved daily work record to an editable, unsubmitted state. The member can then correct it and submit it again. Monthly-approved records remain locked until an administrator reopens the month.",
     inputSchema: {
       type: "object",
-      required: ["groupId", "recordId"],
+      required: ["groupId", "recordId", "confirm"],
       properties: {
         groupId: { type: "string" },
         recordId: { type: "string" },
+        confirm: { type: "boolean" },
       },
     },
   },
@@ -637,10 +729,11 @@ const tools = [
       "Save the authenticated member's own daily work declaration after it is editable. Updates claimed start/end times, break minutes, and employee note. Use reopen_work_record first when the record is submitted or approved, then submit_work_record with status submitted.",
     inputSchema: {
       type: "object",
-      required: ["groupId", "recordId"],
+      required: ["groupId", "recordId", "confirm"],
       properties: {
         groupId: { type: "string" },
         recordId: { type: "string" },
+        confirm: { type: "boolean" },
         claimedStartAt: { type: "string", description: "ISO time, e.g. 2026-07-20T09:40+09:00. Omit to keep the current value; empty string clears it." },
         claimedEndAt: { type: "string", description: "ISO time, e.g. 2026-07-20T17:00+09:00. Omit to keep the current value; empty string clears it." },
         claimedBreakMinutes: { type: "number", minimum: 0, maximum: 1440 },
@@ -1503,6 +1596,8 @@ export async function POST(request: Request) {
           payload.id,
           "A personal member key can only submit its owner's work record; approval and rejection require the operation AI key.",
         );
+      if (identity.tokenType === "personal" && args.confirm !== true)
+        return rpcError(payload.id, mutating);
       const encodingIssue = textEncodingIssue(
         args.managerNote,
         "work-record manager note",
@@ -1520,12 +1615,24 @@ export async function POST(request: Request) {
         ? rpcError(payload.id, result.error)
         : completeManagedExecution(result);
     }
+    if (name === "create_work_record") {
+      if (args.confirm !== true) return rpcError(payload.id, mutating);
+      const groupId = text(args.groupId);
+      const restricted = assistantGroupError(identity, groupId);
+      if (restricted) return rpcError(payload.id, restricted);
+      if (identity.tokenType !== "personal") return rpcError(payload.id, "This member declaration tool requires a personal AI key.");
+      const encodingIssue = textEncodingIssue(args.employeeNote, "employee note");
+      if (encodingIssue) return rpcError(payload.id, encodingIssue);
+      const result = await mcpCreateWorkRecord(db, groupId, identity.email, args);
+      return "error" in result ? rpcError(payload.id, result.error) : completeManagedExecution(result);
+    }
     if (name === "reopen_work_record") {
       const groupId = text(args.groupId);
       const restricted = assistantGroupError(identity, groupId);
       if (restricted) return rpcError(payload.id, restricted);
       if (identity.tokenType !== "personal")
         return rpcError(payload.id, "This member correction tool requires a personal AI key.");
+      if (args.confirm !== true) return rpcError(payload.id, mutating);
       const result = await mcpReopenWorkRecord(
         db,
         groupId,
@@ -1542,6 +1649,7 @@ export async function POST(request: Request) {
       if (restricted) return rpcError(payload.id, restricted);
       if (identity.tokenType !== "personal")
         return rpcError(payload.id, "This member declaration tool requires a personal AI key.");
+      if (args.confirm !== true) return rpcError(payload.id, mutating);
       const encodingIssue = textEncodingIssue(args.employeeNote, "employee note");
       if (encodingIssue) return rpcError(payload.id, encodingIssue);
       const result = await mcpSaveWorkRecord(
@@ -1589,6 +1697,100 @@ export async function POST(request: Request) {
         ? rpcError(payload.id, result.error)
         : completeManagedExecution(result);
     }
+    if (name === "list_personal_assistant_messages") {
+      const groupId = text(args.groupId);
+      const restricted = assistantGroupError(identity, groupId);
+      if (restricted) return rpcError(payload.id, restricted);
+      const self = await membership(db, groupId, identity.email);
+      if (!self) return rpcError(payload.id, "Group membership required");
+      const limit = Math.max(1, Math.min(100, Number(args.limit) || 50));
+      const rows = await db.select().from(assistantMessages).where(and(eq(assistantMessages.groupId, groupId), eq(assistantMessages.memberEmail, identity.email))).orderBy(desc(assistantMessages.createdAt)).limit(limit);
+      return rpc(payload.id, rows.map((row) => ({ id: row.id, senderType: row.senderType, senderEmail: row.senderEmail, body: row.body, status: row.status, createdAt: row.createdAt, eventType: row.eventType })));
+    }
+    if (["list_my_memos", "get_my_memo", "create_my_memo", "update_my_memo", "delete_my_memo"].includes(name)) {
+      const groupId = text(args.groupId);
+      const restricted = assistantGroupError(identity, groupId);
+      if (restricted) return rpcError(payload.id, restricted);
+      const self = await membership(db, groupId, identity.email);
+      if (!self) return rpcError(payload.id, "Group membership required");
+      if (name === "list_my_memos") {
+        const conditions = [eq(memos.groupId, groupId), eq(memos.authorEmail, identity.email), isNull(memos.deletedAt)];
+        if (args.folderId) conditions.push(eq(memos.folderId, text(args.folderId)));
+        if (args.query) conditions.push(or(like(memos.title, `%${text(args.query)}%`), like(memos.body, `%${text(args.query)}%`))!);
+        const folders = await db.select().from(memoFolders).where(eq(memoFolders.groupId, groupId)).orderBy(memoFolders.createdAt);
+        const notes = await db.select().from(memos).where(and(...conditions)).orderBy(desc(memos.targetDate), desc(memos.updatedAt));
+        return rpc(payload.id, { folders, notes });
+      }
+      const memoId = text(args.memoId);
+      if (name === "get_my_memo") {
+        const [note] = await db.select().from(memos).where(and(eq(memos.id, memoId), eq(memos.groupId, groupId), eq(memos.authorEmail, identity.email), isNull(memos.deletedAt))).limit(1);
+        return note ? rpc(payload.id, note) : rpcError(payload.id, "Memo not found");
+      }
+      if (args.confirm !== true) return rpcError(payload.id, mutating);
+      if (name === "create_my_memo") {
+        let folderId = text(args.folderId);
+        if (!folderId) {
+          const [folder] = await db.select().from(memoFolders).where(eq(memoFolders.groupId, groupId)).orderBy(memoFolders.createdAt).limit(1);
+          if (folder) folderId = folder.id;
+        }
+        if (!folderId) return rpcError(payload.id, "folderId is required; call list_my_memos first.");
+        const title = text(args.title);
+        if (!title) return rpcError(payload.id, "title is required");
+        const note = { id: crypto.randomUUID(), groupId, folderId, authorEmail: identity.email, targetDate: text(args.targetDate), title: title.slice(0, 120), body: text(args.body).slice(0, 10000), visibility: "managers" as const, deletedAt: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+        await db.insert(memos).values(note);
+        await recordAudit({ groupId, userEmail: identity.email, action: "memo.create", entityType: "memo", entityId: note.id, summary: "業務メモを作成しました", details: { source: "mcp" } });
+        return completeManagedExecution(note);
+      }
+      const [note] = await db.select().from(memos).where(and(eq(memos.id, memoId), eq(memos.groupId, groupId), eq(memos.authorEmail, identity.email), isNull(memos.deletedAt))).limit(1);
+      if (!note) return rpcError(payload.id, "Memo not found");
+      if (name === "delete_my_memo") {
+        await db.update(memos).set({ deletedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }).where(eq(memos.id, note.id));
+        await recordAudit({ groupId, userEmail: identity.email, action: "memo.delete", entityType: "memo", entityId: note.id, summary: "業務メモを削除しました", details: { source: "mcp" } });
+        return completeManagedExecution({ ok: true, memoId: note.id });
+      }
+      const next = { targetDate: args.targetDate === undefined ? note.targetDate : text(args.targetDate), title: args.title === undefined ? note.title : text(args.title).slice(0, 120), body: args.body === undefined ? note.body : text(args.body).slice(0, 10000), updatedAt: new Date().toISOString() };
+      await db.update(memos).set(next).where(eq(memos.id, note.id));
+      await recordAudit({ groupId, userEmail: identity.email, action: "memo.update", entityType: "memo", entityId: note.id, summary: "業務メモを更新しました", details: { source: "mcp" } });
+      return completeManagedExecution({ ...note, ...next });
+    }
+    if (name === "list_my_group_invitations") {
+      const groupId = text(args.groupId);
+      const restricted = assistantGroupError(identity, groupId);
+      if (restricted) return rpcError(payload.id, restricted);
+      const rows = await db.select().from(groupInvitations).where(and(eq(groupInvitations.groupId, groupId), eq(groupInvitations.inviteeEmail, identity.email), eq(groupInvitations.status, "pending")));
+      return rpc(payload.id, rows);
+    }
+    if (name === "accept_group_invitation") {
+      if (args.confirm !== true) return rpcError(payload.id, mutating);
+      const groupId = text(args.groupId);
+      const restricted = assistantGroupError(identity, groupId);
+      if (restricted) return rpcError(payload.id, restricted);
+      const conditions = [eq(groupInvitations.groupId, groupId), eq(groupInvitations.inviteeEmail, identity.email), eq(groupInvitations.status, "pending")];
+      if (args.invitationId) conditions.push(eq(groupInvitations.id, text(args.invitationId)));
+      const [invitation] = await db.select().from(groupInvitations).where(and(...conditions)).limit(1);
+      if (!invitation || invitation.expiresAt <= new Date().toISOString()) return rpcError(payload.id, "No valid group invitation was found.");
+      const [existing] = await db.select().from(groupMembers).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userEmail, identity.email))).limit(1);
+      if (existing) await db.update(groupMembers).set({ status: "active" }).where(eq(groupMembers.id, existing.id));
+      else await db.insert(groupMembers).values({ id: crypto.randomUUID(), groupId, userEmail: identity.email, role: "member", showInPersonal: true });
+      await db.update(groupInvitations).set({ status: "accepted", acceptedAt: new Date().toISOString() }).where(eq(groupInvitations.id, invitation.id));
+      await recordAudit({ groupId, userEmail: identity.email, action: "group.invitation.accept", entityType: "groupInvitation", entityId: invitation.id, summary: "グループ招待を承認しました", details: { source: "mcp" } });
+      return completeManagedExecution({ ok: true, invitationId: invitation.id, groupId });
+    }
+    if (name === "request_group_join") {
+      if (args.confirm !== true) return rpcError(payload.id, mutating);
+      const groupId = text(args.groupId);
+      const group = await db.select().from(groups).where(eq(groups.id, groupId)).limit(1);
+      if (!group[0]) return rpcError(payload.id, "Group not found");
+      if (group[0].participationMode !== "request_to_join") return rpcError(payload.id, "This group does not accept join requests.");
+      const [member] = await db.select().from(groupMembers).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userEmail, identity.email))).limit(1);
+      if (member) return rpc(payload.id, { membership: member });
+      const [existing] = await db.select().from(groupJoinRequests).where(and(eq(groupJoinRequests.groupId, groupId), eq(groupJoinRequests.userEmail, identity.email), eq(groupJoinRequests.status, "pending"))).limit(1);
+      if (existing) return rpc(payload.id, { request: existing });
+      const requestRow = { id: crypto.randomUUID(), groupId, userEmail: identity.email, status: "pending" as const };
+      await db.insert(groupJoinRequests).values(requestRow);
+      await recordAudit({ groupId, userEmail: identity.email, action: "group.join", entityType: "joinRequest", entityId: requestRow.id, summary: "グループ参加を申請しました", details: { source: "mcp" } });
+      return completeManagedExecution({ request: requestRow });
+    }
     if (name === "list_my_tasks") {
       const rows = await db
         .select()
@@ -1604,6 +1806,7 @@ export async function POST(request: Request) {
       );
     }
     if (name === "create_task") {
+      if (args.confirm !== true) return rpcError(payload.id, mutating);
       const title = text(args.title);
       const date = text(args.date);
       const category = text(args.category, "予定");
@@ -1623,6 +1826,7 @@ export async function POST(request: Request) {
         completed: false,
       };
       await db.insert(events).values(row);
+      await recordAudit({ groupId: null, userEmail: identity.email, action: "event.create", entityType: "event", entityId: row.id, summary: "個人予定を作成しました", details: { source: "mcp" } });
       return rpc(payload.id, row);
     }
     if (name === "update_task" || name === "delete_task") {
@@ -1636,6 +1840,7 @@ export async function POST(request: Request) {
       if (!row) return rpcError(payload.id, "Task not found");
       if (name === "delete_task") {
         await db.delete(events).where(eq(events.id, id));
+        await recordAudit({ groupId: row.groupId ?? null, userEmail: identity.email, action: "event.delete", entityType: "event", entityId: row.id, summary: "個人予定を削除しました", details: { source: "mcp" } });
         return rpc(payload.id, { ok: true, id });
       }
       const next = {
@@ -1653,6 +1858,7 @@ export async function POST(request: Request) {
             : Boolean(args.completed),
       };
       await db.update(events).set(next).where(eq(events.id, id));
+      await recordAudit({ groupId: row.groupId ?? null, userEmail: identity.email, action: "event.update", entityType: "event", entityId: row.id, summary: "個人予定を更新しました", details: { source: "mcp" } });
       return rpc(payload.id, { ...row, ...next });
     }
     if (name === "list_groups") {

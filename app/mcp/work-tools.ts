@@ -1,10 +1,11 @@
 import { and, eq, gte, inArray, isNull, lte } from "drizzle-orm";
 import { getDb } from "../../db";
-import { groupMembers, monthlyWorkClaims, workBreaks, workRecords } from "../../db/schema";
+import { groupMembers, monthlyWorkClaims, shiftAssignments, shiftPlans, shiftSlots, workBreaks, workRecords } from "../../db/schema";
 import { attendanceExpired } from "../attendance-expired";
 import { recordAudit } from "../audit-log";
 import { sendBusinessPush } from "../notification-events";
 import { getDemoNow, getDemoTimeContext, jstDate } from "../demo-clock";
+import { shiftDateTime } from "../shift-time";
 
 type Db = ReturnType<typeof getDb>;
 type Args = Record<string, unknown>;
@@ -149,6 +150,53 @@ function mcpClaimTime(value: unknown) {
     ? new Date(`${text}:00+09:00`)
     : new Date(text);
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+function scheduledClaimTime(date: string, time: string) {
+  if (!time) return null;
+  const shifted = shiftDateTime(date, time);
+  const parsed = new Date(`${shifted.date}T${shifted.time}:00+09:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+export async function mcpCreateWorkRecord(db: Db, groupId: string, actorEmail: string, args: Args) {
+  const [membership] = await db.select().from(groupMembers).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userEmail, actorEmail))).limit(1);
+  if (!membership || membership.status !== "active") return error("Active group membership is required.");
+  const slotId = typeof args.slotId === "string" ? args.slotId.trim() : "";
+  let planId: string | null = null;
+  let scheduledDate = typeof args.scheduledDate === "string" ? args.scheduledDate.trim() : "";
+  let scheduledStartTime = "";
+  let scheduledEndTime = "";
+  if (slotId) {
+    const [slot] = await db.select().from(shiftSlots).where(eq(shiftSlots.id, slotId)).limit(1);
+    if (!slot) return error("Assigned shift slot not found.");
+    const [plan] = await db.select().from(shiftPlans).where(eq(shiftPlans.id, slot.planId)).limit(1);
+    const [assignment] = await db.select().from(shiftAssignments).where(and(eq(shiftAssignments.slotId, slot.id), eq(shiftAssignments.userEmail, actorEmail))).limit(1);
+    if (!plan || plan.status !== "published" || !assignment) return error("You are not assigned to this published shift.");
+    planId = plan.id;
+    scheduledDate = slot.date;
+    scheduledStartTime = slot.startTime;
+    scheduledEndTime = slot.endTime;
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(scheduledDate)) return error("scheduledDate must be YYYY-MM-DD.");
+  const existing = await db.select().from(workRecords).where(and(eq(workRecords.groupId, groupId), eq(workRecords.userEmail, actorEmail), eq(workRecords.scheduledDate, scheduledDate), slotId ? eq(workRecords.slotId, slotId) : isNull(workRecords.slotId))).limit(1);
+  if (existing[0] && existing[0].status !== "rejected") return error("A work record already exists for this date or shift.");
+  const claimedStartAt = args.claimedStartAt === undefined && scheduledStartTime ? scheduledClaimTime(scheduledDate, scheduledStartTime) : mcpClaimTime(args.claimedStartAt);
+  const claimedEndAt = args.claimedEndAt === undefined && scheduledEndTime ? scheduledClaimTime(scheduledDate, scheduledEndTime) : mcpClaimTime(args.claimedEndAt);
+  if (!claimedStartAt || !claimedEndAt) return error("Claimed start and end times are required.");
+  if (new Date(claimedEndAt).getTime() < new Date(claimedStartAt).getTime()) return error("Claimed end must be after claimed start.");
+  const now = (await getDemoNow(groupId)).toISOString();
+  const row = {
+    id: existing[0]?.id ?? crypto.randomUUID(), groupId, planId, slotId: slotId || null, userEmail: actorEmail,
+    scheduledDate, scheduledStartTime, scheduledEndTime, startedAt: null, endedAt: null,
+    claimedStartAt, claimedEndAt, claimedBreakMinutes: Math.max(0, Math.min(1440, Math.round(Number(args.claimedBreakMinutes) || 0))),
+    activeKey: null, status: "unsubmitted", employeeNote: String(args.employeeNote ?? "").trim().slice(0, 500), managerNote: "", approvedBy: null, approvedAt: null, monthlyClosedAt: null, monthlyClosedBy: null,
+    createdAt: existing[0]?.createdAt ?? now, updatedAt: now,
+  };
+  if (existing[0]) await db.update(workRecords).set(row).where(eq(workRecords.id, existing[0].id));
+  else await db.insert(workRecords).values(row);
+  await recordAudit({ groupId, userEmail: actorEmail, action: "work.claim.create", entityType: "workRecord", entityId: row.id, summary: "勤務申告を作成しました", details: { source: "mcp", slotId: slotId || null } });
+  return { ok: true, record: row };
 }
 
 export async function mcpSaveWorkRecord(db: Db, groupId: string, actorEmail: string, recordId: string, args: Args) {
