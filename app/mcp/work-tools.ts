@@ -109,6 +109,38 @@ export async function mcpDailyReview(db: Db, groupId: string, actorEmail: string
   return { ok: true, recordId, status };
 }
 
+export async function mcpReopenWorkRecord(db: Db, groupId: string, actorEmail: string, recordId: string) {
+  const [membership] = await db
+    .select()
+    .from(groupMembers)
+    .where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userEmail, actorEmail)))
+    .limit(1);
+  if (!membership || membership.status !== "active") return error("Active group membership is required.");
+  const [record] = await db
+    .select()
+    .from(workRecords)
+    .where(and(eq(workRecords.id, recordId), eq(workRecords.groupId, groupId), eq(workRecords.userEmail, actorEmail)))
+    .limit(1);
+  if (!record) return error("Work record not found.");
+  if (record.monthlyClosedAt) return error("This month has been approved. An administrator must reopen it first.");
+  if (!["submitted", "approved"].includes(record.status)) return error("This work record is already editable.");
+  const now = (await getDemoNow(groupId)).toISOString();
+  await db
+    .update(workRecords)
+    .set({ status: "unsubmitted", approvedBy: null, approvedAt: null, updatedAt: now })
+    .where(eq(workRecords.id, record.id));
+  await recordAudit({
+    groupId,
+    userEmail: actorEmail,
+    action: "work.claim.edit.start",
+    entityType: "workRecord",
+    entityId: record.id,
+    summary: "勤務申告を修正可能な状態に戻しました",
+    details: { previousStatus: record.status, source: "mcp" },
+  });
+  return { ok: true, recordId, status: "unsubmitted" };
+}
+
 export async function mcpSubmitMonthly(db: Db, groupId: string, email: string, month: string) {
   const bounds = monthBounds(month);
   if (!bounds) return error("month must be YYYY-MM.");

@@ -51,6 +51,7 @@ import {
   getMcpWorkRecords,
   mcpClock,
   mcpDailyReview,
+  mcpReopenWorkRecord,
   mcpReviewMonthly,
   mcpSubmitMonthly,
 } from "./work-tools";
@@ -129,6 +130,7 @@ const personalTools = new Set([
   "get_work_records",
   "clock_work",
   "submit_work_record",
+  "reopen_work_record",
   "submit_monthly_work",
   "list_announcements",
   "mark_announcement_read",
@@ -611,6 +613,19 @@ const tools = [
         managerNote: { type: "string" },
         sourceMessageId: { type: "string" },
         claimId: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "reopen_work_record",
+    description:
+      "Return the authenticated member's submitted or approved daily work record to an editable, unsubmitted state. The member can then correct it and submit it again. Monthly-approved records remain locked until an administrator reopens the month.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId", "recordId"],
+      properties: {
+        groupId: { type: "string" },
+        recordId: { type: "string" },
       },
     },
   },
@@ -1481,6 +1496,22 @@ export async function POST(request: Request) {
         text(args.recordId),
         status,
         text(args.managerNote),
+      );
+      return "error" in result
+        ? rpcError(payload.id, result.error)
+        : completeManagedExecution(result);
+    }
+    if (name === "reopen_work_record") {
+      const groupId = text(args.groupId);
+      const restricted = assistantGroupError(identity, groupId);
+      if (restricted) return rpcError(payload.id, restricted);
+      if (identity.tokenType !== "personal")
+        return rpcError(payload.id, "This member correction tool requires a personal AI key.");
+      const result = await mcpReopenWorkRecord(
+        db,
+        groupId,
+        identity.email,
+        text(args.recordId),
       );
       return "error" in result
         ? rpcError(payload.id, result.error)
