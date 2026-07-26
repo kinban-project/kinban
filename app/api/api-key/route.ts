@@ -1,8 +1,10 @@
 import { and, eq } from "drizzle-orm";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { getDb } from "../../../db";
-import { apiTokens, groupMembers } from "../../../db/schema";
+import { apiTokens, groupMembers, groups } from "../../../db/schema";
 import { hashApiToken, personalApiScopes } from "../api-auth";
+import { recordAudit } from "../../audit-log";
+import { buildZip } from "../../zip";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +61,7 @@ export async function POST(request: Request) {
   const payload = (await request.json().catch(() => ({}))) as {
     name?: string;
     groupId?: string;
+    action?: string;
   };
   const groupId = payload.groupId?.trim() ?? "";
   if (!(await hasActiveMembership(groupId, user.email)))
@@ -77,6 +80,24 @@ export async function POST(request: Request) {
     tokenPrefix: raw.slice(0, 11),
   };
   await getDb().insert(apiTokens).values(token);
+  if (payload.action === "downloadPack") {
+    const [group] = await getDb()
+      .select({ name: groups.name })
+      .from(groups)
+      .where(eq(groups.id, groupId))
+      .limit(1);
+    const mcpUrl = new URL("/api/mcp", request.url).toString();
+    const permissions = personalApiScopes.join("\n");
+    const files = {
+      "README.md": `# KINBAN Personal Assistant Connection Pack\n\nThis pack is for your personal member assistant in group ${groupId} (${group?.name ?? groupId}).\n\nMCP URL: ${mcpUrl}\nGroup ID: ${groupId}\nAPI key: see connection.env\n\nUse this key only for your own profile, preferences, published shifts, work declarations, announcements, and messages in this group. It cannot perform manager operations.\n\nBefore interpreting today, tomorrow, deadlines, or month-end, call get_demo_time and use its returned date context.\n\nTreat connection.env as a secret. Revoke the key from the group settings when it is no longer needed.\n`,
+      "connection.env": `KINBAN_MCP_URL=${mcpUrl}\nKINBAN_GROUP_ID=${groupId}\nKINBAN_API_KEY=${raw}\n`,
+      "permissions.txt": `${permissions}\n`,
+      "skills/personal/SKILL.md": `# KINBAN Personal Assistant\n\n- Use only group ${groupId}.\n- Call get_demo_time before interpreting relative dates.\n- The key is limited to the authenticated member's own data.\n- Never attempt manager operations such as shift assignment, publishing, or attendance approval.\n- Confirm before changing saved preferences, shift requests, declarations, or messages.\n- Send all text as UTF-8.\n\n## Granted scopes\n${permissions}\n`,
+    };
+    const archive = buildZip(files);
+    await recordAudit({ groupId, userEmail: user.email, action: "personal_ai.connection_pack.download", entityType: "apiToken", entityId: token.id, summary: "個人用AI接続パックをダウンロードしました", details: { tokenPrefix: token.tokenPrefix, fileCount: Object.keys(files).length } });
+    return new Response(archive, { status: 201, headers: { "Content-Type": "application/zip", "Content-Disposition": 'attachment; filename="kinban-personal-assistant.zip"', "Cache-Control": "no-store" } });
+  }
   return Response.json(
     { key: raw, id: token.id, name: token.name, tokenPrefix: token.tokenPrefix },
     { status: 201 },

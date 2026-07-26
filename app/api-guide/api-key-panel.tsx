@@ -42,8 +42,33 @@ export default function ApiKeyPanel({ groupId }: { groupId?: string }) {
     setBusy(false);
   }
 
+  async function downloadPack() {
+    if (!groupId) return;
+    setBusy(true);
+    setMessage(null);
+    const response = await localApiFetch("/api/api-key", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ groupId, action: "downloadPack" }),
+    });
+    if (response.ok) {
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "kinban-personal-assistant.zip";
+      anchor.click();
+      URL.revokeObjectURL(url);
+      await load();
+      setMessage("個人用AI接続パックをダウンロードしました。キーは秘密情報として扱ってください。");
+    } else {
+      setMessage("個人用AI接続パックを作成できませんでした。");
+    }
+    setBusy(false);
+  }
+
   async function revokeKey(id: string) {
-    if (!groupId || !window.confirm("このグループ用AIキーを無効にしますか？")) return;
+    if (!groupId || !window.confirm("このグループの個人用AIキーを無効にしますか？")) return;
     await localApiFetch("/api/api-key", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
@@ -58,7 +83,7 @@ export default function ApiKeyPanel({ groupId }: { groupId?: string }) {
       <div className="api-key-box">
         <p className="eyebrow">PERSONAL AI ACCESS</p>
         <h3>個人用AIキー</h3>
-        <p>個人用AIキーは、対象グループの「基本設定」からグループごとに発行します。</p>
+        <p>個人用AIキーは、対象グループの基本設定からグループごとに発行します。</p>
       </div>
     );
   }
@@ -69,16 +94,21 @@ export default function ApiKeyPanel({ groupId }: { groupId?: string }) {
         <div>
           <p className="eyebrow">GROUP PERSONAL AI ACCESS</p>
           <h3>このグループの個人用AIキー</h3>
-          <p>基本設定・シフト希望・勤務申告など、あなた自身の操作だけに使えます。</p>
-          <p>発行したキーは画面に再表示されません。安全な場所に保存してください。</p>
+          <p>自分の基本設定・シフト希望・シフト一覧・勤務申告などをAIから扱えます。</p>
+          <p>管理者向けのシフト作成・公開・承認などは実行できません。</p>
         </div>
-        <button className="primary-button" onClick={() => void createKey()} disabled={busy}>
-          {busy ? "発行中…" : "個人用AIキーを発行"}
-        </button>
+        <div className="api-key-buttons">
+          <button className="primary-button" onClick={() => void createKey()} disabled={busy}>
+            {busy ? "処理中…" : "個人用AIキーを発行"}
+          </button>
+          <button className="secondary-button" onClick={() => void downloadPack()} disabled={busy}>
+            接続パックをダウンロード
+          </button>
+        </div>
       </div>
       {newKey && (
         <div className="new-key" role="alert">
-          <strong>今だけ表示されます</strong>
+          <strong>このキーは一度だけ表示されます。</strong>
           <code>{newKey}</code>
           <button onClick={() => void navigator.clipboard?.writeText(newKey)}>コピー</button>
         </div>
