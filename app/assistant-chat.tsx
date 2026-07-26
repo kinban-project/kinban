@@ -64,6 +64,18 @@ export default function AssistantChat({ groupId, manager = false, assistantName 
     if (response.ok) await load(selectedMember);
   }
 
+  async function acknowledgeMessage(message: Message) {
+    if (!window.confirm("このメッセージを対応済みにしますか？")) return;
+    const response = await localApiFetch(`/api/groups/${groupId}/assistant`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "acknowledgeAssistantMessage", messageId: message.id }),
+    });
+    const result = await response.json().catch(() => ({})) as { error?: string };
+    setNotice(response.ok ? "対応済みにしました。" : result.error ?? "対応済みにできませんでした。");
+    if (response.ok) await load(selectedMember);
+  }
+
   if (!data) return <p className="empty-state">KINBANアシスタントを読み込んでいます…</p>;
   const active = data.assistant?.status === "active";
   const viewingOwnChat = selectedMember === data.currentEmail;
@@ -111,6 +123,7 @@ export default function AssistantChat({ groupId, manager = false, assistantName 
       {data.messages.length ? data.messages.map((item) => <div className={`assistant-message ${item.senderType}`} key={item.id}>
         <strong>{item.senderType === "assistant" || item.senderType === "system" ? assistantLabel : item.senderType === "manager" ? "管理者" : item.memberEmail === data.currentEmail ? "あなた" : item.memberEmail.split("@")[0]}</strong>
         <p>{item.body}</p>
+        {manager && item.senderType === "member" && ["pending", "processing", "needs_review"].includes(item.status) && <button type="button" className="small-action" onClick={() => void acknowledgeMessage(item)}>対応済みにする</button>}
         <small>{item.createdAt}{item.senderType === "member" && item.status === "pending" ? "・AI確認待ち" : item.senderType === "member" && item.status === "processing" ? "・AI対応中" : item.senderType === "member" && item.status === "needs_review" ? "・管理者確認待ち" : ""}</small>
       </div>) : <p className="empty-state">まだ会話はありません。シフトや勤怠についてメッセージを送れます。</p>}
     </div>

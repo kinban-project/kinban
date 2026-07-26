@@ -215,7 +215,9 @@ export async function PATCH(
     action?:
       | "updateAnnouncementDraft"
       | "publishAnnouncementDraft"
-      | "rejectAnnouncementDraft";
+      | "rejectAnnouncementDraft"
+      | "acknowledgeAssistantMessage";
+    messageId?: string;
     draftId?: string;
     title?: string;
     announcementBody?: string;
@@ -233,6 +235,34 @@ export async function PATCH(
   const db = getDb();
 
   if (body.action) {
+    const now = (await getDemoNow(id)).toISOString();
+    if (body.action === "acknowledgeAssistantMessage") {
+      const messageId = body.messageId?.trim() ?? "";
+      if (!messageId)
+        return Response.json({ error: "メッセージが指定されていません" }, { status: 400 });
+      const [updatedMessage] = await db
+        .update(assistantMessages)
+        .set({ status: "processed", claimedAt: null, claimExpiresAt: null, claimId: null })
+        .where(and(
+          eq(assistantMessages.id, messageId),
+          eq(assistantMessages.groupId, id),
+          eq(assistantMessages.senderType, "member"),
+          inArray(assistantMessages.status, ["pending", "processing", "needs_review"]),
+        ))
+        .returning();
+      if (!updatedMessage)
+        return Response.json({ error: "未処理のメッセージが見つかりません" }, { status: 404 });
+      await recordAudit({
+        groupId: id,
+        userEmail: user.email,
+        action: "assistant.message.acknowledge",
+        entityType: "assistantMessage",
+        entityId: messageId,
+        summary: "管理者がKINBANアシスタントのメッセージを対応済みにしました",
+        details: { processedAt: now, memberEmail: updatedMessage.memberEmail },
+      });
+      return Response.json({ ok: true, message: updatedMessage });
+    }
     const draftId = body.draftId?.trim() ?? "";
     const [draft] = await db
       .select()
@@ -249,8 +279,6 @@ export async function PATCH(
         { error: "お知らせ案が見つかりません" },
         { status: 404 },
       );
-    const now = (await getDemoNow(id)).toISOString();
-
     if (body.action === "updateAnnouncementDraft") {
       if (draft.status === "published")
         return Response.json(
