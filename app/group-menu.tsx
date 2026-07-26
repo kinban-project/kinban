@@ -28,6 +28,7 @@ type Props = {
   onAnnouncements: (id: string) => void;
   onAssistant: (id: string) => void;
   onMemos: (id: string) => void;
+  onKnowledge: (id: string) => void;
   onAnnouncementManage: (id: string) => void;
   onDashboard: (id: string) => void;
   onAuditLogs: (id: string) => void;
@@ -113,6 +114,7 @@ export default function GroupMenu({
   onAnnouncements,
   onAssistant,
   onMemos,
+  onKnowledge,
   onAnnouncementManage,
   onDashboard,
   onAuditLogs,
@@ -195,6 +197,7 @@ export default function GroupMenu({
               <button className="group-menu-button" type="button" onClick={() => onMemos(group.groupId)}>
                 業務メモ
               </button>
+              <button className="group-menu-button" type="button" onClick={() => onKnowledge(group.groupId)}>業務ナレッジ</button>
               <WorkDeclareButton groupId={group.groupId} onClick={() => onWorkDeclare(group.groupId)} />
               {manager && (
                 <>

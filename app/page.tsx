@@ -17,6 +17,7 @@ import WorkRecordsPanel from "./work-records-panel";
 import MonthlyWorkPanel from "./monthly-work-panel";
 import SiteAdminPanel from "./site-admin-panel";
 import MemosPanel from "./memos-panel";
+import KnowledgePanel from "./knowledge-panel";
 import { localApiFetch } from "./local-api";
 import { displayShiftTime } from "./shift-time";
 
@@ -184,6 +185,7 @@ export default function Home() {
   const [monthlyWorkOpen, setMonthlyWorkOpen] = useState(false);
   const [monthlyWorkManager, setMonthlyWorkManager] = useState(false);
   const [memosOpen, setMemosOpen] = useState(false);
+  const [knowledgeOpen, setKnowledgeOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [groupId, setGroupId] = useState("");
   const [form, setForm] = useState<FormState>(emptyForm(todayKey));
@@ -485,6 +487,10 @@ export default function Home() {
         onMemos={(groupId) => {
           setMenuGroupId(groupId);
           setMemosOpen(true);
+        }}
+        onKnowledge={(groupId) => {
+          setMenuGroupId(groupId);
+          setKnowledgeOpen(true);
         }}
         onAnnouncementManage={(groupId) => {
           setMenuGroupId(groupId);
@@ -984,6 +990,11 @@ export default function Home() {
       {memosOpen && menuGroupId && (
         <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setMemosOpen(false); }}>
           <div className="modal groups-modal memos-modal"><ModalClose onClose={() => setMemosOpen(false)} /><MemosPanel groupId={menuGroupId} /></div>
+        </div>
+      )}
+      {knowledgeOpen && menuGroupId && (
+        <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setKnowledgeOpen(false); }}>
+          <div className="modal groups-modal memos-modal"><ModalClose onClose={() => setKnowledgeOpen(false)} /><KnowledgePanel groupId={menuGroupId} /></div>
         </div>
       )}
       {dashboardOpen && menuGroupId && (

@@ -2,6 +2,29 @@
 -- 7/1-7/31: completed and published shift fixtures
 -- 8/1-8/15: shift-request acceptance fixture (closes 7/30)
 
+CREATE TABLE IF NOT EXISTS knowledge_folders (
+  id TEXT PRIMARY KEY NOT NULL,
+  group_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS knowledge_folder_group_name_idx ON knowledge_folders(group_id, name);
+CREATE TABLE IF NOT EXISTS knowledge_pages (
+  id TEXT PRIMARY KEY NOT NULL,
+  group_id TEXT NOT NULL,
+  folder_id TEXT NOT NULL,
+  author_email TEXT NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'draft',
+  image_url TEXT,
+  image_alt TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS knowledge_page_group_folder_idx ON knowledge_pages(group_id, folder_id, updated_at);
+
 DELETE FROM work_breaks;
 DELETE FROM push_deliveries;
 DELETE FROM push_subscriptions;
@@ -38,6 +61,8 @@ DELETE FROM demo_clocks;
 DELETE FROM group_invitations;
 DELETE FROM site_invitations;
 DELETE FROM site_users;
+DELETE FROM knowledge_pages;
+DELETE FROM knowledge_folders;
 
 INSERT INTO demo_clocks (scope, current_at) VALUES
   ('public-demo', '2026-07-21T09:00:00+09:00');

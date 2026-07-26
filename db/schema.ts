@@ -219,6 +219,32 @@ export const memos = sqliteTable("memos", {
   index("memo_group_updated_idx").on(table.groupId, table.updatedAt),
 ]);
 
+export const knowledgeFolders = sqliteTable("knowledge_folders", {
+  id: text("id").primaryKey(),
+  groupId: text("group_id").notNull(),
+  name: text("name").notNull(),
+  createdBy: text("created_by").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("knowledge_folder_group_name_idx").on(table.groupId, table.name),
+]);
+
+export const knowledgePages = sqliteTable("knowledge_pages", {
+  id: text("id").primaryKey(),
+  groupId: text("group_id").notNull(),
+  folderId: text("folder_id").notNull(),
+  authorEmail: text("author_email").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull().default(""),
+  status: text("status", { enum: ["draft", "published"] }).notNull().default("draft"),
+  imageUrl: text("image_url"),
+  imageAlt: text("image_alt").notNull().default(""),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("knowledge_page_group_folder_idx").on(table.groupId, table.folderId, table.updatedAt),
+]);
+
 export const siteUsers = sqliteTable("site_users", {
   id: text("id").primaryKey(),
   userEmail: text("user_email").notNull().unique(),
