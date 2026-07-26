@@ -30,12 +30,9 @@ export default function McpGuide() {
       <h3>利用できる操作</h3>
       <ul>
         <li>個人予定：一覧・登録・変更・削除</li>
-        <li>グループ：一覧・メンバー・ニックネーム・基本希望</li>
-        <li>勤務枠：一覧・作成・下書き調整・下書き削除</li>
-        <li>シフト希望：本人分の取得・保存</li>
-          <li>シフト割当：担当割り当て・保存・公開</li>
-        <li>お知らせ：一覧・既読・作成・返信</li>
-          <li>ダッシュボード：人数・シフト・公開状況・お知らせ件数</li>
+        <li>個人用AIキー：プロフィール・基本希望・本人のシフト・勤務申告</li>
+        <li>個人用AIキー：お知らせの確認・返信・管理者への連絡</li>
+        <li>運営支援AIキー：メンバー管理・勤務枠作成・割当・公開・承認・全体通知</li>
       </ul>
       <h3>ツール呼び出し例</h3>
       <Code>{`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_shift_plans","arguments":{"groupId":"group-id"}}}`}</Code>
@@ -45,6 +42,12 @@ export default function McpGuide() {
           変更・削除・勤務枠作成・希望保存・担当割り当て・公開・お知らせ作成は、AIが勝手に実行しないよう{" "}
           <code>confirm: true</code>{" "}
           が必要です。まず対象と変更内容を読み取り、利用者が確認してから同じ操作を実行する運用にしてください。
+        </p>
+      </div>
+      <div className="guide-warning">
+        <strong>個人用AIキーと運営支援AIキー</strong>
+        <p>
+          個人用AIキーは、発行した本人の操作に限定されます。管理者アカウントの本人用キーであっても、シフト作成・公開・割当・承認などは実行できません。運営支援AIを接続する場合は、グループの管理者が発行する運営支援AIキーを使用してください。
         </p>
       </div>
       <div className="guide-warning">

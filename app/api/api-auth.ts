@@ -3,6 +3,20 @@ import { getDb } from "../../db";
 import { apiTokens } from "../../db/schema";
 
 export type ApiTokenType = "personal" | "assistant";
+export const personalApiScopes = [
+  "member:profile:read",
+  "member:profile:write",
+  "member:group:read",
+  "member:preferences:read",
+  "member:preferences:write",
+  "member:shift:read",
+  "member:shift:write",
+  "member:work:read",
+  "member:work:write",
+  "member:announcement:read",
+  "member:announcement:write",
+  "member:message:write",
+] as const;
 export type ApiIdentity = {
   email: string;
   tokenId: string;
@@ -33,6 +47,10 @@ export async function requireApiIdentity(request: Request): Promise<ApiIdentity 
   } catch {
     scopes = [];
   }
+  // Personal keys issued before scopes were persisted remain member-only.
+  // Never interpret an empty personal scope list as unrestricted access.
+  if (token.tokenType === "personal" && scopes.length === 0)
+    scopes = [...personalApiScopes];
   return {
     email: token.ownerEmail,
     tokenId: token.id,

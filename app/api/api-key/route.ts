@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { getDb } from "../../../db";
 import { apiTokens } from "../../../db/schema";
-import { hashApiToken } from "../api-auth";
+import { hashApiToken, personalApiScopes } from "../api-auth";
 
 export const dynamic = "force-dynamic";
 function unauthorized() { return Response.json({ error: "ChatGPT sign-in is required." }, { status: 401 }); }
@@ -10,7 +10,7 @@ function unauthorized() { return Response.json({ error: "ChatGPT sign-in is requ
 export async function GET() {
   const user = await getChatGPTUser();
   if (!user) return unauthorized();
-  const rows = await getDb().select({ id: apiTokens.id, name: apiTokens.name, tokenType: apiTokens.tokenType, groupId: apiTokens.groupId, tokenPrefix: apiTokens.tokenPrefix, lastUsedAt: apiTokens.lastUsedAt, createdAt: apiTokens.createdAt }).from(apiTokens).where(eq(apiTokens.ownerEmail, user.email));
+  const rows = await getDb().select({ id: apiTokens.id, name: apiTokens.name, tokenType: apiTokens.tokenType, groupId: apiTokens.groupId, tokenPrefix: apiTokens.tokenPrefix, lastUsedAt: apiTokens.lastUsedAt, createdAt: apiTokens.createdAt }).from(apiTokens).where(and(eq(apiTokens.ownerEmail, user.email), eq(apiTokens.tokenType, "personal")));
   return Response.json({ keys: rows });
 }
 
@@ -19,7 +19,7 @@ export async function POST(request: Request) {
   if (!user) return unauthorized();
   const payload = await request.json().catch(() => ({})) as { name?: string };
   const raw = `md_${crypto.randomUUID().replaceAll("-", "")}${crypto.randomUUID().replaceAll("-", "")}`;
-  const token = { id: crypto.randomUUID(), ownerEmail: user.email, name: payload.name?.trim() || "KINBAN API key", tokenHash: await hashApiToken(raw), tokenPrefix: raw.slice(0, 11) };
+  const token = { id: crypto.randomUUID(), ownerEmail: user.email, name: payload.name?.trim() || "KINBAN個人用AIキー", tokenType: "personal" as const, scopes: JSON.stringify(personalApiScopes), tokenHash: await hashApiToken(raw), tokenPrefix: raw.slice(0, 11) };
   await getDb().insert(apiTokens).values(token);
   return Response.json({ key: raw, id: token.id, name: token.name, tokenPrefix: token.tokenPrefix }, { status: 201 });
 }

@@ -102,6 +102,28 @@ const assistantTools = new Set([
   "delete_announcement",
   "send_member_message",
 ]);
+// Personal keys are intentionally member-scoped even when the key owner is
+// also a group manager. Keep this allowlist server-side; prompt text and
+// user-supplied IDs must never grant manager capabilities.
+const personalTools = new Set([
+  "list_groups",
+  "get_profile",
+  "set_profile_nickname",
+  "get_group_preferences",
+  "save_group_preferences",
+  "list_shift_plans",
+  "get_shift_plan",
+  "get_shift_requests",
+  "save_shift_requests",
+  "get_work_records",
+  "clock_work",
+  "submit_work_record",
+  "submit_monthly_work",
+  "list_announcements",
+  "mark_announcement_read",
+  "reply_announcement",
+  "send_manager_message",
+]);
 const chunk = <T>(items: T[], size: number) => {
   const chunks: T[][] = [];
   for (let index = 0; index < items.length; index += size)
@@ -935,6 +957,20 @@ const tools = [
     },
   },
   {
+    name: "send_manager_message",
+    description:
+      "Send a private message from the authenticated member to the active managers of a group. The message is queued for the KINBAN assistant and manager review.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId", "body"],
+      properties: {
+        groupId: { type: "string" },
+        body: { type: "string" },
+        confirm: { type: "boolean" },
+      },
+    },
+  },
+  {
     name: "reply_announcement",
     description: "Reply to a group announcement.",
     inputSchema: {
@@ -1041,7 +1077,18 @@ export async function POST(request: Request) {
   if (payload.method === "notifications/initialized")
     return new Response(null, { status: 202 });
   if (payload.method === "tools/list")
-    return Response.json({ jsonrpc: "2.0", id: payload.id, result: { tools } });
+    return Response.json({
+      jsonrpc: "2.0",
+      id: payload.id,
+      result: {
+        tools:
+          identity.tokenType === "personal"
+            ? tools.filter((tool) => personalTools.has(tool.name))
+            : identity.tokenType === "assistant"
+              ? tools.filter((tool) => assistantTools.has(tool.name))
+              : tools,
+      },
+    });
   if (payload.method !== "tools/call" || !payload.params?.name)
     return Response.json(
       {
@@ -1080,6 +1127,11 @@ export async function POST(request: Request) {
     return rpcError(
       payload.id,
       "This operation is not available to an assistant token.",
+    );
+  if (identity.tokenType === "personal" && !personalTools.has(name))
+    return rpcError(
+      payload.id,
+      "This operation is not available to a personal member key. Use the group operation AI key for manager actions.",
     );
   const assistantStatusError = await assistantActiveError(db, identity);
   if (assistantStatusError) return rpcError(payload.id, assistantStatusError);
@@ -1303,6 +1355,8 @@ export async function POST(request: Request) {
       const groupId = text(args.groupId);
       const restricted = assistantGroupError(identity, groupId);
       if (restricted) return rpcError(payload.id, restricted);
+      if (identity.tokenType === "personal" && args.userEmail !== undefined)
+        return rpcError(payload.id, "A personal member key can only read its owner's work records.");
       if (
         identity.tokenType === "assistant" &&
         !hasScope(identity, "work:read")
@@ -1331,6 +1385,11 @@ export async function POST(request: Request) {
     if (name === "submit_work_record") {
       const groupId = text(args.groupId);
       const status = text(args.status);
+      if (identity.tokenType === "personal" && status !== "submitted")
+        return rpcError(
+          payload.id,
+          "A personal member key can only submit its owner's work record; approval and rejection require the operation AI key.",
+        );
       const encodingIssue = textEncodingIssue(
         args.managerNote,
         "work-record manager note",
@@ -1841,7 +1900,12 @@ export async function POST(request: Request) {
       ]);
       return rpc(
         payload.id,
-        plans.map((plan) => {
+        plans
+          .filter(
+            (plan) =>
+              identity.tokenType !== "personal" || plan.status === "published",
+          )
+          .map((plan) => {
           const linkedPeriods = requestPeriods.filter(
             (period) => period.planId === plan.id,
           );
@@ -1850,7 +1914,7 @@ export async function POST(request: Request) {
             requestPeriodId: linkedPeriods[0]?.id ?? null,
             requestPeriods: linkedPeriods,
           };
-        }),
+          }),
       );
     }
     if (name === "get_shift_plan") {
@@ -1858,6 +1922,8 @@ export async function POST(request: Request) {
       if ("error" in found) return rpcError(payload.id, found.error);
       const restricted = assistantGroupError(identity, found.plan.groupId);
       if (restricted) return rpcError(payload.id, restricted);
+      if (identity.tokenType === "personal" && found.plan.status !== "published")
+        return rpcError(payload.id, "Personal member keys can only read published shifts.");
       if (
         identity.tokenType === "assistant" &&
         !hasScope(identity, "shift:read")
@@ -1885,7 +1951,12 @@ export async function POST(request: Request) {
       return rpc(payload.id, {
         plan: found.plan,
         slots,
-        assignments: allAssignments,
+        assignments:
+          identity.tokenType === "personal"
+            ? allAssignments.filter(
+                (assignment) => assignment.userEmail === identity.email,
+              )
+            : allAssignments,
       });
     }
     if (name === "check_shift_assignments") {
@@ -3620,7 +3691,17 @@ export async function POST(request: Request) {
             .from(announcementReads)
             .where(inArray(announcementReads.announcementId, ids))
         : [];
-      return rpc(payload.id, { announcements, replies, reads });
+      return rpc(payload.id, {
+        announcements,
+        replies:
+          identity.tokenType === "personal"
+            ? replies.filter((reply) => reply.userEmail === identity.email)
+            : replies,
+        reads:
+          identity.tokenType === "personal"
+            ? reads.filter((read) => read.userEmail === identity.email)
+            : reads,
+      });
     }
     if (name === "mark_announcement_read") {
       const id = text(args.announcementId);
@@ -3768,6 +3849,54 @@ export async function POST(request: Request) {
         messageId: message.id,
         recipientEmail,
       });
+    }
+    if (name === "send_manager_message") {
+      if (args.confirm !== true) return rpcError(payload.id, mutating);
+      const groupId = text(args.groupId);
+      const body = text(args.body).slice(0, 2000);
+      const encodingIssue = textEncodingIssue(body, "manager message body");
+      if (encodingIssue) return rpcError(payload.id, encodingIssue);
+      if (!groupId || !body) return rpcError(payload.id, "groupId and body are required");
+      const member = await membership(db, groupId, identity.email);
+      if (!member || member.status !== "active") return rpcError(payload.id, "Active group membership is required");
+      const row = {
+        id: crypto.randomUUID(),
+        groupId,
+        memberEmail: identity.email,
+        senderType: "member" as const,
+        senderEmail: identity.email,
+        body,
+        status: "pending" as const,
+      };
+      await db.insert(assistantMessages).values(row);
+      await recordAudit({
+        groupId,
+        userEmail: identity.email,
+        action: "assistant.manager_message.send",
+        entityType: "assistantMessage",
+        entityId: row.id,
+        summary: "MCPで管理者への連絡を送信しました",
+        details: { source: "mcp" },
+      });
+      const managers = await db
+        .select({ userEmail: groupMembers.userEmail })
+        .from(groupMembers)
+        .where(
+          and(
+            eq(groupMembers.groupId, groupId),
+            eq(groupMembers.status, "active"),
+            inArray(groupMembers.role, ["owner", "editor"]),
+          ),
+        );
+      await sendBusinessPush(db, {
+        recipients: managers.map((manager) => manager.userEmail),
+        eventId: `member-manager-message:${row.id}`,
+        title: "KINBAN",
+        body: "メンバーから新しい連絡があります",
+        url: `/?group=${encodeURIComponent(groupId)}&view=assistant`,
+        urgency: "high",
+      });
+      return rpc(payload.id, { ok: true, messageId: row.id, status: row.status });
     }
     if (name === "reply_announcement") {
       const id = text(args.announcementId);
