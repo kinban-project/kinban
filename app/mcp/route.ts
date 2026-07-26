@@ -52,6 +52,7 @@ import {
   mcpClock,
   mcpDailyReview,
   mcpReopenWorkRecord,
+  mcpSaveWorkRecord,
   mcpReviewMonthly,
   mcpSubmitMonthly,
 } from "./work-tools";
@@ -131,6 +132,7 @@ const personalTools = new Set([
   "clock_work",
   "submit_work_record",
   "reopen_work_record",
+  "save_work_record",
   "submit_monthly_work",
   "list_announcements",
   "mark_announcement_read",
@@ -626,6 +628,23 @@ const tools = [
       properties: {
         groupId: { type: "string" },
         recordId: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "save_work_record",
+    description:
+      "Save the authenticated member's own daily work declaration after it is editable. Updates claimed start/end times, break minutes, and employee note. Use reopen_work_record first when the record is submitted or approved, then submit_work_record with status submitted.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId", "recordId"],
+      properties: {
+        groupId: { type: "string" },
+        recordId: { type: "string" },
+        claimedStartAt: { type: "string", description: "ISO time, e.g. 2026-07-20T09:40+09:00. Omit to keep the current value; empty string clears it." },
+        claimedEndAt: { type: "string", description: "ISO time, e.g. 2026-07-20T17:00+09:00. Omit to keep the current value; empty string clears it." },
+        claimedBreakMinutes: { type: "number", minimum: 0, maximum: 1440 },
+        employeeNote: { type: "string", maxLength: 500 },
       },
     },
   },
@@ -1512,6 +1531,25 @@ export async function POST(request: Request) {
         groupId,
         identity.email,
         text(args.recordId),
+      );
+      return "error" in result
+        ? rpcError(payload.id, result.error)
+        : completeManagedExecution(result);
+    }
+    if (name === "save_work_record") {
+      const groupId = text(args.groupId);
+      const restricted = assistantGroupError(identity, groupId);
+      if (restricted) return rpcError(payload.id, restricted);
+      if (identity.tokenType !== "personal")
+        return rpcError(payload.id, "This member declaration tool requires a personal AI key.");
+      const encodingIssue = textEncodingIssue(args.employeeNote, "employee note");
+      if (encodingIssue) return rpcError(payload.id, encodingIssue);
+      const result = await mcpSaveWorkRecord(
+        db,
+        groupId,
+        identity.email,
+        text(args.recordId),
+        args,
       );
       return "error" in result
         ? rpcError(payload.id, result.error)

@@ -141,6 +141,48 @@ export async function mcpReopenWorkRecord(db: Db, groupId: string, actorEmail: s
   return { ok: true, recordId, status: "unsubmitted" };
 }
 
+function mcpClaimTime(value: unknown) {
+  if (value === undefined) return undefined;
+  if (value === null || String(value).trim() === "") return null;
+  const text = String(value).trim();
+  const parsed = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(text)
+    ? new Date(`${text}:00+09:00`)
+    : new Date(text);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+export async function mcpSaveWorkRecord(db: Db, groupId: string, actorEmail: string, recordId: string, args: Args) {
+  const [membership] = await db
+    .select()
+    .from(groupMembers)
+    .where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userEmail, actorEmail)))
+    .limit(1);
+  if (!membership || membership.status !== "active") return error("Active group membership is required.");
+  const [record] = await db
+    .select()
+    .from(workRecords)
+    .where(and(eq(workRecords.id, recordId), eq(workRecords.groupId, groupId), eq(workRecords.userEmail, actorEmail)))
+    .limit(1);
+  if (!record) return error("Work record not found.");
+  if (record.monthlyClosedAt) return error("This month has been approved. An administrator must reopen it first.");
+  if (["submitted", "approved"].includes(record.status)) return error("Reopen the work record before editing it.");
+  const claimedStartAt = mcpClaimTime(args.claimedStartAt);
+  const claimedEndAt = mcpClaimTime(args.claimedEndAt);
+  if (args.claimedStartAt !== undefined && claimedStartAt === null && String(args.claimedStartAt).trim() !== "") return error("Invalid claimedStartAt. Use ISO time, for example 2026-07-20T09:40+09:00.");
+  if (args.claimedEndAt !== undefined && claimedEndAt === null && String(args.claimedEndAt).trim() !== "") return error("Invalid claimedEndAt. Use ISO time, for example 2026-07-20T17:00+09:00.");
+  const nextStart = claimedStartAt === undefined ? record.claimedStartAt : claimedStartAt;
+  const nextEnd = claimedEndAt === undefined ? record.claimedEndAt : claimedEndAt;
+  if (nextStart && nextEnd && new Date(nextEnd).getTime() < new Date(nextStart).getTime()) return error("Claimed end must be after claimed start.");
+  const breakValue = args.claimedBreakMinutes === undefined
+    ? record.claimedBreakMinutes
+    : Math.max(0, Math.min(1440, Math.round(Number(args.claimedBreakMinutes) || 0)));
+  const note = args.employeeNote === undefined ? record.employeeNote : String(args.employeeNote).trim().slice(0, 500);
+  const now = (await getDemoNow(groupId)).toISOString();
+  await db.update(workRecords).set({ claimedStartAt: nextStart, claimedEndAt: nextEnd, claimedBreakMinutes: breakValue, employeeNote: note, updatedAt: now }).where(eq(workRecords.id, record.id));
+  await recordAudit({ groupId, userEmail: actorEmail, action: "work.claim.save", entityType: "workRecord", entityId: record.id, summary: "勤務申告の時刻・休憩・備考を保存しました", details: { source: "mcp" } });
+  return { ok: true, recordId, status: record.status, claimedStartAt: nextStart, claimedEndAt: nextEnd, claimedBreakMinutes: breakValue, employeeNote: note };
+}
+
 export async function mcpSubmitMonthly(db: Db, groupId: string, email: string, month: string) {
   const bounds = monthBounds(month);
   if (!bounds) return error("month must be YYYY-MM.");
