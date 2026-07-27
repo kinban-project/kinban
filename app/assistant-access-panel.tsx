@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { localApiFetch } from "./local-api";
 
 type AssistantKey = { id: string; name: string; tokenPrefix: string; lastUsedAt?: string | null };
 
@@ -11,14 +12,14 @@ export default function AssistantAccessPanel({ groupId }: { groupId: string }) {
   const [notice, setNotice] = useState("");
 
   async function load() {
-    const response = await fetch(`/api/groups/${groupId}/assistant/access`);
+    const response = await localApiFetch(`/api/groups/${groupId}/assistant/access`);
     if (response.ok) setKeys((await response.json() as { keys: AssistantKey[] }).keys);
   }
   useEffect(() => { void load(); }, [groupId]);
 
   async function issue() {
     setBusy(true); setNewKey(null); setNotice("");
-    const response = await fetch(`/api/groups/${groupId}/assistant/access`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+    const response = await localApiFetch(`/api/groups/${groupId}/assistant/access`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
     const result = await response.json().catch(() => ({})) as { key?: string; error?: string };
     if (response.ok && result.key) { setNewKey(result.key); setNotice("キーを発行しました。この画面を離れると再表示できません。"); await load(); }
     else setNotice(result.error ?? "運営支援AIキーを発行できませんでした。");
@@ -27,7 +28,7 @@ export default function AssistantAccessPanel({ groupId }: { groupId: string }) {
 
   async function downloadPack() {
     setBusy(true); setNotice("");
-    const response = await fetch(`/api/groups/${groupId}/assistant/access`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "downloadPack" }) });
+    const response = await localApiFetch(`/api/groups/${groupId}/assistant/access`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "downloadPack" }) });
     if (!response.ok) {
       const result = await response.json().catch(() => ({})) as { error?: string };
       setNotice(result.error ?? "接続パックを作成できませんでした。");
@@ -48,7 +49,7 @@ export default function AssistantAccessPanel({ groupId }: { groupId: string }) {
 
   async function revoke(id: string) {
     if (!window.confirm("この運営支援AIキーを無効化しますか？")) return;
-    await fetch(`/api/groups/${groupId}/assistant/access`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+    await localApiFetch(`/api/groups/${groupId}/assistant/access`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
     await load(); setNotice("キーを無効化しました。");
   }
 
