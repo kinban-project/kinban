@@ -1327,3 +1327,40 @@ FROM work_records records
 WHERE records.group_id IN ('seed-group-night-staff', 'seed-group-night-cast')
   AND records.user_email IN ('night-staff-a@local.test', 'night-cast-a@local.test')
   AND records.scheduled_end_time = '26:00';
+
+-- Nightclub business guides. One guide per group, with a reusable illustration
+-- embedded in the staff guide for the preview and member AI context.
+INSERT OR IGNORE INTO knowledge_folders (id, group_id, name, created_by) VALUES
+  ('knowledge-folder-night-staff-guide', 'seed-group-night-staff', '業務ガイド', 'night-manager@local.test'),
+  ('knowledge-folder-night-cast-guide', 'seed-group-night-cast', '業務ガイド', 'night-manager@local.test');
+
+INSERT INTO knowledge_pages (
+  id, group_id, folder_id, author_email, title, body, status, image_url, image_alt,
+  created_at, updated_at
+) VALUES
+  (
+    'knowledge-night-staff-opening-check',
+    'seed-group-night-staff',
+    'knowledge-folder-night-staff-guide',
+    'night-manager@local.test',
+    '開店前チェックとスタッフの引継ぎ',
+    '# 開店前チェックとスタッフの引継ぎ\n\n営業開始前に、次の順番で確認します。\n\n1. 店内・バックヤードの安全確認をする。\n2. 予約・連絡事項・当日の配置を確認する。\n3. キャストの出勤状況と変更事項を確認する。\n4. 不足や設備不良があれば、開店前に店長へ連絡する。\n5. 引継ぎ事項は業務メモの「日報」または「課題・改善」に残す。\n\n![開店前の勤務確認イメージ](/knowledge/nightclub-opening-check.png)\n\n## 勤務時間の変更\n\n客数による早上がりや繁忙日の延長が決まった場合は、退勤前に店長へ共有します。実際の開始・終了時刻と理由は勤務申告の備考にも記録してください。',
+    'published',
+    '/knowledge/nightclub-opening-check.png',
+    '開店前に勤務予定と引継ぎを確認するスタッフのイラスト',
+    '2026-07-20T12:00:00+09:00',
+    '2026-07-20T12:00:00+09:00'
+  ),
+  (
+    'knowledge-night-cast-attendance-notes',
+    'seed-group-night-cast',
+    'knowledge-folder-night-cast-guide',
+    'night-manager@local.test',
+    '同伴・遅刻・早上がりの勤務申告',
+    '# 同伴・遅刻・早上がりの勤務申告\n\n同伴などで予定時刻に遅れる場合は、勤務開始後に実際の開始時刻と理由を勤務申告の備考へ残します。例：\n\n> 同伴対応のため20分遅刻しました。\n\n客数が少なく早上がりした場合や、繁忙日に延長した場合も、実際の終了時刻を入力し、理由を一言添えてください。\n\n- 遅刻：実際の開始時刻と理由を記録\n- 早上がり：実際の終了時刻と客数などの理由を記録\n- 延長：実際の終了時刻と延長理由を記録\n\n管理者はシフト予定との差分と備考を確認し、問題がなければ日次承認します。',
+    'published',
+    NULL,
+    '',
+    '2026-07-20T12:05:00+09:00',
+    '2026-07-20T12:05:00+09:00'
+  );
