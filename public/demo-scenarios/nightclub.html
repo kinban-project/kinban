@@ -11,42 +11,52 @@
     .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}.card{padding:16px;background:#fff;border:1px solid var(--line);border-radius:14px}.card p{margin:5px 0 0;color:var(--muted);font-size:.92rem}.state{border-left:5px solid #8060a8;background:linear-gradient(135deg,#fff,var(--violet))}.note{background:var(--rose);border-left:5px solid #c45867}.gold{background:var(--gold);border-left:5px solid #d6a536}
     table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);font-size:.92rem}th,td{padding:10px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}th{white-space:nowrap;background:#f3eef8}tr:last-child td{border-bottom:0}.badge{display:inline-block;padding:3px 9px;border-radius:999px;font-size:.78rem;font-weight:700}.published{color:#28705a;background:#dff3e7}.open{color:#8a6417;background:#fff0c2}.closed{color:#766d82;background:#eeeaf0}
     .people{display:flex;flex-wrap:wrap;gap:8px}.people a{padding:8px 12px;background:#fff;border:1px solid var(--line);border-radius:10px;text-decoration:none}.legend{display:flex;gap:14px;flex-wrap:wrap;margin:0 0 12px;color:var(--muted);font-size:.84rem}.legend span{display:inline-flex;align-items:center;gap:5px}.legend i{display:inline-block;width:12px;height:12px;border-radius:3px}.legend .staff{background:var(--staff)}.legend .cast{background:var(--cast)}.legend .closed{background:var(--closed);border:1px solid var(--line)}
-    @media(max-width:700px){main{padding:22px 12px 40px}table{display:block;overflow-x:auto;white-space:nowrap}}
+    .coverage{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:#fff;padding:14px}.coverage-grid{min-width:700px;display:grid;grid-template-columns:88px repeat(9,minmax(48px,1fr));gap:4px}.coverage-grid>div{min-height:25px}.coverage-head{color:var(--muted);font-size:.72rem;text-align:center;padding:3px 2px}.coverage-day{font-size:.78rem;font-weight:700;padding:5px 4px}.coverage-cell{display:flex;align-items:flex-end;justify-content:center;height:48px;padding:3px;border-radius:6px;background:#f5f4f7}.coverage-stack{display:flex;flex-direction:column-reverse;width:100%;height:100%;gap:2px}.coverage-stack b{display:block;min-height:8px;border-radius:3px}.coverage-stack .staff{background:var(--staff)}.coverage-stack .cast{background:var(--cast)}.coverage-cell.busy{background:#fff4dd}.coverage-closed{grid-column:2/-1;display:flex;align-items:center;padding:5px 10px;border-radius:6px;background:var(--closed);color:var(--muted);font-size:.78rem}.coverage-note{margin:12px 0 0;color:var(--muted);font-size:.8rem}
+    @media(max-width:700px){main{padding:22px 12px 40px}table{display:block;overflow-x:auto;white-space:nowrap}.coverage{margin:0 -2px;padding:10px 8px}.coverage-grid{min-width:650px}}
   </style>
 </head>
 <body>
   <main>
     <p><a href="/demo">← デモ一覧へ戻る</a></p>
     <h1>ナイトクラブ</h1>
-    <p class="muted">スタッフとキャストを別グループで管理するシナリオです。店長は両方の代表管理者ですが、シフトには入りません。</p>
+    <p class="muted">スタッフとキャストを別グループで管理するシナリオです。店長は両方を管理しますが、シフトには入りません。</p>
 
     <h2>シナリオの状態</h2>
     <div class="grid">
-      <section class="card state"><strong>7月シフト：公開済み・割当済み</strong><p>月曜休業。7月の営業日にスタッフとキャストを配置しています。</p></section>
-      <section class="card gold"><strong>8月シフト：希望受付中</strong><p>8月1日〜31日分を7月30日まで受付中です。提出後に割当を行います。</p></section>
-      <section class="card note"><strong>勤怠の特徴</strong><p>開始・休憩・終了を打刻。同伴による遅刻、早上がり、延長勤務の申告を確認します。</p></section>
+      <section class="card state"><strong>7月シフト：公開済み・割当済み</strong><p>営業日のスタッフとキャストに、早出・遅出を含むシフトを割り当てています。</p></section>
+      <section class="card gold"><strong>8月シフト：希望受付中</strong><p>8月1日〜31日分を7月30日まで受付中です。希望提出後に割り当てます。</p></section>
+      <section class="card note"><strong>勤務の特徴</strong><p>打刻を使い、早上がり・延長・同伴による遅刻などの差分を勤務申告で確認します。</p></section>
     </div>
 
     <h2>週間の人員配置</h2>
-    <p class="muted">営業時間は18:00〜26:00、月曜休業。スタッフは17:00から勤務します。金曜・土曜・日曜は休日前として厚めに配置しています。</p>
+    <p class="muted">営業時間は18:00〜26:00、スタッフは17:00から勤務します。月曜は休業、金土日と祝日前は厚めに配置します。</p>
     <div class="legend"><span><i class="staff"></i>スタッフ</span><span><i class="cast"></i>キャスト</span><span><i class="closed"></i>休業</span></div>
     <table>
-      <thead><tr><th>曜日</th><th>スタッフ</th><th>キャスト</th><th>配置の意図</th></tr></thead>
+      <thead><tr><th>曜日</th><th>スタッフ</th><th>キャスト</th><th>配置の考え方</th></tr></thead>
       <tbody>
         <tr><td>月</td><td colspan="2"><span class="badge closed">休業</span></td><td>営業なし</td></tr>
-        <tr><td>火〜木</td><td><span class="badge published">17:00〜26:00 1名</span></td><td>18:00〜26:00 1名<br>20:00〜22:00 1名</td><td>通常営業の基本配置</td></tr>
-        <tr><td>金〜日・祝前日</td><td><span class="badge published">17:00〜26:00 1名</span></td><td>18:00〜26:00 2名<br>20:00〜24:00 2名</td><td>来店が増える時間帯を増員</td></tr>
+        <tr><td>火・水・木</td><td><span class="badge published">17:00〜26:00 1名</span></td><td>18:00〜20:00 1名<br>20:00〜22:00 2名<br>22:00〜24:00 1名<br>24:00〜26:00 1名</td><td>早出と遅出を組み合わせる通常配置</td></tr>
+        <tr><td>金・土・日・祝前日</td><td><span class="badge published">17:00〜26:00 1名</span></td><td>18:00〜20:00 2名<br>20:00〜22:00 4名<br>22:00〜24:00 2名<br>24:00〜26:00 2名</td><td>来店が増える時間帯を厚めに配置</td></tr>
       </tbody>
     </table>
 
+    <h2>週間の人員配置グラフ</h2>
+    <p class="muted">時間帯ごとの人数を積み上げています。棒の内訳はスタッフとキャストで色分けしています。</p>
+    <div class="legend"><span><i class="staff"></i>スタッフ</span><span><i class="cast"></i>キャスト</span></div>
+    <div class="coverage"><div class="coverage-grid">
+      <div></div><div class="coverage-head">17:00</div><div class="coverage-head">18:00</div><div class="coverage-head">19:00</div><div class="coverage-head">20:00</div><div class="coverage-head">21:00</div><div class="coverage-head">22:00</div><div class="coverage-head">23:00</div><div class="coverage-head">24:00</div><div class="coverage-head">25:00</div>
+      <div class="coverage-day">月</div><div class="coverage-closed">休業</div>
+      <div class="coverage-day">火</div><div class="coverage-cell"><div class="coverage-stack"><b class="staff"></b></div></div><div class="coverage-cell"><div class="coverage-stack"><b class="staff"></b><b class="cast"></b></div></div><div class="coverage-cell"><div class="coverage-stack"><b class="staff"></b><b class="cast"></b></div></div><div class="coverage-cell"><div class="coverage-stack"><b class="staff"></b><b class="cast"></b><b class="cast"></b></div></div><div class="coverage-cell"><div class="coverage-stack"><b class="staff"></b><b class="cast"></b><b class="cast"></b></div></div><div class="coverage-cell"><div class="coverage-stack"><b class="staff"></b><b class="cast"></b></div></div><div class="coverage-cell"><div class="coverage-stack"><b class="staff"></b><b class="cast"></b></div></div><div class="coverage-cell"><div class="coverage-stack"><b class="staff"></b><b class="cast"></b></div></div><div class="coverage-cell"><div class="coverage-stack"><b class="staff"></b><b class="cast"></b></div></div>
+      <div class="coverage-day">水・木</div><div class="coverage-cell"><div class="coverage-stack"><b class="staff"></b></div></div><div class="coverage-cell"><div class="coverage-stack"><b class="staff"></b><b class="cast"></b></div></div><div class="coverage-cell"><div class="coverage-stack"><b class="staff"></b><b class="cast"></b></div></div><div class="coverage-cell"><div class="coverage-stack"><b class="staff"></b><b class="cast"></b><b class="cast"></b></div></div><div class="coverage-cell"><div class="coverage-stack"><b class="staff"></b><b class="cast"></b><b class="cast"></b></div></div><div class="coverage-cell"><div class="coverage-stack"><b class="staff"></b><b class="cast"></b></div></div><div class="coverage-cell"><div class="coverage-stack"><b class="staff"></b><b class="cast"></b></div></div><div class="coverage-cell"><div class="coverage-stack"><b class="staff"></b><b class="cast"></b></div></div><div class="coverage-cell"><div class="coverage-stack"><b class="staff"></b><b class="cast"></b></div></div>
+      <div class="coverage-day">金・土・日</div><div class="coverage-cell busy"><div class="coverage-stack"><b class="staff"></b></div></div><div class="coverage-cell busy"><div class="coverage-stack"><b class="staff"></b><b class="cast"></b><b class="cast"></b></div></div><div class="coverage-cell busy"><div class="coverage-stack"><b class="staff"></b><b class="cast"></b><b class="cast"></b></div></div><div class="coverage-cell busy"><div class="coverage-stack"><b class="staff"></b><b class="cast"></b><b class="cast"></b><b class="cast"></b><b class="cast"></b></div></div><div class="coverage-cell busy"><div class="coverage-stack"><b class="staff"></b><b class="cast"></b><b class="cast"></b><b class="cast"></b><b class="cast"></b></div></div><div class="coverage-cell busy"><div class="coverage-stack"><b class="staff"></b><b class="cast"></b><b class="cast"></b></div></div><div class="coverage-cell busy"><div class="coverage-stack"><b class="staff"></b><b class="cast"></b><b class="cast"></b></div></div><div class="coverage-cell busy"><div class="coverage-stack"><b class="staff"></b><b class="cast"></b><b class="cast"></b></div></div><div class="coverage-cell busy"><div class="coverage-stack"><b class="staff"></b><b class="cast"></b><b class="cast"></b></div></div>
+    </div></div>
+    <p class="coverage-note">早出相当は18:00〜22:00、遅出相当は20:00〜26:00を基本に、2時間単位の枠へ分けて表示します。</p>
+
     <h2>受付・公開状態</h2>
-    <table>
-      <thead><tr><th>対象</th><th>スタッフ</th><th>キャスト</th></tr></thead>
-      <tbody>
-        <tr><td>7月</td><td><span class="badge published">公開済み・割当済み</span></td><td><span class="badge published">公開済み・割当済み</span></td></tr>
-        <tr><td>8月</td><td><span class="badge open">7/30まで希望受付中</span></td><td><span class="badge open">7/30まで希望受付中</span></td></tr>
-      </tbody>
-    </table>
+    <table><thead><tr><th>対象</th><th>スタッフ</th><th>キャスト</th></tr></thead><tbody>
+      <tr><td>7月</td><td><span class="badge published">公開済み・割当済み</span></td><td><span class="badge published">公開済み・割当済み</span></td></tr>
+      <tr><td>8月</td><td><span class="badge open">7/30まで希望受付中</span></td><td><span class="badge open">7/30まで希望受付中</span></td></tr>
+    </tbody></table>
 
     <h2>登場するメンバー</h2>
     <div class="people">
@@ -56,7 +66,7 @@
     </div>
 
     <h2>確認するポイント</h2>
-    <div class="grid"><section class="card note"><strong>同伴による遅刻</strong><p>キャストAは遅刻理由を勤務申告の備考に残す想定です。</p></section><section class="card gold"><strong>早上がり・延長</strong><p>客数に応じた早上がりや、繁忙日の延長勤務をシフトとの差分として確認します。</p></section><section class="card"><strong>グループ分離</strong><p>スタッフとキャストは別グループですが、店長は両方を管理します。</p></section></div>
+    <div class="grid"><section class="card note"><strong>同伴による遅刻</strong><p>キャストは遅刻理由を勤務申告の備考に残し、予定との差分を確認します。</p></section><section class="card gold"><strong>早上がり・延長</strong><p>客数に応じた早上がりや、繁忙日の延長勤務をシフトとの差分として確認します。</p></section><section class="card"><strong>グループ分離</strong><p>スタッフとキャストは別グループですが、店長は両方を管理します。</p></section></div>
   </main>
 </body>
 </html>

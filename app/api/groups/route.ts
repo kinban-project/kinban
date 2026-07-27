@@ -5,6 +5,7 @@ import { groupAssistants, groupInvitations, groupJoinRequests, groupMembers, gro
 import { recordAudit } from "../../audit-log";
 import { toPublicMember } from "../groups/member-dto";
 import { canCreateGroups, getSiteUser, siteAccessError } from "../../site-access";
+import { isDemoModeServer } from "../../demo-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -15,8 +16,9 @@ function identityRequired() {
 export async function GET() {
   const user = await getChatGPTUser();
   if (!user) return identityRequired();
-  const siteUser = await getSiteUser(user.email);
-  if (!siteUser || siteUser.status !== "active") return siteAccessError();
+  const demoMode = isDemoModeServer();
+  const siteUser = demoMode ? null : await getSiteUser(user.email);
+  if (!demoMode && (!siteUser || siteUser.status !== "active")) return siteAccessError();
   const db = getDb();
   const memberships = await db.select().from(groupMembers).where(eq(groupMembers.userEmail, user.email));
   const activeMemberships = memberships.filter((item) => item.status === "active");
@@ -31,7 +33,7 @@ export async function GET() {
     ? await db.select().from(groups).where(inArray(groups.id, pendingInvitations.map((item) => item.groupId)))
     : [];
   return Response.json({
-    siteAccess: { isSiteAdmin: siteUser.isSiteAdmin, canCreateGroups: siteUser.isSiteAdmin || siteUser.canCreateGroups },
+    siteAccess: { isSiteAdmin: Boolean(siteUser?.isSiteAdmin), canCreateGroups: Boolean(siteUser?.isSiteAdmin || siteUser?.canCreateGroups) },
     pendingInvitations: pendingInvitations.map((invitation) => ({
       ...invitation,
       group: invitationGroups.find((group) => group.id === invitation.groupId) ?? null,

@@ -936,3 +936,79 @@ INSERT INTO shift_request_periods (id, group_id, plan_id, name, opens_on, closes
 INSERT INTO shift_request_submissions (id, period_id, user_email, saved_at, request_comment) VALUES
   ('seed-night-aug-sub-staff-a', 'seed-night-staff-request-august-month', 'night-staff-a@local.test', '2026-07-21T10:00:00+09:00', '平日中心で希望します。'),
   ('seed-night-aug-sub-cast-a', 'seed-night-cast-request-august-month', 'night-cast-a@local.test', '2026-07-21T10:10:00+09:00', '同伴で遅れる日は備考に記載します。');
+-- Nightclub cast slots are two-hour blocks. Rebuild the July/August schedules so
+-- normal days show an early shift (18:00-22:00) and a late shift (20:00-close).
+DELETE FROM work_breaks
+WHERE work_record_id IN (SELECT id FROM work_records WHERE group_id IN ('seed-group-night-staff', 'seed-group-night-cast'));
+DELETE FROM work_records WHERE group_id IN ('seed-group-night-staff', 'seed-group-night-cast');
+DELETE FROM shift_request_submissions
+WHERE period_id IN (SELECT id FROM shift_request_periods WHERE group_id IN ('seed-group-night-staff', 'seed-group-night-cast'));
+DELETE FROM shift_requests
+WHERE period_id IN (SELECT id FROM shift_request_periods WHERE group_id IN ('seed-group-night-staff', 'seed-group-night-cast'));
+DELETE FROM shift_request_periods WHERE group_id IN ('seed-group-night-staff', 'seed-group-night-cast');
+DELETE FROM shift_assignments
+WHERE slot_id IN (SELECT id FROM shift_slots WHERE plan_id IN (SELECT id FROM shift_plans WHERE group_id IN ('seed-group-night-staff', 'seed-group-night-cast')));
+DELETE FROM shift_slots
+WHERE plan_id IN (SELECT id FROM shift_plans WHERE group_id IN ('seed-group-night-staff', 'seed-group-night-cast'));
+DELETE FROM shift_plans WHERE group_id IN ('seed-group-night-staff', 'seed-group-night-cast');
+
+INSERT INTO shift_plans (id, group_id, name, start_date, end_date, opening_time, closing_time, slot_minutes, default_required_count, notes, status, created_by) VALUES
+  ('seed-night-staff-plan-july-month', 'seed-group-night-staff', '7月スタッフシフト', '2026-07-01', '2026-07-31', '17:00', '26:00', 60, 1, '月曜休業。営業日はスタッフ1名を17:00〜26:00に配置。', 'published', 'night-manager@local.test'),
+  ('seed-night-cast-plan-july-month', 'seed-group-night-cast', '7月キャストシフト', '2026-07-01', '2026-07-31', '18:00', '26:00', 120, 1, '2時間枠。通常日は早出18:00〜22:00と遅出20:00〜26:00、金土日・祝前日は各2名。', 'published', 'night-manager@local.test'),
+  ('seed-night-staff-plan-august-month', 'seed-group-night-staff', '8月スタッフシフト', '2026-08-01', '2026-08-31', '17:00', '26:00', 60, 1, '月曜休業。希望受付中。', 'draft', 'night-manager@local.test'),
+  ('seed-night-cast-plan-august-month', 'seed-group-night-cast', '8月キャストシフト', '2026-08-01', '2026-08-31', '18:00', '26:00', 120, 1, '2時間枠。希望受付中。', 'draft', 'night-manager@local.test');
+
+WITH RECURSIVE dates(date) AS (SELECT '2026-07-01' UNION ALL SELECT date(date, '+1 day') FROM dates WHERE date < '2026-07-31')
+INSERT INTO shift_slots (id, plan_id, date, start_time, end_time, required_count, role)
+SELECT 'night-staff-jul-' || replace(date, '-', ''), 'seed-night-staff-plan-july-month', date, '17:00', '26:00', 1, 'スタッフ'
+FROM dates WHERE strftime('%w', date) <> '1';
+
+WITH RECURSIVE dates(date) AS (SELECT '2026-07-01' UNION ALL SELECT date(date, '+1 day') FROM dates WHERE date < '2026-07-31'), blocks(start_time, end_time) AS (VALUES ('18:00', '20:00'), ('20:00', '22:00'), ('22:00', '24:00'), ('24:00', '26:00'))
+INSERT INTO shift_slots (id, plan_id, date, start_time, end_time, required_count, role)
+SELECT 'night-cast-jul-' || replace(dates.date, '-', '') || '-' || replace(blocks.start_time, ':', ''), 'seed-night-cast-plan-july-month', dates.date, blocks.start_time, blocks.end_time,
+  CASE WHEN strftime('%w', dates.date) IN ('0', '5', '6') AND blocks.start_time = '20:00' THEN 4
+       WHEN strftime('%w', dates.date) IN ('0', '5', '6') THEN 2
+       WHEN blocks.start_time = '20:00' THEN 2 ELSE 1 END,
+  'キャスト'
+FROM dates CROSS JOIN blocks WHERE strftime('%w', dates.date) <> '1';
+
+WITH RECURSIVE dates(date) AS (SELECT '2026-08-01' UNION ALL SELECT date(date, '+1 day') FROM dates WHERE date < '2026-08-31'), blocks(start_time, end_time) AS (VALUES ('18:00', '20:00'), ('20:00', '22:00'), ('22:00', '24:00'), ('24:00', '26:00'))
+INSERT INTO shift_slots (id, plan_id, date, start_time, end_time, required_count, role)
+SELECT 'night-cast-aug-' || replace(dates.date, '-', '') || '-' || replace(blocks.start_time, ':', ''), 'seed-night-cast-plan-august-month', dates.date, blocks.start_time, blocks.end_time,
+  CASE WHEN strftime('%w', dates.date) IN ('0', '5', '6') AND blocks.start_time = '20:00' THEN 4
+       WHEN strftime('%w', dates.date) IN ('0', '5', '6') THEN 2
+       WHEN blocks.start_time = '20:00' THEN 2 ELSE 1 END,
+  'キャスト'
+FROM dates CROSS JOIN blocks WHERE strftime('%w', dates.date) <> '1';
+
+WITH RECURSIVE dates(date) AS (SELECT '2026-08-01' UNION ALL SELECT date(date, '+1 day') FROM dates WHERE date < '2026-08-31')
+INSERT INTO shift_slots (id, plan_id, date, start_time, end_time, required_count, role)
+SELECT 'night-staff-aug-' || replace(date, '-', ''), 'seed-night-staff-plan-august-month', date, '17:00', '26:00', 1, 'スタッフ'
+FROM dates WHERE strftime('%w', date) <> '1';
+
+WITH members(idx, user_email) AS (VALUES (0, 'night-staff-a@local.test'), (1, 'night-staff-b@local.test'), (2, 'night-staff-c@local.test'))
+INSERT INTO shift_assignments (id, slot_id, user_email)
+SELECT 'night-assignment-' || slots.id, slots.id, members.user_email FROM shift_slots slots CROSS JOIN members
+WHERE slots.plan_id = 'seed-night-staff-plan-july-month' AND members.idx = (CAST(julianday(slots.date) - julianday('2026-07-01') AS INTEGER) % 3);
+
+WITH members(idx, user_email) AS (VALUES (0, 'night-cast-a@local.test'), (1, 'night-cast-b@local.test'), (2, 'night-cast-c@local.test'), (3, 'night-cast-d@local.test'), (4, 'night-cast-e@local.test'), (5, 'night-cast-f@local.test')),
+slot_days AS (
+  SELECT slots.*, CAST(julianday(slots.date) - julianday('2026-07-01') AS INTEGER) % 6 AS day_index
+  FROM shift_slots slots
+  WHERE slots.plan_id = 'seed-night-cast-plan-july-month'
+)
+INSERT INTO shift_assignments (id, slot_id, user_email)
+SELECT 'night-cast-assignment-' || slots.id || '-' || members.idx, slots.id, members.user_email
+FROM slot_days slots CROSS JOIN members
+WHERE ((members.idx -
+  CASE
+    WHEN slots.start_time = '18:00' THEN slots.day_index
+    WHEN slots.start_time = '20:00' THEN (slots.day_index + 2) % 6
+    ELSE (slots.day_index + 3) % 6
+  END + 6) % 6) < slots.required_count;
+
+INSERT INTO shift_request_periods (id, group_id, plan_id, name, opens_on, closes_on, status, created_by) VALUES
+  ('seed-night-staff-request-july-month', 'seed-group-night-staff', 'seed-night-staff-plan-july-month', '7月スタッフ希望（受付終了）', '2026-06-20', '2026-06-25', 'closed', 'night-manager@local.test'),
+  ('seed-night-cast-request-july-month', 'seed-group-night-cast', 'seed-night-cast-plan-july-month', '7月キャスト希望（受付終了）', '2026-06-20', '2026-06-25', 'closed', 'night-manager@local.test'),
+  ('seed-night-staff-request-august-month', 'seed-group-night-staff', 'seed-night-staff-plan-august-month', '8月スタッフ希望', '2026-07-20', '2026-07-30', 'open', 'night-manager@local.test'),
+  ('seed-night-cast-request-august-month', 'seed-group-night-cast', 'seed-night-cast-plan-august-month', '8月キャスト希望', '2026-07-20', '2026-07-30', 'open', 'night-manager@local.test');
