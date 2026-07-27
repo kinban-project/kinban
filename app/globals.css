@@ -322,10 +322,11 @@ button { cursor: pointer; }
   .mobile-work-clock { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px; border-radius: 8px; background: #fafbf9; color: var(--muted); font-size: 10px; }.mobile-work-clock b { color: var(--ink); font-size: 11px; font-weight: 700; }
   .mobile-work-edit { display: grid; gap: 8px; }.mobile-work-edit label { display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: center; gap: 7px; color: var(--muted); font-size: 11px; }.mobile-work-edit label > input { min-width: 0; width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 7px; padding: 7px; background: #fff; color: var(--ink); }.mobile-work-edit label .claim-time-fields { min-width: 0; grid-template-columns: minmax(0, 1fr) 10px minmax(0, 1fr); }.mobile-work-edit .claim-time-select { width: 100%; }.mobile-work-total { padding-top: 5px; color: var(--teal); font-size: 12px; font-weight: 800; }.mobile-work-submit { width: 100%; padding: 10px; }.mobile-work-future { margin: 0; color: var(--muted); font-size: 11px; }
   .mobile-work-edit { grid-template-columns: minmax(0, 1fr) auto; }
-  .mobile-work-edit > label:first-child { min-width: 0; grid-column: 1; }
-  .mobile-work-edit > label:nth-child(2) { display: flex; grid-column: 2; align-items: center; gap: 4px; padding-top: 1px; white-space: nowrap; }
-  .mobile-work-edit > label:nth-child(2) > input { width: 44px; padding: 7px 3px; text-align: right; }
-  .mobile-work-edit > label:nth-child(3), .mobile-work-edit > .mobile-work-total, .mobile-work-edit > .work-rejection-note, .mobile-work-edit > .mobile-work-submit { grid-column: 1 / -1; }
+  .mobile-work-edit .mobile-work-edit-button { grid-column: 1 / -1; justify-self: start; }
+  .mobile-work-edit .mobile-work-time { min-width: 0; grid-column: 1; }
+  .mobile-work-edit .mobile-work-break { display: flex; grid-column: 2; align-items: center; gap: 4px; padding-top: 1px; white-space: nowrap; }
+  .mobile-work-edit .mobile-work-break > input { width: 44px; padding: 7px 3px; text-align: right; }
+  .mobile-work-edit .mobile-work-note, .mobile-work-edit > .mobile-work-total, .mobile-work-edit > .work-rejection-note, .mobile-work-edit > .mobile-work-submit { grid-column: 1 / -1; }
   .group-preferences { padding-bottom: 72px; }
   .group-preferences .section-title { align-items: flex-start; }.group-preferences .section-title > .small-action { display: none; }
   .preference-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }.preference-fields label { min-width: 0; font-size: 10px; }.preference-fields input { width: 100%; box-sizing: border-box; }
