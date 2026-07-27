@@ -590,10 +590,30 @@ button { cursor: pointer; }
 .memo-hint, .empty-state { padding: 22px; color: #6d7e79; text-align: center; }
 .danger-button { border: 1px solid #e2b8b1; border-radius: 9px; padding: 10px 15px; color: #a24e42; background: #fff2f0; cursor: pointer; }
 @media (max-width: 720px) {
-  .memos-panel { padding: 18px 14px; }
+  .memos-modal { width: 100vw; max-height: 100dvh; border-radius: 0; padding: 12px 10px; }
+  .memos-panel { padding: 12px 10px; }
+  .memos-head { display: grid; gap: 8px; margin-bottom: 12px; }
+  .memos-head h2 { font-size: 20px; }
+  .memos-head .panel-copy { margin: 0; font-size: 11px; line-height: 1.5; }
+  .memos-head > .primary-button { justify-self: start; padding: 8px 12px; font-size: 11px; white-space: nowrap; }
+  .memos-toolbar { gap: 6px; padding: 10px 0; }
+  .memos-toolbar select, .memos-toolbar input { min-width: 0; min-height: 36px; flex: 1 1 140px; padding: 8px 9px; font-size: 12px; }
+  .memos-toolbar button { min-width: 0; padding: 8px 9px; font-size: 11px; white-space: nowrap; }
   .memos-layout { grid-template-columns: 1fr; }
-  .memo-folders { flex-direction: row; flex-wrap: wrap; }
+  .memo-folders { flex-direction: row; flex-wrap: wrap; gap: 4px; padding-bottom: 2px; }
+  .memo-folder-button { padding: 7px 9px; font-size: 11px; }
   .memo-folder-create { flex-basis: 100%; }
   .memo-form { grid-template-columns: 1fr; }
   .memo-form .memo-body-label { grid-column: auto; }
+  .memo-list { grid-template-columns: 1fr; gap: 7px; }
+  .memo-card { min-height: 0; padding: 11px; gap: 4px; }
+  .memo-card-title { font-size: 13px; overflow-wrap: anywhere; }
+  .memo-card-meta, .memo-card-body { font-size: 11px; line-height: 1.45; }
+  .memo-editor { margin-top: 12px; padding: 12px; }
+  .memo-editor-head { align-items: flex-start; gap: 7px; }
+  .memo-editor-head strong { min-width: 0; font-size: 14px; line-height: 1.35; overflow-wrap: anywhere; }
+  .memo-editor-head > div { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; }
+  .memo-editor-head .ghost-button { padding: 7px 9px; font-size: 10px; white-space: nowrap; }
+  .knowledge-body { font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
+  .knowledge-body h3, .knowledge-body h4, .knowledge-body h5 { font-size: 16px; line-height: 1.4; }
 }
