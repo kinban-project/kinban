@@ -1399,3 +1399,39 @@ INSERT INTO knowledge_pages (
 UPDATE knowledge_pages
 SET body = replace(body, '\n', char(10))
 WHERE id IN ('knowledge-night-staff-opening-check', 'knowledge-night-cast-attendance-notes');
+
+-- Sample store guide and a few member work memos for the demo scenario.
+INSERT OR IGNORE INTO knowledge_folders (id, group_id, name, created_by) VALUES
+  ('knowledge-folder-store-guide', 'seed-group-store', '業務ガイド', 'tanaka@local.test');
+
+INSERT INTO knowledge_pages (
+  id, group_id, folder_id, author_email, title, body, status, image_url, image_alt,
+  created_at, updated_at
+) VALUES (
+  'knowledge-store-shift-basics',
+  'seed-group-store',
+  'knowledge-folder-store-guide',
+  'tanaka@local.test',
+  'サンプル店のシフト運用ガイド',
+  '# サンプル店のシフト運用ガイド\n\n## 勤務前\n\n- シフト一覧で自分の担当と時間を確認します。\n- 開始時刻になったら勤務開始を記録します。\n- 変更や遅刻がある場合は、勤務申告の備考に理由を残します。\n\n## 勤務後\n\n- 休憩時間を確認して勤務終了を記録します。\n- 早上がり・延長・欠勤など、予定と違う場合は具体的に記入します。\n- 店舗の改善提案は業務メモの「課題・改善」に残します。\n\n> 困ったときは、まず店長または副店長へ連絡してください。',
+  'published',
+  NULL,
+  '',
+  '2026-07-20T12:10:00+09:00',
+  '2026-07-20T12:10:00+09:00'
+);
+
+UPDATE knowledge_pages
+SET body = replace(body, '\n', char(10))
+WHERE id = 'knowledge-store-shift-basics';
+
+INSERT OR IGNORE INTO memo_folders (id, group_id, name, created_by) VALUES
+  ('memo-folder-store-daily', 'seed-group-store', '日報', 'tanaka@local.test'),
+  ('memo-folder-store-improvement', 'seed-group-store', '課題・改善', 'tanaka@local.test');
+
+INSERT INTO memos (id, group_id, folder_id, author_email, target_date, title, body, visibility, created_at, updated_at) VALUES
+  ('memo-store-tanaka-0701', 'seed-group-store', 'memo-folder-store-daily', 'tanaka@local.test', '2026-07-01', '7/1 日報', '月初の配置を確認。ホールと厨房の引継ぎは問題なし。', 'managers', '2026-07-01T20:00:00+09:00', '2026-07-01T20:00:00+09:00'),
+  ('memo-store-member02-0705', 'seed-group-store', 'memo-folder-store-daily', 'member02@local.test', '2026-07-05', '7/5 日報', '夕方から勤務。ピーク前に備品の補充を確認した。', 'managers', '2026-07-05T22:30:00+09:00', '2026-07-05T22:30:00+09:00'),
+  ('memo-store-member04-0708', 'seed-group-store', 'memo-folder-store-daily', 'member04@local.test', '2026-07-08', '7/8 日報', '昼の時間帯は落ち着いていた。退勤時に厨房へ引継ぎを行った。', 'managers', '2026-07-08T17:30:00+09:00', '2026-07-08T17:30:00+09:00'),
+  ('memo-store-member06-0712', 'seed-group-store', 'memo-folder-store-improvement', 'member06@local.test', '2026-07-12', '夕方の補充動線', '17時台にホールと厨房の補充が重なるため、置き場所を決めると作業が短くなりそう。', 'managers', '2026-07-12T23:00:00+09:00', '2026-07-12T23:00:00+09:00'),
+  ('memo-store-tanaka-0716', 'seed-group-store', 'memo-folder-store-improvement', 'tanaka@local.test', '2026-07-16', '後半シフトの確認事項', '日跨ぎ枠の終了時刻と翌日の予定を、公開前にもう一度確認する。', 'managers', '2026-07-16T12:00:00+09:00', '2026-07-16T12:00:00+09:00');
