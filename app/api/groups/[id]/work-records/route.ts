@@ -136,46 +136,61 @@ async function resolveAssignedSlots(
   db: ReturnType<typeof getDb>,
   groupId: string,
   userEmail: string,
-  slotIds: string[],
-  expectedDate?: string,
+  expectedDate: string,
+  requestedSlotIds?: string[],
 ) {
-  const uniqueSlotIds = [...new Set(slotIds.filter(Boolean))];
-  if (!uniqueSlotIds.length || uniqueSlotIds.length !== slotIds.length)
+  const requestedIds = requestedSlotIds
+    ? [...new Set(requestedSlotIds.filter(Boolean))]
+    : null;
+  if (requestedIds && (!requestedIds.length || requestedIds.length !== requestedSlotIds.length))
     return { error: "At least one unique shift slot is required." } as const;
-  const selectedSlots = await db
-    .select()
-    .from(shiftSlots)
-    .where(inArray(shiftSlots.id, uniqueSlotIds));
-  if (selectedSlots.length !== uniqueSlotIds.length)
-    return { error: "One or more selected shift slots were not found." } as const;
-  if (expectedDate && selectedSlots.some((slot) => slot.date !== expectedDate))
-    return { error: "All selected shift slots must be on the same date." } as const;
-  const planIds = [...new Set(selectedSlots.map((slot) => slot.planId))];
   const publishedPlans = await db
     .select()
     .from(shiftPlans)
     .where(
       and(
-        inArray(shiftPlans.id, planIds),
         eq(shiftPlans.groupId, groupId),
         eq(shiftPlans.status, "published"),
       ),
     );
-  if (publishedPlans.length !== planIds.length)
-    return { error: "All selected shift slots must belong to published plans in this group." } as const;
-  const assignments = await db
-    .select()
-    .from(shiftAssignments)
-    .where(
-      and(
-        inArray(shiftAssignments.slotId, uniqueSlotIds),
-        eq(shiftAssignments.userEmail, userEmail),
-      ),
-    );
+  const publishedPlanIds = publishedPlans.map((plan) => plan.id);
+  const dateSlots = publishedPlanIds.length
+    ? await db
+        .select()
+        .from(shiftSlots)
+        .where(
+          and(
+            inArray(shiftSlots.planId, publishedPlanIds),
+            eq(shiftSlots.date, expectedDate),
+          ),
+        )
+    : [];
+  const dateSlotIds = dateSlots.map((slot) => slot.id);
+  const assignments = dateSlotIds.length
+    ? await db
+        .select()
+        .from(shiftAssignments)
+        .where(
+          and(
+            inArray(shiftAssignments.slotId, dateSlotIds),
+            eq(shiftAssignments.userEmail, userEmail),
+          ),
+        )
+    : [];
   const assignedSlotIds = new Set(assignments.map((assignment) => assignment.slotId));
-  if (assignedSlotIds.size !== uniqueSlotIds.length)
-    return { error: "All selected shift slots must be assigned to the current member." } as const;
-  const ordered = [...selectedSlots].sort((left, right) => {
+  const assignedSlots = dateSlots.filter((slot) => assignedSlotIds.has(slot.id));
+  if (!assignedSlots.length)
+    return { error: "No published shift slots are assigned to the current member for this date." } as const;
+  if (requestedIds) {
+    const requestedSet = new Set(requestedIds);
+    const assignedSet = new Set(assignedSlots.map((slot) => slot.id));
+    if (
+      requestedSet.size !== assignedSet.size ||
+      [...assignedSet].some((slotId) => !requestedSet.has(slotId))
+    )
+      return { error: "The selected shift slots must include every assigned slot for this date." } as const;
+  }
+  const ordered = [...assignedSlots].sort((left, right) => {
     const leftMinutes = clockMinutes(left.startTime) ?? Number.MAX_SAFE_INTEGER;
     const rightMinutes = clockMinutes(right.startTime) ?? Number.MAX_SAFE_INTEGER;
     return leftMinutes - rightMinutes || left.endTime.localeCompare(right.endTime);
@@ -186,7 +201,7 @@ async function resolveAssignedSlots(
       ? slot.endTime
       : latest,
   ordered[0].endTime);
-  const plannedMinutes = selectedSlots.reduce(
+  const plannedMinutes = assignedSlots.reduce(
     (total, slot) => total + (localRangeMinutes(slot.date, slot.startTime, slot.endTime) ?? 0),
     0,
   );
@@ -496,8 +511,8 @@ export async function POST(request: Request, context: Context) {
       db,
       groupId,
       user.email,
-      requestedSlotIds,
       slot.date,
+      requestedSlotIds,
     );
     if ("error" in resolved) return error(resolved.error, 403);
     const plannedStartTime = resolved.startTime;
@@ -1025,8 +1040,8 @@ export async function PATCH(request: Request, context: Context) {
       current.db,
       groupId,
       user.email,
-      requestedSlotIds.length ? requestedSlotIds : record.slotId ? [record.slotId] : [],
       record.scheduledDate,
+      requestedSlotIds.length ? requestedSlotIds : undefined,
     );
     if ("error" in resolved) return error(resolved.error, 409);
     scheduledDate = resolved.date;
