@@ -98,6 +98,15 @@ function formatSubmissionTime(value: string | null) {
     minute: "2-digit",
   }).format(date);
 }
+function formatShiftDate(value: string) {
+  const date = new Date(`${value}T00:00:00+09:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  const weekday = new Intl.DateTimeFormat("ja-JP", {
+    weekday: "short",
+    timeZone: "Asia/Tokyo",
+  }).format(date);
+  return `${value}（${weekday}）`;
+}
 
 export default function ShiftAdjustment({
   initialGroupId,
@@ -532,7 +541,7 @@ export default function ShiftAdjustment({
             <div className="assignment-preview-wrap">
               <table className="assignment-preview-table">
                 <thead><tr><th>日付</th>{timeColumns.map((time) => <th key={`${time.startTime}|${time.endTime}`}>{displayShiftTime(time.startTime)}<small>{displayShiftTime(time.endTime)}</small></th>)}</tr></thead>
-                <tbody>{dates.map((date) => <tr key={date}><th>{date}</th>{timeColumns.map((time) => <td key={`${date}|${time.startTime}|${time.endTime}`}>{visibleSlots.filter((slot) => slot.date === date && slot.startTime === time.startTime && slot.endTime === time.endTime).map((slot) => {
+                <tbody>{dates.map((date) => <tr key={date}><th>{formatShiftDate(date)}</th>{timeColumns.map((time) => <td key={`${date}|${time.startTime}|${time.endTime}`}>{visibleSlots.filter((slot) => slot.date === date && slot.startTime === time.startTime && slot.endTime === time.endTime).map((slot) => {
                   const names = [...new Set(assignments[slot.id] ?? [])].map((email) => detail.members.find((member) => member.userEmail === email)?.displayName || email.split("@")[0]);
                   const assignedCount = names.length;
                   const hasOverlap = assignmentIssues.some((issue) => issue.kind === "overlap" && issue.slotIds.includes(slot.id));
@@ -558,7 +567,7 @@ export default function ShiftAdjustment({
                     const assignedCount = new Set(assignments[slot.id] ?? []).size;
                     const hasOverlap = assignmentIssues.some((issue) => issue.kind === "overlap" && issue.slotIds.includes(slot.id));
                     return <tr className={`${assignedCount < slot.requiredCount ? "assignment-row-shortage" : ""} ${assignedCount > slot.requiredCount ? "assignment-row-excess" : ""} ${hasOverlap ? "assignment-row-overlap" : ""}`} key={slot.id}>
-                      <td>{slot.date}</td>
+                      <td>{formatShiftDate(slot.date)}</td>
                       <td>
                         {displayShiftTime(slot.startTime)}〜
                         {displayShiftTime(slot.endTime)}
@@ -594,7 +603,7 @@ export default function ShiftAdjustment({
                 <tbody>
                   {dates.map((date) => (
                     <tr key={date}>
-                      <th>{date}</th>
+                      <th>{formatShiftDate(date)}</th>
                       {timeColumns.map((time) => (
                         <td key={`${date}|${time.startTime}|${time.endTime}`}>
                           {visibleSlots
