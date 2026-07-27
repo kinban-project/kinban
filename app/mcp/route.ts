@@ -3279,18 +3279,16 @@ export async function POST(request: Request) {
               userEmail: email,
             });
       const status = args.status === "published" ? "published" : "draft";
+      // D1 has a bound-variable/statement limit. Keep this path aligned with
+      // the HTTP API and split the replacement into small statements so large
+      // plans do not fail with `too many SQL variables`.
       const statements = [
-        ...(slots.length
-          ? [
-              db.delete(shiftAssignments).where(
-                inArray(
-                  shiftAssignments.slotId,
-                  slots.map((s) => s.id),
-                ),
-              ),
-            ]
-          : []),
-        ...rows.map((r) => db.insert(shiftAssignments).values(r)),
+        ...chunk(slots.map((slot) => slot.id), 50).map((slotIds) =>
+          db.delete(shiftAssignments).where(inArray(shiftAssignments.slotId, slotIds)),
+        ),
+        ...chunk(rows, 8).map((insertRows) =>
+          db.insert(shiftAssignments).values(insertRows),
+        ),
         db
           .update(shiftPlans)
           .set({ status })
@@ -3350,10 +3348,8 @@ export async function POST(request: Request) {
               completed: false,
             };
           });
-        for (let index = 0; index < publishedEvents.length; index += 8)
-          statements.push(
-            db.insert(events).values(publishedEvents.slice(index, index + 8)),
-          );
+        for (const eventRows of chunk(publishedEvents, 8))
+          statements.push(db.insert(events).values(eventRows));
       }
       await db.batch(statements);
       await recordAudit({
