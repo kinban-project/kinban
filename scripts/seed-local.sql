@@ -73,6 +73,8 @@ DELETE FROM site_invitations;
 DELETE FROM site_users;
 DELETE FROM knowledge_pages;
 DELETE FROM knowledge_folders;
+DELETE FROM memos;
+DELETE FROM memo_folders;
 DELETE FROM knowledge_assets;
 
 INSERT INTO demo_clocks (scope, current_at) VALUES
@@ -936,6 +938,243 @@ INSERT INTO shift_request_periods (id, group_id, plan_id, name, opens_on, closes
 INSERT INTO shift_request_submissions (id, period_id, user_email, saved_at, request_comment) VALUES
   ('seed-night-aug-sub-staff-a', 'seed-night-staff-request-august-month', 'night-staff-a@local.test', '2026-07-21T10:00:00+09:00', '平日中心で希望します。'),
   ('seed-night-aug-sub-cast-a', 'seed-night-cast-request-august-month', 'night-cast-a@local.test', '2026-07-21T10:10:00+09:00', '同伴で遅れる日は備考に記載します。');
+
+-- The final monthly schedule above is the source of truth for the demo
+-- attendance records. Keep these writes after the schedule rebuild.
+INSERT INTO work_records (
+  id, group_id, plan_id, slot_id, user_email, scheduled_date,
+  scheduled_start_time, scheduled_end_time, started_at, ended_at,
+  claimed_start_at, claimed_end_at, claimed_break_minutes, status,
+  employee_note, manager_note, approved_by, approved_at
+)
+SELECT
+  'wr-night-final-' || lower(hex(randomblob(8))),
+  CASE WHEN slots.plan_id = 'seed-night-staff-plan-july-month'
+    THEN 'seed-group-night-staff' ELSE 'seed-group-night-cast' END,
+  slots.plan_id,
+  slots.id,
+  assignments.user_email,
+  slots.date,
+  slots.start_time,
+  slots.end_time,
+  slots.date || 'T' || slots.start_time || ':00+09:00',
+  CASE
+    WHEN slots.end_time = '26:00' THEN date(slots.date, '+1 day') || 'T02:00:00+09:00'
+    WHEN slots.end_time = '24:00' THEN date(slots.date, '+1 day') || 'T00:00:00+09:00'
+    ELSE slots.date || 'T' || slots.end_time || ':00+09:00'
+  END,
+  slots.date || 'T' || slots.start_time || ':00+09:00',
+  CASE
+    WHEN slots.end_time = '26:00' THEN date(slots.date, '+1 day') || 'T02:00:00+09:00'
+    WHEN slots.end_time = '24:00' THEN date(slots.date, '+1 day') || 'T00:00:00+09:00'
+    ELSE slots.date || 'T' || slots.end_time || ':00+09:00'
+  END,
+  CASE WHEN slots.end_time = '26:00' THEN 45 ELSE 0 END,
+  CASE
+    WHEN assignments.user_email = 'night-cast-a@local.test' AND slots.date = '2026-07-12' THEN 'rejected'
+    WHEN slots.date = '2026-07-19' THEN 'submitted'
+    ELSE 'approved'
+  END,
+  '',
+  CASE WHEN assignments.user_email = 'night-cast-a@local.test' AND slots.date = '2026-07-12'
+    THEN '早上がりの理由と申告時刻を確認してください。' ELSE '' END,
+  CASE WHEN slots.date < '2026-07-19'
+    AND NOT (assignments.user_email = 'night-cast-a@local.test' AND slots.date = '2026-07-12')
+    THEN 'night-manager@local.test' ELSE NULL END,
+  CASE WHEN slots.date < '2026-07-19'
+    AND NOT (assignments.user_email = 'night-cast-a@local.test' AND slots.date = '2026-07-12')
+    THEN '2026-07-20T09:00:00.000Z' ELSE NULL END
+FROM shift_slots slots
+JOIN shift_assignments assignments ON assignments.slot_id = slots.id
+WHERE slots.plan_id IN ('seed-night-staff-plan-july-month', 'seed-night-cast-plan-july-month')
+  AND slots.date <= '2026-07-20'
+  AND assignments.user_email IN ('night-staff-a@local.test', 'night-cast-a@local.test');
+
+UPDATE work_records
+SET ended_at = date(scheduled_date, '+1 day') || 'T01:15:00+09:00',
+    claimed_end_at = date(scheduled_date, '+1 day') || 'T01:15:00+09:00',
+    employee_note = '客数が少なく、25:15で早上がりしました。'
+WHERE group_id = 'seed-group-night-staff' AND user_email = 'night-staff-a@local.test'
+  AND scheduled_date = '2026-07-04' AND scheduled_end_time = '26:00';
+UPDATE work_records
+SET ended_at = date(scheduled_date, '+1 day') || 'T03:00:00+09:00',
+    claimed_end_at = date(scheduled_date, '+1 day') || 'T03:00:00+09:00',
+    employee_note = '繁忙日のため26:00を超えて延長しました。'
+WHERE group_id = 'seed-group-night-staff' AND user_email = 'night-staff-a@local.test'
+  AND scheduled_date = '2026-07-11' AND scheduled_end_time = '26:00';
+UPDATE work_records
+SET started_at = scheduled_date || 'T18:20:00+09:00',
+    claimed_start_at = scheduled_date || 'T18:20:00+09:00',
+    employee_note = '同伴対応のため20分遅刻しました。'
+WHERE group_id = 'seed-group-night-cast' AND user_email = 'night-cast-a@local.test'
+  AND scheduled_date = '2026-07-05' AND scheduled_start_time = '18:00';
+UPDATE work_records
+SET ended_at = date(scheduled_date, '+1 day') || 'T01:30:00+09:00',
+    claimed_end_at = date(scheduled_date, '+1 day') || 'T01:30:00+09:00',
+    employee_note = '客数が少なく、25:30で早上がりしました。'
+WHERE group_id = 'seed-group-night-cast' AND user_email = 'night-cast-a@local.test'
+  AND scheduled_date = '2026-07-12' AND scheduled_end_time = '26:00';
+UPDATE work_records
+SET started_at = scheduled_date || 'T18:10:00+09:00',
+    claimed_start_at = scheduled_date || 'T18:10:00+09:00',
+    employee_note = '同伴対応のため開始が少し遅れました。'
+WHERE group_id = 'seed-group-night-cast' AND user_email = 'night-cast-a@local.test'
+  AND scheduled_date = '2026-07-19' AND scheduled_start_time = '18:00';
+
+INSERT INTO work_breaks (id, work_record_id, started_at, ended_at)
+SELECT
+  'break-night-final-' || lower(hex(randomblob(8))),
+  records.id,
+  records.scheduled_date || 'T23:30:00+09:00',
+  date(records.scheduled_date, '+1 day') || 'T00:15:00+09:00'
+FROM work_records records
+WHERE records.group_id IN ('seed-group-night-staff', 'seed-group-night-cast')
+  AND records.user_email IN ('night-staff-a@local.test', 'night-cast-a@local.test')
+  AND records.scheduled_end_time = '26:00';
+
+-- Nightclub demo attendance and work memos for staff A and cast A.
+-- Other members are intentionally left without attendance records so the
+-- management screens show both populated and unsubmitted cases.
+DELETE FROM work_breaks
+WHERE work_record_id IN (
+  SELECT id FROM work_records
+  WHERE group_id IN ('seed-group-night-staff', 'seed-group-night-cast')
+    AND user_email IN ('night-staff-a@local.test', 'night-cast-a@local.test')
+);
+DELETE FROM work_records
+WHERE group_id IN ('seed-group-night-staff', 'seed-group-night-cast')
+  AND user_email IN ('night-staff-a@local.test', 'night-cast-a@local.test');
+
+INSERT INTO work_records (
+  id, group_id, plan_id, slot_id, user_email, scheduled_date,
+  scheduled_start_time, scheduled_end_time, started_at, ended_at,
+  claimed_start_at, claimed_end_at, claimed_break_minutes, status,
+  employee_note, manager_note, approved_by, approved_at
+)
+SELECT
+  'wr-night-demo-' || lower(hex(randomblob(8))),
+  CASE WHEN slots.plan_id = 'seed-night-staff-plan-july-month'
+    THEN 'seed-group-night-staff' ELSE 'seed-group-night-cast' END,
+  slots.plan_id,
+  slots.id,
+  assignments.user_email,
+  slots.date,
+  slots.start_time,
+  slots.end_time,
+  CASE
+    WHEN assignments.user_email = 'night-cast-a@local.test'
+      AND slots.date = '2026-07-05' AND slots.start_time = '18:00'
+      THEN slots.date || 'T18:20:00+09:00'
+    WHEN assignments.user_email = 'night-cast-a@local.test'
+      AND slots.date = '2026-07-19' AND slots.start_time = '18:00'
+      THEN slots.date || 'T18:10:00+09:00'
+    ELSE slots.date || 'T' || slots.start_time || ':00+09:00'
+  END,
+  CASE
+    WHEN assignments.user_email = 'night-staff-a@local.test'
+      AND slots.date = '2026-07-04' AND slots.end_time = '26:00'
+      THEN date(slots.date, '+1 day') || 'T01:15:00+09:00'
+    WHEN assignments.user_email = 'night-staff-a@local.test'
+      AND slots.date = '2026-07-11' AND slots.end_time = '26:00'
+      THEN date(slots.date, '+1 day') || 'T03:00:00+09:00'
+    WHEN assignments.user_email = 'night-cast-a@local.test'
+      AND slots.date = '2026-07-12' AND slots.end_time = '26:00'
+      THEN date(slots.date, '+1 day') || 'T01:30:00+09:00'
+    WHEN slots.end_time = '26:00' THEN date(slots.date, '+1 day') || 'T02:00:00+09:00'
+    WHEN slots.end_time = '24:00' THEN date(slots.date, '+1 day') || 'T00:00:00+09:00'
+    ELSE slots.date || 'T' || slots.end_time || ':00+09:00'
+  END,
+  CASE
+    WHEN assignments.user_email = 'night-cast-a@local.test'
+      AND slots.date = '2026-07-05' AND slots.start_time = '18:00'
+      THEN slots.date || 'T18:20:00+09:00'
+    WHEN assignments.user_email = 'night-cast-a@local.test'
+      AND slots.date = '2026-07-19' AND slots.start_time = '18:00'
+      THEN slots.date || 'T18:10:00+09:00'
+    ELSE slots.date || 'T' || slots.start_time || ':00+09:00'
+  END,
+  CASE
+    WHEN assignments.user_email = 'night-staff-a@local.test'
+      AND slots.date = '2026-07-04' AND slots.end_time = '26:00'
+      THEN date(slots.date, '+1 day') || 'T01:15:00+09:00'
+    WHEN assignments.user_email = 'night-staff-a@local.test'
+      AND slots.date = '2026-07-11' AND slots.end_time = '26:00'
+      THEN date(slots.date, '+1 day') || 'T03:00:00+09:00'
+    WHEN assignments.user_email = 'night-cast-a@local.test'
+      AND slots.date = '2026-07-12' AND slots.end_time = '26:00'
+      THEN date(slots.date, '+1 day') || 'T01:30:00+09:00'
+    WHEN slots.end_time = '26:00' THEN date(slots.date, '+1 day') || 'T02:00:00+09:00'
+    WHEN slots.end_time = '24:00' THEN date(slots.date, '+1 day') || 'T00:00:00+09:00'
+    ELSE slots.date || 'T' || slots.end_time || ':00+09:00'
+  END,
+  CASE WHEN slots.end_time = '26:00' THEN 45 ELSE 0 END,
+  CASE
+    WHEN assignments.user_email = 'night-cast-a@local.test' AND slots.date = '2026-07-12' THEN 'rejected'
+    WHEN slots.date = '2026-07-19' THEN 'submitted'
+    ELSE 'approved'
+  END,
+  CASE
+    WHEN assignments.user_email = 'night-cast-a@local.test' AND slots.date = '2026-07-05'
+      THEN '同伴対応のため20分遅刻しました。'
+    WHEN assignments.user_email = 'night-cast-a@local.test' AND slots.date = '2026-07-19'
+      THEN '同伴対応のため開始が少し遅れました。'
+    WHEN assignments.user_email = 'night-staff-a@local.test' AND slots.date = '2026-07-04'
+      THEN '客数が少なく、25:15で早上がりしました。'
+    WHEN assignments.user_email = 'night-staff-a@local.test' AND slots.date = '2026-07-11'
+      THEN '繁忙日のため26:00を超えて延長しました。'
+    WHEN assignments.user_email = 'night-cast-a@local.test' AND slots.date = '2026-07-12'
+      THEN '客数が少なく、25:30で早上がりしました。'
+    ELSE ''
+  END,
+  CASE
+    WHEN assignments.user_email = 'night-cast-a@local.test' AND slots.date = '2026-07-12'
+      THEN '早上がりの理由と申告時刻を確認してください。'
+    ELSE ''
+  END,
+  CASE
+    WHEN slots.date < '2026-07-19'
+      AND NOT (assignments.user_email = 'night-cast-a@local.test' AND slots.date = '2026-07-12')
+      THEN 'night-manager@local.test'
+    ELSE NULL
+  END,
+  CASE
+    WHEN slots.date < '2026-07-19'
+      AND NOT (assignments.user_email = 'night-cast-a@local.test' AND slots.date = '2026-07-12')
+      THEN '2026-07-20T09:00:00.000Z'
+    ELSE NULL
+  END
+FROM shift_slots slots
+JOIN shift_assignments assignments ON assignments.slot_id = slots.id
+WHERE slots.plan_id IN ('seed-night-staff-plan-july-month', 'seed-night-cast-plan-july-month')
+  AND slots.date <= '2026-07-20'
+  AND assignments.user_email IN ('night-staff-a@local.test', 'night-cast-a@local.test');
+
+INSERT INTO work_breaks (id, work_record_id, started_at, ended_at)
+SELECT
+  'break-night-demo-' || lower(hex(randomblob(8))),
+  records.id,
+  records.scheduled_date || 'T23:30:00+09:00',
+  date(records.scheduled_date, '+1 day') || 'T00:15:00+09:00'
+FROM work_records records
+WHERE records.group_id IN ('seed-group-night-staff', 'seed-group-night-cast')
+  AND records.user_email IN ('night-staff-a@local.test', 'night-cast-a@local.test')
+  AND records.scheduled_end_time = '26:00';
+
+INSERT OR IGNORE INTO memo_folders (id, group_id, name, created_by) VALUES
+  ('memo-folder-night-staff-daily', 'seed-group-night-staff', '日報', 'night-manager@local.test'),
+  ('memo-folder-night-staff-improvement', 'seed-group-night-staff', '課題・改善', 'night-manager@local.test'),
+  ('memo-folder-night-cast-daily', 'seed-group-night-cast', '日報', 'night-manager@local.test'),
+  ('memo-folder-night-cast-improvement', 'seed-group-night-cast', '課題・改善', 'night-manager@local.test');
+
+INSERT INTO memos (id, group_id, folder_id, author_email, target_date, title, body, visibility, created_at, updated_at) VALUES
+  ('memo-night-staff-a-0701', 'seed-group-night-staff', 'memo-folder-night-staff-daily', 'night-staff-a@local.test', '2026-07-01', '7/1 日報', '開店準備とスタッフ間の引継ぎを確認。大きな問題なし。', 'managers', '2026-07-01T23:00:00+09:00', '2026-07-01T23:00:00+09:00'),
+  ('memo-night-staff-a-0704', 'seed-group-night-staff', 'memo-folder-night-staff-daily', 'night-staff-a@local.test', '2026-07-04', '7/4 日報', '客数が少なく、25:15で早上がり。閉店作業は通常どおり完了。', 'managers', '2026-07-05T02:00:00+09:00', '2026-07-05T02:00:00+09:00'),
+  ('memo-night-staff-a-0711', 'seed-group-night-staff', 'memo-folder-night-staff-improvement', 'night-staff-a@local.test', '2026-07-10', '繁忙日の延長連絡', '繁忙日に26:00を超えて延長した。延長が決まった時点で管理者へ共有する流れを明確にしたい。', 'managers', '2026-07-11T03:30:00+09:00', '2026-07-11T03:30:00+09:00'),
+  ('memo-night-staff-a-0716', 'seed-group-night-staff', 'memo-folder-night-staff-daily', 'night-staff-a@local.test', '2026-07-16', '7/16 日報', '通常営業。新人スタッフへの開店準備説明を実施。', 'managers', '2026-07-17T02:30:00+09:00', '2026-07-17T02:30:00+09:00'),
+  ('memo-night-cast-a-0703', 'seed-group-night-cast', 'memo-folder-night-cast-daily', 'night-cast-a@local.test', '2026-07-03', '7/3 日報', '同伴のお客様について来店時間を確認。勤務開始時に状況を共有した。', 'managers', '2026-07-04T02:30:00+09:00', '2026-07-04T02:30:00+09:00'),
+  ('memo-night-cast-a-0705', 'seed-group-night-cast', 'memo-folder-night-cast-daily', 'night-cast-a@local.test', '2026-07-05', '7/5 日報', '同伴対応で20分遅刻。勤務申告の備考にも理由を記載した。', 'managers', '2026-07-06T02:30:00+09:00', '2026-07-06T02:30:00+09:00'),
+  ('memo-night-cast-a-0712', 'seed-group-night-cast', 'memo-folder-night-cast-improvement', 'night-cast-a@local.test', '2026-07-12', '早上がり時の連絡方法', '客数が少ない日の早上がりについて、退勤前に管理者へ連絡する運用を確認したい。', 'managers', '2026-07-13T02:00:00+09:00', '2026-07-13T02:00:00+09:00'),
+  ('memo-night-cast-a-0719', 'seed-group-night-cast', 'memo-folder-night-cast-daily', 'night-cast-a@local.test', '2026-07-19', '7/19 日報', '同伴対応で開始が少し遅れた。次回は開始前に連絡する。', 'managers', '2026-07-20T02:30:00+09:00', '2026-07-20T02:30:00+09:00');
 -- Nightclub cast slots are two-hour blocks. Rebuild the July/August schedules so
 -- normal days show an early shift (18:00-22:00) and a late shift (20:00-close).
 DELETE FROM work_breaks
@@ -1012,3 +1251,79 @@ INSERT INTO shift_request_periods (id, group_id, plan_id, name, opens_on, closes
   ('seed-night-cast-request-july-month', 'seed-group-night-cast', 'seed-night-cast-plan-july-month', '7月キャスト希望（受付終了）', '2026-06-20', '2026-06-25', 'closed', 'night-manager@local.test'),
   ('seed-night-staff-request-august-month', 'seed-group-night-staff', 'seed-night-staff-plan-august-month', '8月スタッフ希望', '2026-07-20', '2026-07-30', 'open', 'night-manager@local.test'),
   ('seed-night-cast-request-august-month', 'seed-group-night-cast', 'seed-night-cast-plan-august-month', '8月キャスト希望', '2026-07-20', '2026-07-30', 'open', 'night-manager@local.test');
+
+-- Final monthly schedule attendance fixture for staff A and cast A.
+INSERT INTO work_records (
+  id, group_id, plan_id, slot_id, user_email, scheduled_date,
+  scheduled_start_time, scheduled_end_time, started_at, ended_at,
+  claimed_start_at, claimed_end_at, claimed_break_minutes, status,
+  employee_note, manager_note, approved_by, approved_at
+)
+SELECT
+  'wr-night-final2-' || lower(hex(randomblob(8))),
+  CASE WHEN slots.plan_id = 'seed-night-staff-plan-july-month'
+    THEN 'seed-group-night-staff' ELSE 'seed-group-night-cast' END,
+  slots.plan_id, slots.id, assignments.user_email, slots.date,
+  slots.start_time, slots.end_time,
+  slots.date || 'T' || slots.start_time || ':00+09:00',
+  CASE
+    WHEN slots.end_time = '26:00' THEN date(slots.date, '+1 day') || 'T02:00:00+09:00'
+    WHEN slots.end_time = '24:00' THEN date(slots.date, '+1 day') || 'T00:00:00+09:00'
+    ELSE slots.date || 'T' || slots.end_time || ':00+09:00'
+  END,
+  slots.date || 'T' || slots.start_time || ':00+09:00',
+  CASE
+    WHEN slots.end_time = '26:00' THEN date(slots.date, '+1 day') || 'T02:00:00+09:00'
+    WHEN slots.end_time = '24:00' THEN date(slots.date, '+1 day') || 'T00:00:00+09:00'
+    ELSE slots.date || 'T' || slots.end_time || ':00+09:00'
+  END,
+  CASE WHEN slots.end_time = '26:00' THEN 45 ELSE 0 END,
+  CASE
+    WHEN assignments.user_email = 'night-cast-a@local.test' AND slots.date = '2026-07-12' THEN 'rejected'
+    WHEN slots.date = '2026-07-19' THEN 'submitted'
+    ELSE 'approved'
+  END,
+  '',
+  CASE WHEN assignments.user_email = 'night-cast-a@local.test' AND slots.date = '2026-07-12'
+    THEN '早上がりの理由と申告時刻を確認してください。' ELSE '' END,
+  CASE WHEN slots.date < '2026-07-19'
+    AND NOT (assignments.user_email = 'night-cast-a@local.test' AND slots.date = '2026-07-12')
+    THEN 'night-manager@local.test' ELSE NULL END,
+  CASE WHEN slots.date < '2026-07-19'
+    AND NOT (assignments.user_email = 'night-cast-a@local.test' AND slots.date = '2026-07-12')
+    THEN '2026-07-20T09:00:00.000Z' ELSE NULL END
+FROM shift_slots slots
+JOIN shift_assignments assignments ON assignments.slot_id = slots.id
+WHERE slots.plan_id IN ('seed-night-staff-plan-july-month', 'seed-night-cast-plan-july-month')
+  AND slots.date <= '2026-07-20'
+  AND assignments.user_email IN ('night-staff-a@local.test', 'night-cast-a@local.test');
+
+UPDATE work_records
+SET ended_at = date(scheduled_date, '+1 day') || 'T01:15:00+09:00', claimed_end_at = date(scheduled_date, '+1 day') || 'T01:15:00+09:00', employee_note = '客数が少なく、25:15で早上がりしました。'
+WHERE group_id = 'seed-group-night-staff' AND user_email = 'night-staff-a@local.test' AND scheduled_date = '2026-07-04' AND scheduled_end_time = '26:00';
+UPDATE work_records
+SET ended_at = date(scheduled_date, '+1 day') || 'T03:00:00+09:00', claimed_end_at = date(scheduled_date, '+1 day') || 'T03:00:00+09:00', employee_note = '繁忙日のため26:00を超えて延長しました。'
+WHERE group_id = 'seed-group-night-staff' AND user_email = 'night-staff-a@local.test' AND scheduled_date = '2026-07-10' AND scheduled_end_time = '26:00';
+UPDATE work_records
+SET started_at = scheduled_date || 'T20:20:00+09:00', claimed_start_at = scheduled_date || 'T20:20:00+09:00', employee_note = '同伴対応のため20分遅刻しました。'
+WHERE group_id = 'seed-group-night-cast' AND user_email = 'night-cast-a@local.test' AND scheduled_date = '2026-07-05' AND scheduled_start_time = '20:00';
+UPDATE work_records
+SET ended_at = scheduled_date || 'T19:30:00+09:00', claimed_end_at = scheduled_date || 'T19:30:00+09:00', employee_note = '客数が少なく、19:30で早上がりしました。'
+WHERE group_id = 'seed-group-night-cast' AND user_email = 'night-cast-a@local.test' AND scheduled_date = '2026-07-12' AND scheduled_start_time = '18:00';
+UPDATE work_records
+SET started_at = scheduled_date || 'T18:10:00+09:00', claimed_start_at = scheduled_date || 'T18:10:00+09:00', employee_note = '同伴対応のため開始が少し遅れました。'
+WHERE group_id = 'seed-group-night-cast' AND user_email = 'night-cast-a@local.test' AND scheduled_date = '2026-07-19' AND scheduled_start_time = '18:00';
+
+UPDATE work_records
+SET started_at = date(scheduled_date, '+1 day') || 'T00:00:00+09:00',
+    claimed_start_at = date(scheduled_date, '+1 day') || 'T00:00:00+09:00'
+WHERE group_id IN ('seed-group-night-staff', 'seed-group-night-cast')
+  AND user_email IN ('night-staff-a@local.test', 'night-cast-a@local.test')
+  AND scheduled_start_time = '24:00';
+
+INSERT INTO work_breaks (id, work_record_id, started_at, ended_at)
+SELECT 'break-night-final2-' || lower(hex(randomblob(8))), records.id, records.scheduled_date || 'T23:30:00+09:00', date(records.scheduled_date, '+1 day') || 'T00:15:00+09:00'
+FROM work_records records
+WHERE records.group_id IN ('seed-group-night-staff', 'seed-group-night-cast')
+  AND records.user_email IN ('night-staff-a@local.test', 'night-cast-a@local.test')
+  AND records.scheduled_end_time = '26:00';
