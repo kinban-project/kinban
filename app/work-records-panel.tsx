@@ -1028,9 +1028,14 @@ export default function WorkRecordsPanel({
                       <td>
                         {planned ? (
                           <>
-                            <span className="monthly-shift-ref">
-                              {planned.slots.map((slot) => `${slot.startTime}〜${slot.endTime}${slot.role ? ` ${slot.role}` : ""}`).join(" / ")}
-                            </span>
+                            <div className="monthly-shift-ref">
+                              {planned.slots.map((slot) => (
+                                <span key={slot.id}>
+                                  {slot.startTime}〜{slot.endTime}
+                                  {slot.role ? ` ${slot.role}` : ""}
+                                </span>
+                              ))}
+                            </div>
                             {record ? (
                               !record.monthlyClosedAt && !approvalLocked(record) && (
                                 <button

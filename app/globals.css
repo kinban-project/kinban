@@ -440,7 +440,8 @@ button { cursor: pointer; }
 .monthly-work-table th:nth-child(9), .monthly-work-table td:nth-child(9) { width: 82px; }
 .monthly-work-table th:nth-child(10), .monthly-work-table td:nth-child(10) { width: 90px; }
 .monthly-work-table tbody th { background: #fbfcfa; white-space: nowrap; color: var(--ink); }
-.monthly-shift-ref, .monthly-record-value { display: block; white-space: nowrap; margin: 2px 0; }
+.monthly-shift-ref, .monthly-record-value { display: block; white-space: normal; margin: 2px 0; }
+.monthly-shift-ref > span { display: block; white-space: nowrap; }
 .monthly-claim { min-width: 0; }
 .monthly-claim input { width: 76px; }
 .claim-time-select { width: 88px; min-width: 0; border: 1px solid var(--line); border-radius: 6px; padding: 5px 3px; color: var(--ink); background: #fff; font-size: 11px; }
