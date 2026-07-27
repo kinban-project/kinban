@@ -122,6 +122,91 @@ async function contextData(groupId: string, email: string) {
   return { db, group, membership } as const;
 }
 
+function clockMinutes(value: string) {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  return hour >= 0 && hour <= 30 && minute >= 0 && minute < 60
+    ? hour * 60 + minute
+    : null;
+}
+
+async function resolveAssignedSlots(
+  db: ReturnType<typeof getDb>,
+  groupId: string,
+  userEmail: string,
+  slotIds: string[],
+  expectedDate?: string,
+) {
+  const uniqueSlotIds = [...new Set(slotIds.filter(Boolean))];
+  if (!uniqueSlotIds.length || uniqueSlotIds.length !== slotIds.length)
+    return { error: "At least one unique shift slot is required." } as const;
+  const selectedSlots = await db
+    .select()
+    .from(shiftSlots)
+    .where(inArray(shiftSlots.id, uniqueSlotIds));
+  if (selectedSlots.length !== uniqueSlotIds.length)
+    return { error: "One or more selected shift slots were not found." } as const;
+  if (expectedDate && selectedSlots.some((slot) => slot.date !== expectedDate))
+    return { error: "All selected shift slots must be on the same date." } as const;
+  const planIds = [...new Set(selectedSlots.map((slot) => slot.planId))];
+  const publishedPlans = await db
+    .select()
+    .from(shiftPlans)
+    .where(
+      and(
+        inArray(shiftPlans.id, planIds),
+        eq(shiftPlans.groupId, groupId),
+        eq(shiftPlans.status, "published"),
+      ),
+    );
+  if (publishedPlans.length !== planIds.length)
+    return { error: "All selected shift slots must belong to published plans in this group." } as const;
+  const assignments = await db
+    .select()
+    .from(shiftAssignments)
+    .where(
+      and(
+        inArray(shiftAssignments.slotId, uniqueSlotIds),
+        eq(shiftAssignments.userEmail, userEmail),
+      ),
+    );
+  const assignedSlotIds = new Set(assignments.map((assignment) => assignment.slotId));
+  if (assignedSlotIds.size !== uniqueSlotIds.length)
+    return { error: "All selected shift slots must be assigned to the current member." } as const;
+  const ordered = [...selectedSlots].sort((left, right) => {
+    const leftMinutes = clockMinutes(left.startTime) ?? Number.MAX_SAFE_INTEGER;
+    const rightMinutes = clockMinutes(right.startTime) ?? Number.MAX_SAFE_INTEGER;
+    return leftMinutes - rightMinutes || left.endTime.localeCompare(right.endTime);
+  });
+  const startTime = ordered[0].startTime;
+  const endTime = ordered.reduce((latest, slot) =>
+    (clockMinutes(slot.endTime) ?? -1) > (clockMinutes(latest) ?? -1)
+      ? slot.endTime
+      : latest,
+  ordered[0].endTime);
+  const plannedMinutes = selectedSlots.reduce(
+    (total, slot) => total + (localRangeMinutes(slot.date, slot.startTime, slot.endTime) ?? 0),
+    0,
+  );
+  const startMinutes = clockMinutes(startTime);
+  const endMinutes = clockMinutes(endTime);
+  const spanMinutes =
+    startMinutes !== null && endMinutes !== null && endMinutes > startMinutes
+      ? endMinutes - startMinutes
+      : plannedMinutes;
+  return {
+    slots: ordered,
+    planId: ordered[0].planId,
+    slotId: ordered[0].id,
+    date: ordered[0].date,
+    startTime,
+    endTime,
+    breakMinutes: Math.max(0, spanMinutes - plannedMinutes),
+  } as const;
+}
+
 export async function GET(request: Request, context: Context) {
   const user = await getChatGPTUser();
   if (!user) return error("ChatGPT sign-in is required.", 401);
@@ -353,12 +438,13 @@ export async function POST(request: Request, context: Context) {
   };
 
   if (body.action === "create-claim") {
-    if (!body.slotId || !body.claimedStartAt || !body.claimedEndAt)
-      return error("slotId and claim times are required.", 400);
+    if (!body.slotId && !body.slotIds?.length)
+      return error("slotId is required.", 400);
+    const firstSlotId = body.slotIds?.[0] ?? body.slotId!;
     const [slot] = await db
       .select()
       .from(shiftSlots)
-      .where(eq(shiftSlots.id, body.slotId))
+      .where(eq(shiftSlots.id, firstSlotId))
       .limit(1);
     if (!slot) return error("Assigned shift slot not found.", 404);
     const [plan] = await db
@@ -406,11 +492,16 @@ export async function POST(request: Request, context: Context) {
       selectedSlots.some((item) => item.date !== slot.date)
     )
       return error("You are not assigned to every selected shift.", 403);
-    const orderedSlots = [...selectedSlots].sort((left, right) =>
-      `${left.date} ${left.startTime}`.localeCompare(`${right.date} ${right.startTime}`),
+    const resolved = await resolveAssignedSlots(
+      db,
+      groupId,
+      user.email,
+      requestedSlotIds,
+      slot.date,
     );
-    const plannedStartTime = body.plannedStartTime || orderedSlots[0].startTime;
-    const plannedEndTime = body.plannedEndTime || orderedSlots[orderedSlots.length - 1].endTime;
+    if ("error" in resolved) return error(resolved.error, 403);
+    const plannedStartTime = resolved.startTime;
+    const plannedEndTime = resolved.endTime;
     // 勤務枠の26:00〜30:00は翌日の時刻なので、入力値ではなく枠から正規化して作成する。
     const claimedStartAt = jstIso(slot.date, plannedStartTime);
     const claimedEndAt = jstIso(slot.date, plannedEndTime);
@@ -425,14 +516,42 @@ export async function POST(request: Request, context: Context) {
       .from(workRecords)
       .where(
         and(
-          eq(workRecords.slotId, slot.id),
+          eq(workRecords.groupId, groupId),
           eq(workRecords.userEmail, user.email),
+          eq(workRecords.scheduledDate, slot.date),
         ),
       )
       .limit(1);
-    if (existing[0] && existing[0].status !== "rejected")
-      return Response.json({ ok: true, record: existing[0] });
     const now = nowIso;
+    if (existing[0]) {
+      if (existing[0].monthlyClosedAt)
+        return error("This month has been closed and cannot be changed until an administrator reopens it.", 409);
+      await db
+        .update(workRecords)
+        .set({
+          planId: plan.id,
+          slotId: slot.id,
+          scheduledStartTime: plannedStartTime,
+          scheduledEndTime: plannedEndTime,
+          claimedStartAt,
+          claimedEndAt,
+          claimedBreakMinutes: resolved.breakMinutes,
+          status: "unsubmitted",
+          employeeNote: body.employeeNote === undefined
+            ? existing[0].employeeNote
+            : String(body.employeeNote).trim().slice(0, 500),
+          approvedBy: null,
+          approvedAt: null,
+          updatedAt: now,
+        })
+        .where(eq(workRecords.id, existing[0].id));
+      const [updated] = await db
+        .select()
+        .from(workRecords)
+        .where(eq(workRecords.id, existing[0].id))
+        .limit(1);
+      return Response.json({ ok: true, record: updated });
+    }
     const row = {
       id: crypto.randomUUID(),
       groupId,
@@ -444,12 +563,7 @@ export async function POST(request: Request, context: Context) {
       scheduledEndTime: plannedEndTime,
       claimedStartAt,
       claimedEndAt,
-      claimedBreakMinutes: Math.max(
-        0,
-        Math.round(
-          Number(body.plannedBreakMinutes ?? body.claimedBreakMinutes) || 0,
-        ),
-      ),
+      claimedBreakMinutes: resolved.breakMinutes,
       status: "unsubmitted",
       employeeNote: String(body.employeeNote ?? ""),
       createdAt: now,
@@ -907,6 +1021,19 @@ export async function PATCH(request: Request, context: Context) {
       // Keep one legacy slot reference while the displayed/validated schedule is date-based.
       linkedSlotId = ordered[0].id;
     }
+    const resolved = await resolveAssignedSlots(
+      current.db,
+      groupId,
+      user.email,
+      requestedSlotIds.length ? requestedSlotIds : record.slotId ? [record.slotId] : [],
+      record.scheduledDate,
+    );
+    if ("error" in resolved) return error(resolved.error, 409);
+    scheduledDate = resolved.date;
+    scheduledStartTime = resolved.startTime;
+    scheduledEndTime = resolved.endTime;
+    planId = resolved.planId;
+    linkedSlotId = resolved.slotId;
     if (!scheduledStartTime || !scheduledEndTime)
       return error("A scheduled shift is not linked to this record.", 409);
     const resetDailyApproval =
@@ -924,10 +1051,7 @@ export async function PATCH(request: Request, context: Context) {
         scheduledEndTime,
         claimedStartAt: jstIso(scheduledDate, scheduledStartTime),
         claimedEndAt: jstIso(scheduledDate, scheduledEndTime),
-        claimedBreakMinutes:
-          body.plannedBreakMinutes === undefined
-            ? record.claimedBreakMinutes
-            : Math.max(0, Math.min(1440, Math.round(Number(body.plannedBreakMinutes) || 0))),
+        claimedBreakMinutes: resolved.breakMinutes,
         status: resetDailyApproval ? "unsubmitted" : record.status,
         approvedBy: resetDailyApproval ? null : record.approvedBy,
         approvedAt: resetDailyApproval ? null : record.approvedAt,
