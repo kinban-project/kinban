@@ -21,6 +21,16 @@ type RecordRow = {
   managerNote?: string;
   monthlyClosedAt?: string | null;
   monthlyClosedBy?: string | null;
+  plannedSlots?: PlannedSlot[];
+};
+type PlannedSlot = {
+  id: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  role?: string;
+  planName?: string;
+  userEmail?: string;
 };
 type ScheduleRow = {
   id: string;
@@ -276,6 +286,53 @@ function rangeMinutes(
   if (!Number.isFinite(startAt) || !Number.isFinite(endAt) || endAt <= startAt)
     return null;
   return Math.round((endAt - startAt) / 60000);
+}
+function summarizePlannedSlots(date: string, slots: PlannedSlot[]) {
+  const ordered = [...slots].sort((left, right) =>
+    `${left.date} ${left.startTime}`.localeCompare(`${right.date} ${right.startTime}`),
+  );
+  if (!ordered.length) return null;
+  const startTime = ordered[0].startTime;
+  const endTime = ordered.reduce(
+    (latest, slot) =>
+      (rangeMinutes(date, "00:00", slot.endTime) ?? 0) >
+      (rangeMinutes(date, "00:00", latest) ?? 0)
+        ? slot.endTime
+        : latest,
+    ordered[0].endTime,
+  );
+  const plannedMinutes = ordered.reduce(
+    (total, slot) => total + (rangeMinutes(date, slot.startTime, slot.endTime) ?? 0),
+    0,
+  );
+  const spanMinutes = rangeMinutes(date, startTime, endTime) ?? plannedMinutes;
+  return {
+    slots: ordered,
+    startTime,
+    endTime,
+    plannedMinutes,
+    breakMinutes: Math.max(0, spanMinutes - plannedMinutes),
+  };
+}
+function plannedSummaryForRecord(record: RecordRow) {
+  if (record.plannedSlots?.length) {
+    return summarizePlannedSlots(record.scheduledDate, record.plannedSlots);
+  }
+  if (!record.scheduledStartTime || !record.scheduledEndTime) return null;
+  const minutes = rangeMinutes(
+    record.scheduledDate,
+    record.scheduledStartTime,
+    record.scheduledEndTime,
+  );
+  return minutes === null
+    ? null
+    : {
+        slots: [],
+        startTime: record.scheduledStartTime,
+        endTime: record.scheduledEndTime,
+        plannedMinutes: minutes,
+        breakMinutes: 0,
+      };
 }
 function claimedRangeMinutes(record: RecordRow, breaks: BreakRow[]) {
   if (!record.claimedStartAt || !record.claimedEndAt) return null;
@@ -561,11 +618,17 @@ export default function WorkRecordsPanel({
       500,
     );
   }
-  async function applySchedule(record: RecordRow, slotId?: string) {
+  async function applySchedule(record: RecordRow, plannedSlots: PlannedSlot[]) {
+    const planned = summarizePlannedSlots(record.scheduledDate, plannedSlots);
+    if (!planned) return;
     const response = await patch({
       action: "apply-schedule",
       recordId: record.id,
-      ...(slotId ? { slotId } : {}),
+      slotId: planned.slots[0]?.id,
+      slotIds: planned.slots.map((slot) => slot.id),
+      plannedStartTime: planned.startTime,
+      plannedEndTime: planned.endTime,
+      plannedBreakMinutes: planned.breakMinutes,
     });
     setNotice(
       response.ok
@@ -574,9 +637,11 @@ export default function WorkRecordsPanel({
     );
     if (response.ok) await load();
   }
-  async function createClaim(slot: ScheduleRow) {
-    const start = shiftDateTime(slot.date, slot.startTime);
-    const end = shiftDateTime(slot.date, slot.endTime);
+  async function createClaim(slots: PlannedSlot[]) {
+    const planned = summarizePlannedSlots(slots[0]?.date ?? "", slots);
+    if (!planned) return;
+    const start = shiftDateTime(planned.slots[0].date, planned.startTime);
+    const end = shiftDateTime(planned.slots[0].date, planned.endTime);
     const response = await localApiFetch(
       `/api/groups/${groupId}/work-records`,
       {
@@ -584,7 +649,11 @@ export default function WorkRecordsPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "create-claim",
-          slotId: slot.id,
+          slotId: planned.slots[0].id,
+          slotIds: planned.slots.map((slot) => slot.id),
+          plannedStartTime: planned.startTime,
+          plannedEndTime: planned.endTime,
+          plannedBreakMinutes: planned.breakMinutes,
           claimedStartAt: `${start.date}T${start.time}`,
           claimedEndAt: `${end.date}T${end.time}`,
         }),
@@ -709,7 +778,15 @@ export default function WorkRecordsPanel({
     [records],
   );
   const schedulesByDate = useMemo(
-    () => new Map(schedule.map((item) => [item.date, item])),
+    () => {
+      const result = new Map<string, ScheduleRow[]>();
+      for (const item of schedule) {
+        const rows = result.get(item.date) ?? [];
+        rows.push(item);
+        result.set(item.date, rows);
+      }
+      return result;
+    },
     [schedule],
   );
   function moveMonth(offset: number) {
@@ -720,7 +797,7 @@ export default function WorkRecordsPanel({
   const today = todayKey(demoNow ?? new Date());
   const mobileNeedsAction = (date: string) => {
     const record = recordsByDate.get(date);
-    const planned = schedulesByDate.get(date);
+    const planned = schedulesByDate.get(date)?.length;
     return (
       record?.status === "rejected" ||
       (date <= today &&
@@ -890,7 +967,8 @@ export default function WorkRecordsPanel({
           <div className="mobile-work-record-list">
             {mobileDays.map((date) => {
               const record = recordsByDate.get(date);
-              const planned = schedulesByDate.get(date);
+              const plannedRows = schedulesByDate.get(date) ?? [];
+              const planned = summarizePlannedSlots(date, plannedRows);
               const draft = record ? (claimDrafts[record.id] ?? { start: localDateTime(record.claimedStartAt ?? record.startedAt), end: localDateTime(record.claimedEndAt ?? record.endedAt), breakMinutes: record.claimedBreakMinutes ?? breakMinutes(breaksFor(record.id)), note: record.employeeNote ?? "" }) : null;
               const manual = manualDrafts[date] ?? { start: "", end: "", breakMinutes: 0 };
               const editDraft = record ? draft : manual;
@@ -898,7 +976,7 @@ export default function WorkRecordsPanel({
               const needsAction = mobileNeedsAction(date);
               return <article className={`mobile-work-record-card${needsAction ? " needs-action" : ""}`} key={date}>
                 <div className="mobile-work-record-head"><strong>{dayLabel(date)}</strong>{record ? <span className={`work-status work-status-${record.status}`}>{statusLabel(record.status, Boolean(record.endedAt))}</span> : planned ? <span className="work-status work-status-unsubmitted">未申告</span> : <span className="work-status work-status-none">—</span>}</div>
-                <div className="mobile-work-schedule"><span>シフト予定</span><b>{planned ? `${planned.startTime}〜${planned.endTime}${planned.role ? ` ／ ${planned.role}` : ""}` : "予定なし"}</b>{planned && (record ? !record.monthlyClosedAt && !approvalLocked(record) && <button className="small-action" disabled={busy} onClick={() => void applySchedule(record, planned.id)}>シフト通り</button> : past && <button className="small-action" disabled={busy} onClick={() => void createClaim(planned)}>シフト通り</button>)}</div>
+                <div className="mobile-work-schedule"><span>シフト予定</span>{planned ? <><div className="planned-slot-list">{planned.slots.map((slot) => <span key={slot.id}>{slot.startTime}〜{slot.endTime}{slot.role ? ` ／ ${slot.role}` : ""}</span>)}</div>{record ? !record.monthlyClosedAt && !approvalLocked(record) && <button className="small-action" disabled={busy} onClick={() => void applySchedule(record, planned.slots)}>シフト通り</button> : past && <button className="small-action" disabled={busy} onClick={() => void createClaim(planned.slots)}>シフト通り</button>}</> : <b>予定なし</b>}</div>
                 <div className="mobile-work-clock"><span>打刻</span><b>{record && (record.startedAt || record.endedAt) ? `${formatClock(record.startedAt)}〜${formatClock(record.endedAt)}` : "—"}</b></div>
             {record || past ? <div className="mobile-work-edit">{record && approvalLocked(record) && !record.monthlyClosedAt && <button className="small-action mobile-work-edit-button" disabled={busy} onClick={() => void startClaimEdit(record)}>申告を修正</button>}<label className="mobile-work-time">申告時間<div className="claim-time-fields"><TimeSelect value={editDraft?.start ?? ""} date={date} label={`${date} 申告開始`} disabled={Boolean(record?.monthlyClosedAt) || Boolean(record && approvalLocked(record))} onChange={(value) => record ? updateDraft(record, { start: value, end: draft?.end ?? "" }) : updateManualDraft(date, { start: value, end: manual.end, breakMinutes: manual.breakMinutes, note: manual.note })} /><span>〜</span><TimeSelect value={editDraft?.end ?? ""} date={date} label={`${date} 申告終了`} disabled={Boolean(record?.monthlyClosedAt) || Boolean(record && approvalLocked(record))} onChange={(value) => record ? updateDraft(record, { start: draft?.start ?? "", end: value }) : updateManualDraft(date, { start: manual.start, end: value, breakMinutes: manual.breakMinutes, note: manual.note })} /></div></label><label className="mobile-work-break">休憩<input type="number" min={0} max={1440} value={editDraft?.breakMinutes ?? 0} disabled={Boolean(record?.monthlyClosedAt) || Boolean(record && approvalLocked(record))} onChange={(event) => record ? updateDraft(record, { breakMinutes: Math.max(0, Math.min(1440, Number(event.target.value) || 0)) }) : updateManualDraft(date, { start: manual.start, end: manual.end, breakMinutes: Math.max(0, Math.min(1440, Number(event.target.value) || 0)), note: manual.note })} />分</label><label className="mobile-work-note">備考<input value={editDraft?.note ?? ""} placeholder="理由・備考" disabled={Boolean(record?.monthlyClosedAt) || Boolean(record && approvalLocked(record))} onChange={(event) => record ? updateDraft(record, { note: event.target.value }) : updateManualDraft(date, { start: manual.start, end: manual.end, breakMinutes: manual.breakMinutes, note: event.target.value })} /></label>{record && <><div className="mobile-work-total">実働 {formatMinutes(claimedMinutes(draft))}</div>{record.status === "rejected" && record.managerNote && <p className="work-rejection-note">差戻し理由：{record.managerNote}</p>}{(["working", "unsubmitted", "rejected"].includes(record.status) || (record.status === "submitted" && hasDraftChanges(record, draft))) && (record.endedAt || draft?.end || draft?.note?.trim()) && <button className="primary-button mobile-work-submit" disabled={busy} onClick={() => void submit(record)}>申請</button>}</>}{!record && (manual.start || manual.end || manual.note?.trim()) && <button className="primary-button mobile-work-submit" disabled={busy} onClick={() => void createManualClaim(date, manual)}>申請</button>}</div> : <p className="mobile-work-future">過去日になると入力できます。</p>}
               </article>;
@@ -923,7 +1001,8 @@ export default function WorkRecordsPanel({
               <tbody>
                 {days.map((date) => {
                   const record = recordsByDate.get(date);
-                  const planned = schedulesByDate.get(date);
+                  const plannedRows = schedulesByDate.get(date) ?? [];
+                  const planned = summarizePlannedSlots(date, plannedRows);
                   const draft = record
                     ? (claimDrafts[record.id] ?? {
                         start: localDateTime(
@@ -950,14 +1029,14 @@ export default function WorkRecordsPanel({
                         {planned ? (
                           <>
                             <span className="monthly-shift-ref">
-                              {planned.startTime}〜{planned.endTime}
+                              {planned.slots.map((slot) => `${slot.startTime}〜${slot.endTime}${slot.role ? ` ${slot.role}` : ""}`).join(" / ")}
                             </span>
                             {record ? (
                               !record.monthlyClosedAt && !approvalLocked(record) && (
                                 <button
                                   className="small-action"
                                   disabled={busy}
-                                  onClick={() => void applySchedule(record, planned.id)}
+                                  onClick={() => void applySchedule(record, planned.slots)}
                                 >
                                   シフト通り
                                 </button>
@@ -966,7 +1045,7 @@ export default function WorkRecordsPanel({
                               <button
                                 className="small-action"
                                 disabled={busy}
-                                onClick={() => void createClaim(planned)}
+                                onClick={() => void createClaim(planned.slots)}
                               >
                                 シフト通り
                               </button>
@@ -1302,11 +1381,7 @@ function ManagerView({
     new Set(monthRecords.map((record) => record.scheduledDate)),
   ).sort();
   const hasIssue = (record: RecordRow) => {
-    const planned = rangeMinutes(
-      record.scheduledDate,
-      record.scheduledStartTime,
-      record.scheduledEndTime,
-    );
+    const planned = plannedSummaryForRecord(record)?.plannedMinutes ?? null;
     const claimed = claimedRangeMinutes(record, breaksFor(record.id));
     return (
       !record.claimedStartAt ||
@@ -1317,11 +1392,7 @@ function ManagerView({
     );
   };
   const severity = (record: RecordRow) => {
-    const planned = rangeMinutes(
-      record.scheduledDate,
-      record.scheduledStartTime,
-      record.scheduledEndTime,
-    );
+    const planned = plannedSummaryForRecord(record)?.plannedMinutes ?? null;
     const claimed = claimedRangeMinutes(record, breaksFor(record.id));
     if (!record.claimedStartAt || !record.claimedEndAt || claimed === null)
       return "danger";
@@ -1526,11 +1597,8 @@ function ManagerView({
             {filtered.length ? (
               filtered.map((record) => {
                 const breaks = breaksFor(record.id);
-                const planned = rangeMinutes(
-                  record.scheduledDate,
-                  record.scheduledStartTime,
-                  record.scheduledEndTime,
-                );
+                const plannedSummary = plannedSummaryForRecord(record);
+                const planned = plannedSummary?.plannedMinutes ?? null;
                 const claimed = claimedRangeMinutes(record, breaks);
                 const diff =
                   planned !== null && claimed !== null
@@ -1558,8 +1626,14 @@ function ManagerView({
                         record.userEmail.split("@")[0]}
                     </td>
                     <td>
-                      {record.scheduledStartTime || "—"}〜
-                      {record.scheduledEndTime || "—"}
+                      {plannedSummary?.slots.length
+                        ? plannedSummary.slots.map((slot) => (
+                            <span className="approval-planned-slot" key={slot.id}>
+                              {slot.startTime}〜{slot.endTime}
+                              {slot.role ? ` ${slot.role}` : ""}
+                            </span>
+                          ))
+                        : `${record.scheduledStartTime || "—"}〜${record.scheduledEndTime || "—"}`}
                       <small>
                         {planned !== null ? formatMinutes(planned) : "時間不明"}
                       </small>

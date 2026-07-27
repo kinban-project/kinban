@@ -485,6 +485,9 @@ button { cursor: pointer; }
 .approval-table th:nth-child(9), .approval-table td:nth-child(9) { width: 88px; }
 .approval-table th:nth-child(10), .approval-table td:nth-child(10) { min-width: 150px; }
 .approval-table td small { color: var(--muted); }
+.approval-planned-slot { display: block; }
+.planned-slot-list { display: grid; gap: 2px; }
+.planned-slot-list span { display: block; }
 .approval-row-warn td { background: #fffaf0; }
 .approval-row-danger td { background: #fff1ef; }
 .approval-diff-missing { color: #a44942; font-weight: 700; }
