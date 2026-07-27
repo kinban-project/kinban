@@ -13,6 +13,8 @@ function markdownHtml(source: string) {
     .replace(/^## (.+)$/gm, "<h4>$1</h4>")
     .replace(/^# (.+)$/gm, "<h3>$1</h3>")
     .replace(/^\d+\. (.+)$/gm, "<div class=\"guide-list-item\">$1</div>")
+    .replace(/^[-*] (.+)$/gm, "<div class=\"guide-list-item\">$1</div>")
+    .replace(/^&gt; (.+)$/gm, "<blockquote>$1</blockquote>")
     .replace(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+|\/[^\s)]+)\)/g, "<img src=\"$2\" alt=\"$1\" class=\"knowledge-image\" />")
     .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, "<a href=\"$2\" target=\"_blank\" rel=\"noreferrer\">$1</a>")
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")

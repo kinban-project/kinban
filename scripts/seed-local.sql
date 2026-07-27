@@ -1364,3 +1364,9 @@ INSERT INTO knowledge_pages (
     '2026-07-20T12:05:00+09:00',
     '2026-07-20T12:05:00+09:00'
   );
+
+-- SQLite keeps backslashes literally in seed strings; normalize the Markdown
+-- line breaks so the preview renders headings and lists correctly.
+UPDATE knowledge_pages
+SET body = replace(body, '\n', char(10))
+WHERE id IN ('knowledge-night-staff-opening-check', 'knowledge-night-cast-attendance-notes');

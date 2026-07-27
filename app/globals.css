@@ -593,6 +593,7 @@ button { cursor: pointer; }
 .memo-form textarea { resize: vertical; min-height: 140px; }
 .memo-hint, .empty-state { padding: 22px; color: #6d7e79; text-align: center; }
 .danger-button { border: 1px solid #e2b8b1; border-radius: 9px; padding: 10px 15px; color: #a24e42; background: #fff2f0; cursor: pointer; }
+.knowledge-body .knowledge-image { display: block; width: min(100%, 480px); max-height: 280px; object-fit: cover; margin: 12px 0; border-radius: 10px; }
 @media (max-width: 720px) {
   .memos-modal { width: 100vw; max-height: 100dvh; border-radius: 0; padding: 12px 10px; }
   .memos-panel { padding: 12px 10px; }
