@@ -1032,6 +1032,35 @@ WHERE records.group_id IN ('seed-group-night-staff', 'seed-group-night-cast')
   AND records.user_email IN ('night-staff-a@local.test', 'night-cast-a@local.test')
   AND records.scheduled_end_time = '26:00';
 
+-- Recreate personal calendar events for the final published nightclub plans.
+-- The calendar API starts from events and then filters them by assignment.
+INSERT INTO events (
+  id, owner_email, group_id, shift_plan_id, title, date, end_date,
+  start_time, end_time, category, notes, completed
+)
+SELECT
+  'seed-night-calendar-' || slots.id,
+  plans.created_by,
+  plans.group_id,
+  plans.id,
+  COALESCE(NULLIF(slots.role, ''), groups.name),
+  slots.date,
+  CASE WHEN CAST(substr(slots.end_time, 1, 2) AS INTEGER) >= 24
+    THEN date(slots.date, '+1 day') ELSE slots.date END,
+  slots.start_time,
+  CASE WHEN CAST(substr(slots.end_time, 1, 2) AS INTEGER) >= 24
+    THEN printf('%02d:%s', CAST(substr(slots.end_time, 1, 2) AS INTEGER) - 24, substr(slots.end_time, 4, 2))
+    ELSE slots.end_time END,
+  '仕事',
+  '公開済みシフト',
+  0
+FROM shift_slots slots
+JOIN shift_plans plans ON plans.id = slots.plan_id
+JOIN groups ON groups.id = plans.group_id
+WHERE plans.status = 'published'
+  AND plans.id IN ('seed-night-staff-plan-july-month', 'seed-night-cast-plan-july-month')
+  AND EXISTS (SELECT 1 FROM shift_assignments assignments WHERE assignments.slot_id = slots.id);
+
 -- Nightclub demo attendance and work memos for staff A and cast A.
 -- Other members are intentionally left without attendance records so the
 -- management screens show both populated and unsubmitted cases.
