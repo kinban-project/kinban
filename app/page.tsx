@@ -12,6 +12,7 @@ import ShiftAdjustment from "./shift-adjustment";
 import GroupMenu from "./group-menu";
 import GroupPreferencesPanel from "./group-preferences-panel";
 import AnnouncementsPanel from "./announcements-panel";
+import AssistantChat from "./assistant-chat";
 import DashboardPanel from "./dashboard-panel";
 import WorkRecordsPanel from "./work-records-panel";
 import MonthlyWorkPanel from "./monthly-work-panel";
@@ -181,6 +182,7 @@ export default function Home() {
   const [groupPreferencesOpen, setGroupPreferencesOpen] = useState(false);
   const [announcementsOpen, setAnnouncementsOpen] = useState(false);
   const [announcementsManager, setAnnouncementsManager] = useState(false);
+  const [managerContactOpen, setManagerContactOpen] = useState(false);
   const [announcementsTab, setAnnouncementsTab] = useState<"announcements" | "assistant">("announcements");
   const [dashboardOpen, setDashboardOpen] = useState(false);
   const [auditLogsOpen, setAuditLogsOpen] = useState(false);
@@ -497,6 +499,10 @@ export default function Home() {
           setAnnouncementsManager(false);
           setAnnouncementsTab("assistant");
           setAnnouncementsOpen(true);
+        }}
+        onContactManage={(groupId) => {
+          setMenuGroupId(groupId);
+          setManagerContactOpen(true);
         }}
         onMemos={(groupId) => {
           setMenuGroupId(groupId);
@@ -964,7 +970,7 @@ export default function Home() {
             <ModalClose onClose={() => setShiftRosterOpen(false)} />
             <div className="shift-entry-tabs" role="tablist" aria-label="シフト">
               <button className={shiftTab === "roster" ? "active" : ""} type="button" role="tab" aria-selected={shiftTab === "roster"} onClick={() => setShiftTab("roster")}>シフト一覧</button>
-              <button className={shiftTab === "requests" ? "active" : ""} type="button" role="tab" aria-selected={shiftTab === "requests"} onClick={() => setShiftTab("requests")}>シフト希望</button>
+              <button className={shiftTab === "requests" ? "active" : ""} type="button" role="tab" aria-selected={shiftTab === "requests"} onClick={() => setShiftTab("requests")}>シフト希望{groups.find((group) => group.groupId === menuGroupId)?.shiftRequestNeedsSubmission && <span className="request-badge">未提出あり</span>}</button>
             </div>
             {shiftTab === "roster" ? <ShiftRoster initialGroupId={menuGroupId} /> : <ShiftRequests initialGroupId={menuGroupId} />}
           </div>
@@ -984,11 +990,16 @@ export default function Home() {
               groupId={menuGroupId}
               initialTab={announcementsTab}
               assistantName={groups.find((group) => group.groupId === menuGroupId)?.assistantDisplayName}
-              assistantUnread={announcementsManager ? groups.find((group) => group.groupId === menuGroupId)?.managerAssistantUnread ?? false : groups.find((group) => group.groupId === menuGroupId)?.unreadAssistant ?? false}
+              assistantUnread={groups.find((group) => group.groupId === menuGroupId)?.unreadAssistant ?? false}
               onAssistantRead={() => { if (!announcementsManager) setGroups((current) => current.map((group) => group.groupId === menuGroupId ? { ...group, unreadAssistant: false } : group)); }}
               manager={announcementsManager}
             />
           </div>
+        </div>
+      )}
+      {managerContactOpen && menuGroupId && (
+        <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setManagerContactOpen(false); }}>
+          <div className="modal groups-modal"><ModalClose onClose={() => setManagerContactOpen(false)} /><AssistantChat groupId={menuGroupId} manager /></div>
         </div>
       )}
       {memosOpen && menuGroupId && (

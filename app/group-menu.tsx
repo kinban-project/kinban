@@ -27,6 +27,7 @@ type Props = {
   onMembers: (id: string) => void;
   onAnnouncements: (id: string) => void;
   onAssistant: (id: string) => void;
+  onContactManage: (id: string) => void;
   onMemos: (id: string) => void;
   onKnowledge: (id: string) => void;
   onAnnouncementManage: (id: string) => void;
@@ -107,6 +108,7 @@ export default function GroupMenu({
   onMembers,
   onAnnouncements,
   onAssistant,
+  onContactManage,
   onMemos,
   onKnowledge,
   onAnnouncementManage,
@@ -207,11 +209,18 @@ export default function GroupMenu({
                       {pendingMembers > 0 && <span className="unread-badge">{pendingMembers}</span>}
                     </button>
                     <button
-                      className={`group-menu-button admin${managerAssistantUnread ? " has-unread" : ""}`}
+                      className="group-menu-button admin"
                       type="button"
                       onClick={() => onAnnouncementManage(group.groupId)}
                     >
                       お知らせ管理
+                    </button>
+                    <button
+                      className={`group-menu-button admin${managerAssistantUnread ? " has-unread" : ""}`}
+                      type="button"
+                      onClick={() => onContactManage(group.groupId)}
+                    >
+                      連絡対応
                       {managerAssistantUnread && <span className="assistant-unread-dot" title="KINBAN未処理があります" aria-label="KINBAN未処理があります" />}
                     </button>
                     <button
@@ -255,8 +264,11 @@ export default function GroupMenu({
                           メンバー管理
                           {pendingMembers > 0 && <span className="unread-badge">{pendingMembers}</span>}
                         </button>
-                        <button className={managerAssistantUnread ? "has-unread" : ""} onClick={() => onAnnouncementManage(group.groupId)}>
+                        <button onClick={() => onAnnouncementManage(group.groupId)}>
                           お知らせ管理
+                        </button>
+                        <button className={managerAssistantUnread ? "has-unread" : ""} onClick={() => onContactManage(group.groupId)}>
+                          連絡対応
                           {managerAssistantUnread && <span className="assistant-unread-dot" title="KINBAN未処理があります" aria-label="KINBAN未処理があります" />}
                         </button>
                         <button onClick={() => onDashboard(group.groupId)}>
