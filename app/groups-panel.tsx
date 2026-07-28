@@ -184,7 +184,7 @@ export default function GroupsPanel({ onChanged, initialGroupId }: { onChanged: 
         <h4>シフト・勤怠ルール</h4>
         <label className="group-setting-toggle">
           <input type="checkbox" checked={selected.group.autoBreakSuggestion !== false} onChange={(event) => void updateGroupRules(event.target.checked)} />
-          <span><strong>予定休憩を自動提案する</strong><small>勤務ブロックの長さに応じて、予定休憩の分数をシフト・勤務申告へ表示します。</small></span>
+          <span><strong>予定休憩を自動設定する</strong><small>同じ日の連続した勤務枠を勤務ブロックとして集計し、6時間を超える場合は45分、8時間を超える場合は60分の予定休憩を自動設定します。</small></span>
         </label>
       </section>}
       {selected.membership.role === "owner" && selected.requests.filter((request) => request.status === "pending").length > 0 && <><h4>参加申請</h4>{selected.requests.filter((request) => request.status === "pending").map((request) => <div className="member-row" key={request.id}><span>{request.userEmail}</span><span><button className="small-action" onClick={() => void handleRequest(request.id, "approve")}>承認</button><button className="small-action danger" onClick={() => void handleRequest(request.id, "reject")}>却下</button></span></div>)}</>}

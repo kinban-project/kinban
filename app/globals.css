@@ -132,6 +132,13 @@ button { cursor: pointer; }
 .group-detail h4 { font-size: 12px; color: var(--muted); margin: 19px 0 5px; }
 .group-detail .modal-head { margin-bottom: 12px; }
 .group-detail .modal-head small { color: var(--muted); font-size: 10px; }
+.group-rules-panel { margin: 14px 0 18px; padding: 13px 14px; border: 1px solid var(--line); border-radius: 12px; background: #fbfcfa; }
+.group-rules-panel h4 { margin: 0 0 9px; color: var(--teal); }
+.group-detail .group-setting-toggle { display: flex; align-items: flex-start; gap: 8px; margin: 0; color: var(--ink); cursor: pointer; }
+.group-detail .group-setting-toggle input { flex: 0 0 auto; width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--teal); }
+.group-detail .group-setting-toggle span { display: grid; gap: 4px; }
+.group-detail .group-setting-toggle strong { color: var(--ink); font-size: 12px; }
+.group-detail .group-setting-toggle small { color: var(--muted); font-size: 10px; font-weight: 400; line-height: 1.6; }
 .toggle-line { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--ink); }
 .member-row select { border: 1px solid var(--line); border-radius: 7px; padding: 5px; color: var(--ink); }
 .member-row > span:first-child { min-width: 130px; flex: 1; }
