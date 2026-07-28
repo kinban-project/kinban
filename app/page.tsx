@@ -198,6 +198,7 @@ export default function Home() {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const [calendarLoaded, setCalendarLoaded] = useState(false);
   const notificationTargetRef = useRef<string | null>(null);
   const days = useMemo(
     () => daysForMonth(cursor.getFullYear(), cursor.getMonth()),
@@ -259,7 +260,10 @@ export default function Home() {
 
   async function loadCalendar() {
     const response = await localApiFetch("/api/calendar");
-    if (!response.ok) return;
+    if (!response.ok) {
+      setCalendarLoaded(true);
+      return;
+    }
     const data = (await response.json()) as {
       email: string;
       events: EventItem[];
@@ -310,6 +314,7 @@ export default function Home() {
       }),
     );
     setGroups(withUnread);
+    setCalendarLoaded(true);
   }
 
   function openNew(date = selectedDate) {

@@ -442,13 +442,14 @@ button { cursor: pointer; }
 .work-records-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0; }
 .work-records-summary span { color: var(--muted); font-size: 13px; }
 .work-records-table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
-.work-records-table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 12px; }
+.work-records-table { width: 100%; min-width: 900px; border-collapse: collapse; font-size: 12px; }
 .work-records-table th, .work-records-table td { padding: 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
 .work-records-table th { background: #f4f7f3; color: var(--muted); font-weight: 600; }
 .work-records-table tr:last-child td { border-bottom: 0; }
 .claim-time-fields { display: flex; align-items: center; gap: 4px; min-width: 330px; }.claim-time-fields input { width: 148px; border: 1px solid var(--line); border-radius: 6px; padding: 5px; color: var(--ink); background: #fff; font-size: 10px; }
 .work-schedule-claim { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }.work-clock-note { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; }
 .work-records-table small { display: block; color: var(--muted); margin-top: 3px; }
+.work-records-table th:nth-child(6), .work-records-table td:nth-child(6) { width: 128px; min-width: 128px; }
 .work-month-toolbar { display: flex; align-items: center; gap: 8px; margin: 12px 0 6px; }
 .work-month-toolbar select { min-width: 150px; border: 1px solid var(--line); border-radius: 7px; padding: 7px 10px; background: #fff; color: var(--ink); }
 .work-month-toolbar .primary-button { margin-left: auto; }
@@ -473,8 +474,8 @@ button { cursor: pointer; }
 .claim-time-select { width: 88px; min-width: 0; border: 1px solid var(--line); border-radius: 6px; padding: 5px 3px; color: var(--ink); background: #fff; font-size: 11px; }
 .monthly-claim { gap: 3px; }
 .monthly-note { width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 6px; padding: 6px 7px; color: var(--ink); background: #fff; font-size: 11px; }
-.claim-break-field { display: flex; align-items: center; gap: 3px; white-space: nowrap; }
-.claim-break-field input { width: 52px; min-width: 0; border: 1px solid var(--line); border-radius: 6px; padding: 6px 4px; color: var(--ink); background: #fff; font-size: 11px; }
+.claim-break-field { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.claim-break-field input { flex: 0 0 52px; width: 52px; min-width: 52px; box-sizing: border-box; border: 1px solid var(--line); border-radius: 6px; padding: 6px 4px; color: var(--ink); background: #fff; font-size: 11px; }
 .monthly-work-summary { margin: 10px 0; }
 .monthly-work-table td { overflow: hidden; }
 .monthly-actions { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -527,7 +528,8 @@ button { cursor: pointer; }
 .approval-detail-grid span, .approval-detail-note > span { color: var(--muted); font-size: 11px; }
 .approval-detail-grid strong { font-size: 16px; font-weight: 600; }
 .planned-break-editor { display: flex; align-items: center; gap: 6px; }.planned-break-editor input { width: 76px; padding: 7px 8px; border: 1px solid var(--line); border-radius: 7px; background: #fff; }.planned-break-editor .small-action { margin-left: auto; }
-.planned-break-hint { display: block; margin-top: 4px; color: var(--muted); font-size: 9px; white-space: nowrap; }
+.planned-break-hint { display: inline-block; margin: 0; color: var(--muted); font-size: 10px; white-space: nowrap; }
+.work-shift-as-scheduled { display: block; margin-top: 5px; }
 .approval-detail-note { padding: 14px; border-radius: 10px; background: #f5f8f4; }
 .approval-detail-note p { margin: 8px 0 0; white-space: pre-wrap; }
 .approval-detail-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }

@@ -2,12 +2,30 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { localApiFetch } from "./local-api";
-import { displayShiftTime } from "./shift-time";
+import { displayShiftTime, shiftTimeToMinutes } from "./shift-time";
 
 type Group = { id: string; name: string };
 type Plan = { id: string; groupId: string; name: string; startDate: string; endDate: string; openingTime: string; closingTime: string; status: "draft" | "published"; shortageSlotCount?: number; shortageMemberCount?: number };
 type Slot = { id: string; date: string; startTime: string; endTime: string; requiredCount: number; role?: string };
 type Detail = { currentEmail: string; plan: Plan; slots: Slot[]; assignments: Array<{ slotId: string; userEmail: string }>; members: Array<{ userEmail: string; displayName?: string | null }> };
+
+function suggestedBreakMinutes(slots: Slot[]) {
+  const ordered = [...slots].sort(
+    (left, right) => shiftTimeToMinutes(left.startTime) - shiftTimeToMinutes(right.startTime),
+  );
+  const blocks: Array<{ start: number; end: number }> = [];
+  for (const slot of ordered) {
+    const start = shiftTimeToMinutes(slot.startTime);
+    const end = shiftTimeToMinutes(slot.endTime);
+    const current = blocks[blocks.length - 1];
+    if (current && start <= current.end) current.end = Math.max(current.end, end);
+    else blocks.push({ start, end });
+  }
+  return blocks.reduce((total, block) => {
+    const duration = block.end - block.start;
+    return total + (duration > 480 ? 60 : duration > 360 ? 45 : 0);
+  }, 0);
+}
 
 function dateLabel(date: string) {
   return new Intl.DateTimeFormat("ja-JP", { month: "numeric", day: "numeric", weekday: "short" }).format(new Date(`${date}T00:00:00`));
@@ -65,6 +83,21 @@ export default function ShiftRoster({ initialGroupId }: { initialGroupId?: strin
     for (const assignment of detail?.assignments ?? []) map.set(assignment.slotId, [...(map.get(assignment.slotId) ?? []), { email: assignment.userEmail, name: names.get(assignment.userEmail) ?? assignment.userEmail.split("@")[0], isSelf: assignment.userEmail === detail?.currentEmail }]);
     return map;
   }, [detail]);
+  const plannedBreakByMemberDate = useMemo(() => {
+    const result = new Map<string, number>();
+    const slotsByMemberDate = new Map<string, Slot[]>();
+    for (const assignment of detail?.assignments ?? []) {
+      const slot = detail?.slots.find((candidate) => candidate.id === assignment.slotId);
+      if (!slot) continue;
+      const key = `${assignment.userEmail}|${slot.date}`;
+      slotsByMemberDate.set(key, [...(slotsByMemberDate.get(key) ?? []), slot]);
+    }
+    for (const [key, slots] of slotsByMemberDate) {
+      const minutes = suggestedBreakMinutes(slots);
+      if (minutes > 0) result.set(key, minutes);
+    }
+    return result;
+  }, [detail]);
   const slotsByCell = useMemo(() => {
     const map = new Map<string, Slot[]>();
     for (const slot of detail?.slots ?? []) {
@@ -119,9 +152,9 @@ export default function ShiftRoster({ initialGroupId }: { initialGroupId?: strin
         <button type="button" className={rosterView === "shortage" ? "active" : ""} onClick={() => setRosterView("shortage")}>未充足 {viewCounts.shortage}件</button>
       </div>
       <div className="mobile-roster-list">
-        {filteredSlots.length ? filteredSlots.map(({ slot, members, shortage }) => <article className={`mobile-roster-card${shortage ? " shortage" : ""}`} key={slot.id}><div><strong>{dateLabel(slot.date)}</strong><span>{displayShiftTime(slot.startTime)}〜{displayShiftTime(slot.endTime)}</span></div><div className="mobile-roster-card-body"><b>{slot.role || "担当未設定"}</b><small>{members.length}/{slot.requiredCount}名</small></div><p>{members.length ? members.map((member) => member.name).join("・") : "未割当"}</p></article>) : <p className="mobile-roster-empty">該当するシフトはありません。</p>}
+        {filteredSlots.length ? filteredSlots.map(({ slot, members, shortage }) => <article className={`mobile-roster-card${shortage ? " shortage" : ""}`} key={slot.id}><div><strong>{dateLabel(slot.date)}</strong><span>{displayShiftTime(slot.startTime)}〜{displayShiftTime(slot.endTime)}</span></div><div className="mobile-roster-card-body"><b>{slot.role || "担当未設定"}</b><small>{members.length}/{slot.requiredCount}名</small></div><p>{members.length ? members.map((member) => { const minutes = plannedBreakByMemberDate.get(`${member.email}|${slot.date}`) ?? 0; return `${member.name}${minutes > 0 ? `（予定休憩${minutes}分）` : ""}`; }).join("・") : "未割当"}</p></article>) : <p className="mobile-roster-empty">該当するシフトはありません。</p>}
       </div>
-      <div className="roster-desktop-grid">{visibleRows.length ? <><div className="roster-top-scroll" ref={topScrollRef} onScroll={syncTopScroll} aria-label="シフト表を左右にスクロール"><div style={{ width: `${rosterWidth}px` }} /></div><div className="roster-table-wrap" ref={tableScrollRef} onScroll={syncTableScroll}><table className="roster-table"><thead><tr><th>日付</th>{times.map((time) => <th key={time}>{displayShiftTime(time)}</th>)}</tr></thead><tbody>{visibleRows.map((date) => <tr key={date}><th>{dateLabel(date)}</th>{times.map((time) => { const cellSlots = (slotsByCell.get(`${date}|${time}`) ?? []).filter((slot) => visibleSlotIds.has(slot.id)); const shortage = cellSlots.some((slot) => (assignmentMap.get(slot.id)?.length ?? 0) < slot.requiredCount); return <td className={shortage ? "roster-shortage" : ""} key={time}>{cellSlots.map((slot) => { const assigned = assignmentMap.get(slot.id) ?? []; return <div className="roster-role-box" key={slot.id}><div className="roster-role-head"><strong>{slot.role || "担当"}</strong><small>{assigned.length}/{slot.requiredCount}</small></div>{assigned.length ? assigned.map((person) => <span className={`roster-person ${person.isSelf ? "is-self" : "is-other"}`} key={`${slot.id}-${person.email}`}>{person.name}</span>) : <span className="roster-empty">未割当</span>}</div>; })}</td>; })}</tr>)}</tbody></table></div><p className="shift-help">カレンダーにはグループ予定として全員分が表示されます。担当者の確認にはこの一覧を利用してください。</p></> : <p className="mobile-roster-empty">該当するシフトはありません。</p>}</div></>}
+      <div className="roster-desktop-grid">{visibleRows.length ? <><div className="roster-top-scroll" ref={topScrollRef} onScroll={syncTopScroll} aria-label="シフト表を左右にスクロール"><div style={{ width: `${rosterWidth}px` }} /></div><div className="roster-table-wrap" ref={tableScrollRef} onScroll={syncTableScroll}><table className="roster-table"><thead><tr><th>日付</th>{times.map((time) => <th key={time}>{displayShiftTime(time)}</th>)}</tr></thead><tbody>{visibleRows.map((date) => <tr key={date}><th>{dateLabel(date)}</th>{times.map((time) => { const cellSlots = (slotsByCell.get(`${date}|${time}`) ?? []).filter((slot) => visibleSlotIds.has(slot.id)); const shortage = cellSlots.some((slot) => (assignmentMap.get(slot.id)?.length ?? 0) < slot.requiredCount); return <td className={shortage ? "roster-shortage" : ""} key={time}>{cellSlots.map((slot) => { const assigned = assignmentMap.get(slot.id) ?? []; return <div className="roster-role-box" key={slot.id}><div className="roster-role-head"><strong>{slot.role || "担当"}</strong><small>{assigned.length}/{slot.requiredCount}</small></div>{assigned.length ? assigned.map((person) => { const minutes = plannedBreakByMemberDate.get(`${person.email}|${date}`) ?? 0; return <span className={`roster-person ${person.isSelf ? "is-self" : "is-other"}`} key={`${slot.id}-${person.email}`}>{person.name}{minutes > 0 ? `（予定休憩${minutes}分）` : ""}</span>; }) : <span className="roster-empty">未割当</span>}</div>; })}</td>; })}</tr>)}</tbody></table></div><p className="shift-help">カレンダーにはグループ予定として全員分が表示されます。担当者の確認にはこの一覧を利用してください。</p></> : <p className="mobile-roster-empty">該当するシフトはありません。</p>}</div></>}
     {notice && <p className="group-notice" role="status">{notice}</p>}
   </section>;
 }

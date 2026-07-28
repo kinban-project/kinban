@@ -631,7 +631,11 @@ export default function ShiftAdjustment({
               <table className="assignment-preview-table">
                 <thead><tr><th>日付</th>{timeColumns.map((time) => <th key={`${time.startTime}|${time.endTime}`}>{displayShiftTime(time.startTime)}<small>{displayShiftTime(time.endTime)}</small></th>)}</tr></thead>
                 <tbody>{dates.map((date) => <tr key={date}><th>{formatShiftDate(date)}</th>{timeColumns.map((time) => <td key={`${date}|${time.startTime}|${time.endTime}`}>{visibleSlots.filter((slot) => slot.date === date && slot.startTime === time.startTime && slot.endTime === time.endTime).map((slot) => {
-                  const names = [...new Set(assignments[slot.id] ?? [])].map((email) => detail.members.find((member) => member.userEmail === email)?.displayName || email.split("@")[0]);
+                  const names = [...new Set(assignments[slot.id] ?? [])].map((email) => {
+                    const name = detail.members.find((member) => member.userEmail === email)?.displayName || email.split("@")[0];
+                    const minutes = plannedBreakByMemberDate.get(`${email}|${date}`) ?? 0;
+                    return minutes > 0 ? `${name}（予定休憩${minutes}分）` : name;
+                  });
                   const assignedCount = names.length;
                   const hasOverlap = assignmentIssues.some((issue) => issue.kind === "overlap" && issue.slotIds.includes(slot.id));
                   return <div className={`assignment-preview-slot ${assignedCount < slot.requiredCount ? "is-shortage" : ""} ${assignedCount > slot.requiredCount ? "is-excess" : ""} ${hasOverlap ? "has-overlap" : ""}`} key={slot.id}><div><strong>{slot.role || "共通"}</strong><span>{assignedCount}/{slot.requiredCount}人</span></div><p>{names.length ? names.join("、") : "未割当"}</p></div>;

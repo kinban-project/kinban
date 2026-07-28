@@ -1056,25 +1056,11 @@ export default function WorkRecordsPanel({
                                 </span>
                               ))}
                             </div>
-                            {record ? (
-                              !record.monthlyClosedAt && !approvalLocked(record) && (
-                                <button
-                                  className="small-action"
-                                  disabled={busy}
-                                  onClick={() => void applySchedule(record, planned.slots)}
-                                >
-                                  シフト通り
-                                </button>
-                              )
-                            ) : past ? (
-                              <button
-                                className="small-action"
-                                disabled={busy}
-                                onClick={() => void createClaim(planned.slots)}
-                              >
-                                シフト通り
-                              </button>
-                            ) : null}
+                            {record && (
+                              <small className="planned-break-hint">
+                                予定休憩 {record.plannedBreakMinutes ?? 0}分
+                              </small>
+                            )}
                           </>
                         ) : (
                           <span className="monthly-record-value">対象なし</span>
@@ -1088,6 +1074,27 @@ export default function WorkRecordsPanel({
                           </span>
                         ) : (
                           <span className="monthly-record-value">—</span>
+                        )}
+                        {planned && (
+                          record
+                            ? !record.monthlyClosedAt && !approvalLocked(record) && (
+                                <button
+                                  className="small-action work-shift-as-scheduled"
+                                  disabled={busy}
+                                  onClick={() => void applySchedule(record, planned.slots)}
+                                >
+                                  シフト通り
+                                </button>
+                              )
+                            : past && (
+                                <button
+                                  className="small-action work-shift-as-scheduled"
+                                  disabled={busy}
+                                  onClick={() => void createClaim(planned.slots)}
+                                >
+                                  シフト通り
+                                </button>
+                              )
                         )}
                       </td>
                       <td>
@@ -1197,7 +1204,6 @@ export default function WorkRecordsPanel({
                               }
                             />
                             <span>分</span>
-                            <small className="planned-break-hint">予定 {record.plannedBreakMinutes ?? 0}分</small>
                           </div>
                         ) : past ? (
                           <div className="claim-break-field">
