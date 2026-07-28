@@ -36,6 +36,9 @@ export const groups = sqliteTable("groups", {
   participationMode: text("participation_mode", { enum: ["invite_only", "request_to_join"] })
     .notNull()
     .default("invite_only"),
+  autoBreakSuggestion: integer("auto_break_suggestion", { mode: "boolean" })
+    .notNull()
+    .default(true),
   createdAt: text("created_at")
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
@@ -599,6 +602,7 @@ export const workRecords = sqliteTable("work_records", {
   endedAt: text("ended_at"),
   claimedStartAt: text("claimed_start_at"),
   claimedEndAt: text("claimed_end_at"),
+  plannedBreakMinutes: integer("planned_break_minutes").notNull().default(0),
   claimedBreakMinutes: integer("claimed_break_minutes"),
   activeKey: text("active_key"),
   status: text("status").notNull().default("working"),

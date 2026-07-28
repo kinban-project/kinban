@@ -54,6 +54,7 @@ type Detail = {
   requests?: RequestRow[];
   requestSubmissions?: RequestSubmission[];
   memberPreferences?: Array<Preference & { userEmail: string }>;
+  autoBreakSuggestion?: boolean;
 };
 type Preference = {
   userEmail?: string;
@@ -97,6 +98,24 @@ function formatSubmissionTime(value: string | null) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+}
+function suggestedBreakMinutes(slots: Slot[]) {
+  const ordered = [...slots].sort(
+    (left, right) =>
+      shiftTimeToMinutes(left.startTime) - shiftTimeToMinutes(right.startTime),
+  );
+  const blocks: Array<{ start: number; end: number }> = [];
+  for (const slot of ordered) {
+    const start = shiftTimeToMinutes(slot.startTime);
+    const end = shiftTimeToMinutes(slot.endTime);
+    const current = blocks[blocks.length - 1];
+    if (current && start <= current.end) current.end = Math.max(current.end, end);
+    else blocks.push({ start, end });
+  }
+  return blocks.reduce((total, block) => {
+    const duration = block.end - block.start;
+    return total + (duration > 480 ? 60 : duration > 360 ? 45 : 0);
+  }, 0);
 }
 function formatShiftDate(value: string) {
   const date = new Date(`${value}T00:00:00+09:00`);
@@ -249,6 +268,25 @@ export default function ShiftAdjustment({
     }),
     [assignmentIssues],
   );
+  const plannedBreakSummary = useMemo(() => {
+    if (!detail || detail.autoBreakSuggestion === false) return [];
+    const byMemberDate = new Map<string, Slot[]>();
+    for (const slot of detail.slots) {
+      for (const userEmail of new Set(assignments[slot.id] ?? [])) {
+        const key = `${userEmail}|${slot.date}`;
+        const rows = byMemberDate.get(key) ?? [];
+        rows.push(slot);
+        byMemberDate.set(key, rows);
+      }
+    }
+    return [...byMemberDate.entries()]
+      .map(([key, slots]) => {
+        const [userEmail, date] = key.split("|");
+        return { userEmail, date, minutes: suggestedBreakMinutes(slots) };
+      })
+      .filter((row) => row.minutes > 0)
+      .sort((left, right) => `${left.date}|${left.userEmail}`.localeCompare(`${right.date}|${right.userEmail}`));
+  }, [detail, assignments]);
   const memberSummary = useMemo(() => {
     if (!detail) return [];
     const start = new Date(`${detail.plan.startDate}T00:00:00Z`);
@@ -504,6 +542,18 @@ export default function ShiftAdjustment({
               <i className="pref-unavailable">勤務不可</i>
             </span>
           </div>
+          {plannedBreakSummary.length > 0 && (
+            <div className="planned-break-summary">
+              <strong>予定休憩（自動提案）</strong>
+              <div>
+                {plannedBreakSummary.map((row) => (
+                  <span key={`${row.date}|${row.userEmail}`}>
+                    {formatShiftDate(row.date)}・{detail.members.find((member) => member.userEmail === row.userEmail)?.displayName || row.userEmail.split("@")[0]}：{row.minutes}分
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="assignment-warning-filter" aria-label="割り当て警告の表示">
             <div className="assignment-warning-filter-buttons">
               <button type="button" className={warningFilter === "all" ? "active" : ""} onClick={() => setWarningFilter("all")}>すべて {detail.slots.length}枠</button>

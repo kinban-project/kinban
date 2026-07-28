@@ -27,6 +27,11 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   if (!plan) return Response.json({ error: "シフト計画が見つかりません" }, { status: 404 });
   const membership = await getMembership(plan.groupId, user.email);
   if (!membership) return Response.json({ error: "グループのメンバーではありません" }, { status: 403 });
+  const [group] = await db
+    .select({ autoBreakSuggestion: groups.autoBreakSuggestion })
+    .from(groups)
+    .where(eq(groups.id, plan.groupId))
+    .limit(1);
   const slots = await db.select().from(shiftSlots).where(eq(shiftSlots.planId, id));
   const [requestPeriod] = await db.select().from(shiftRequestPeriods).where(eq(shiftRequestPeriods.planId, id)).limit(1);
   const assignmentChunks = await Promise.all(chunk(slots.map((slot) => slot.id), 50).map((slotIds) => db.select().from(shiftAssignments).where(inArray(shiftAssignments.slotId, slotIds))));
@@ -39,7 +44,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const memberAvailability = canManage ? await db.select().from(shiftAvailability).where(eq(shiftAvailability.groupId, plan.groupId)) : [];
   const requests = canManage && requestPeriod ? await db.select().from(shiftRequests).where(eq(shiftRequests.periodId, requestPeriod.id)) : [];
   const requestSubmissions = canManage && requestPeriod ? await db.select().from(shiftRequestSubmissions).where(eq(shiftRequestSubmissions.periodId, requestPeriod.id)) : [];
-  return Response.json({ currentEmail: user.email, plan, slots, assignments, members: members.map((member) => toPublicMember(member, canViewAdminNote(membership.role))), closedDates, requestPeriod: requestPeriod ?? null, memberPreferences, memberAvailability, requests, requestSubmissions });
+  return Response.json({ currentEmail: user.email, plan, slots, assignments, members: members.map((member) => toPublicMember(member, canViewAdminNote(membership.role))), closedDates, requestPeriod: requestPeriod ?? null, memberPreferences, memberAvailability, requests, requestSubmissions, autoBreakSuggestion: group?.autoBreakSuggestion !== false });
 }
 
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {

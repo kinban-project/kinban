@@ -132,6 +132,26 @@ function clockMinutes(value: string) {
     : null;
 }
 
+function suggestedBreakMinutes(slots: Array<{ startTime: string; endTime: string }>) {
+  const ordered = [...slots].sort((left, right) =>
+    (clockMinutes(left.startTime) ?? Number.MAX_SAFE_INTEGER) -
+      (clockMinutes(right.startTime) ?? Number.MAX_SAFE_INTEGER),
+  );
+  const blocks: Array<{ start: number; end: number }> = [];
+  for (const slot of ordered) {
+    const start = clockMinutes(slot.startTime);
+    const end = clockMinutes(slot.endTime);
+    if (start === null || end === null || end <= start) continue;
+    const current = blocks[blocks.length - 1];
+    if (current && start <= current.end) current.end = Math.max(current.end, end);
+    else blocks.push({ start, end });
+  }
+  return blocks.reduce((total, block) => {
+    const span = block.end - block.start;
+    return total + (span > 480 ? 60 : span > 360 ? 45 : 0);
+  }, 0);
+}
+
 async function resolveAssignedSlots(
   db: ReturnType<typeof getDb>,
   groupId: string,
@@ -195,6 +215,11 @@ async function resolveAssignedSlots(
     const rightMinutes = clockMinutes(right.startTime) ?? Number.MAX_SAFE_INTEGER;
     return leftMinutes - rightMinutes || left.endTime.localeCompare(right.endTime);
   });
+  const [group] = await db
+    .select({ autoBreakSuggestion: groups.autoBreakSuggestion })
+    .from(groups)
+    .where(eq(groups.id, groupId))
+    .limit(1);
   const startTime = ordered[0].startTime;
   const endTime = ordered.reduce((latest, slot) =>
     (clockMinutes(slot.endTime) ?? -1) > (clockMinutes(latest) ?? -1)
@@ -219,6 +244,9 @@ async function resolveAssignedSlots(
     startTime,
     endTime,
     breakMinutes: Math.max(0, spanMinutes - plannedMinutes),
+    plannedBreakMinutes: group?.autoBreakSuggestion === false
+      ? 0
+      : suggestedBreakMinutes(ordered),
   } as const;
 }
 
@@ -548,9 +576,10 @@ export async function POST(request: Request, context: Context) {
           slotId: slot.id,
           scheduledStartTime: plannedStartTime,
           scheduledEndTime: plannedEndTime,
+          plannedBreakMinutes: resolved.plannedBreakMinutes,
           claimedStartAt,
           claimedEndAt,
-          claimedBreakMinutes: resolved.breakMinutes,
+          claimedBreakMinutes: resolved.breakMinutes || resolved.plannedBreakMinutes,
           status: "unsubmitted",
           employeeNote: body.employeeNote === undefined
             ? existing[0].employeeNote
@@ -576,9 +605,10 @@ export async function POST(request: Request, context: Context) {
       scheduledDate: slot.date,
       scheduledStartTime: plannedStartTime,
       scheduledEndTime: plannedEndTime,
+      plannedBreakMinutes: resolved.plannedBreakMinutes,
       claimedStartAt,
       claimedEndAt,
-      claimedBreakMinutes: resolved.breakMinutes,
+      claimedBreakMinutes: resolved.breakMinutes || resolved.plannedBreakMinutes,
       status: "unsubmitted",
       employeeNote: String(body.employeeNote ?? ""),
       createdAt: now,
@@ -847,6 +877,7 @@ export async function PATCH(request: Request, context: Context) {
     slotId?: string;
     employeeNote?: string;
     claimedBreakMinutes?: number;
+    plannedBreakMinutes?: number;
     confirm?: boolean;
     monthKey?: string;
   };
@@ -964,6 +995,40 @@ export async function PATCH(request: Request, context: Context) {
       .where(eq(workRecords.id, record.id));
     return Response.json({ ok: true, recordId: record.id });
   }
+  if (body.action === "save-planned-break") {
+    if (!managerRoles.has(current.membership.role))
+      return error("Manager permission is required.", 403);
+    if (!body.recordId)
+      return error("recordId is required.", 400);
+    const plannedBreakMinutes = Math.max(
+      0,
+      Math.min(1440, Math.round(Number(body.plannedBreakMinutes) || 0)),
+    );
+    const [record] = await current.db
+      .select()
+      .from(workRecords)
+      .where(
+        and(eq(workRecords.id, body.recordId), eq(workRecords.groupId, groupId)),
+      )
+      .limit(1);
+    if (!record) return error("Work record not found.", 404);
+    if (record.monthlyClosedAt)
+      return error("This month has been approved and cannot be changed until an administrator reopens it.", 409);
+    await current.db
+      .update(workRecords)
+      .set({ plannedBreakMinutes, updatedAt: nowIso })
+      .where(eq(workRecords.id, record.id));
+    await recordAudit({
+      groupId,
+      userEmail: user.email,
+      action: "work.planned_break.update",
+      entityType: "workRecord",
+      entityId: record.id,
+      summary: `予定休憩を${plannedBreakMinutes}分に変更しました`,
+      details: { plannedBreakMinutes },
+    });
+    return Response.json({ ok: true, recordId: record.id, plannedBreakMinutes });
+  }
   if (body.action === "apply-schedule") {
     if (!body.recordId) return error("recordId is required.", 400);
     const [record] = await current.db
@@ -1064,9 +1129,10 @@ export async function PATCH(request: Request, context: Context) {
         scheduledDate,
         scheduledStartTime,
         scheduledEndTime,
+        plannedBreakMinutes: resolved.plannedBreakMinutes,
         claimedStartAt: jstIso(scheduledDate, scheduledStartTime),
         claimedEndAt: jstIso(scheduledDate, scheduledEndTime),
-        claimedBreakMinutes: resolved.breakMinutes,
+        claimedBreakMinutes: resolved.breakMinutes || resolved.plannedBreakMinutes,
         status: resetDailyApproval ? "unsubmitted" : record.status,
         approvedBy: resetDailyApproval ? null : record.approvedBy,
         approvedAt: resetDailyApproval ? null : record.approvedAt,

@@ -14,6 +14,7 @@ type RecordRow = {
   endedAt?: string | null;
   claimedStartAt?: string | null;
   claimedEndAt?: string | null;
+  plannedBreakMinutes?: number | null;
   claimedBreakMinutes?: number | null;
   status: string;
   attendanceExpired?: boolean;
@@ -449,6 +450,7 @@ export default function WorkRecordsPanel({
               end: localDateTime(record.claimedEndAt ?? record.endedAt),
               breakMinutes:
                 record.claimedBreakMinutes ??
+                record.plannedBreakMinutes ??
                 breakMinutes(
                   nextBreaks.filter((item) => item.workRecordId === record.id),
                 ),
@@ -589,6 +591,18 @@ export default function WorkRecordsPanel({
     setNotice(`${succeeded}件を承認しました。`);
     await load();
     setBusy(false);
+  }
+  async function savePlannedBreak(recordId: string, plannedBreakMinutes: number) {
+    const response = await patch({
+      action: "save-planned-break",
+      recordId,
+      plannedBreakMinutes,
+    });
+    setNotice(
+      response.ok ? "予定休憩を保存しました。" : "予定休憩を保存できませんでした。",
+    );
+    if (response.ok) await load();
+    return response.ok;
   }
   async function saveClaim(record: RecordRow, draft = claimDrafts[record.id]) {
     if (!draft || (!draft.start && !draft.end && !draft.note?.trim())) return;
@@ -876,6 +890,7 @@ export default function WorkRecordsPanel({
           pendingRecords={pendingRecords}
           review={review}
           reviewMany={reviewMany}
+          savePlannedBreak={savePlannedBreak}
           monthAction={monthAction}
           page={recordPage}
           hasNext={recordHasNext}
@@ -969,7 +984,7 @@ export default function WorkRecordsPanel({
               const record = recordsByDate.get(date);
               const plannedRows = schedulesByDate.get(date) ?? [];
               const planned = summarizePlannedSlots(date, plannedRows);
-              const draft = record ? (claimDrafts[record.id] ?? { start: localDateTime(record.claimedStartAt ?? record.startedAt), end: localDateTime(record.claimedEndAt ?? record.endedAt), breakMinutes: record.claimedBreakMinutes ?? breakMinutes(breaksFor(record.id)), note: record.employeeNote ?? "" }) : null;
+              const draft = record ? (claimDrafts[record.id] ?? { start: localDateTime(record.claimedStartAt ?? record.startedAt), end: localDateTime(record.claimedEndAt ?? record.endedAt), breakMinutes: record.claimedBreakMinutes ?? record.plannedBreakMinutes ?? breakMinutes(breaksFor(record.id)), note: record.employeeNote ?? "" }) : null;
               const manual = manualDrafts[date] ?? { start: "", end: "", breakMinutes: 0 };
               const editDraft = record ? draft : manual;
               const past = date <= today;
@@ -1013,6 +1028,7 @@ export default function WorkRecordsPanel({
                         ),
                         breakMinutes:
                           record.claimedBreakMinutes ??
+                          record.plannedBreakMinutes ??
                           breakMinutes(breaksFor(record.id)),
                       })
                     : null;
@@ -1177,6 +1193,7 @@ export default function WorkRecordsPanel({
                               }
                             />
                             <span>分</span>
+                            <small className="planned-break-hint">予定 {record.plannedBreakMinutes ?? 0}分</small>
                           </div>
                         ) : past ? (
                           <div className="claim-break-field">
@@ -1328,6 +1345,7 @@ function ManagerView({
   pendingRecords: RecordRow[];
   review: (id: string, status: "approved" | "rejected", managerNote?: string) => Promise<boolean>;
   reviewMany: (ids: string[]) => Promise<void>;
+  savePlannedBreak: (id: string, minutes: number) => Promise<boolean>;
   monthAction: (
     action: "close-month" | "reopen-month",
     monthKey: string,
@@ -1360,6 +1378,7 @@ function ManagerView({
   }, [month, day, member, status, differenceFilter, onFiltersChange]);
   const [selected, setSelected] = useState<string[]>([]);
   const [detail, setDetail] = useState<RecordRow | null>(null);
+  const [plannedBreakDraft, setPlannedBreakDraft] = useState(0);
   const [rejectTarget, setRejectTarget] = useState<RecordRow | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [rejectBusy, setRejectBusy] = useState(false);
@@ -1677,7 +1696,10 @@ function ManagerView({
                     <td>
                       <button
                         className="small-action"
-                        onClick={() => setDetail(record)}
+                        onClick={() => {
+                          setPlannedBreakDraft(record.plannedBreakMinutes ?? 0);
+                          setDetail(record);
+                        }}
                       >
                         詳細
                       </button>
@@ -1748,6 +1770,37 @@ function ManagerView({
                   {claimClock(detail.claimedStartAt, detail.scheduledDate)}〜
                   {claimClock(detail.claimedEndAt, detail.scheduledDate)}
                 </strong>
+              </div>
+              <div>
+                <span>予定休憩（自動提案）</span>
+                <div className="planned-break-editor">
+                  <input
+                    type="number"
+                    min={0}
+                    max={1440}
+                    value={plannedBreakDraft}
+                    onChange={(event) =>
+                      setPlannedBreakDraft(
+                        Math.max(0, Math.min(1440, Number(event.target.value) || 0)),
+                      )
+                    }
+                  />
+                  <span>分</span>
+                  <button
+                    className="small-action"
+                    onClick={async () => {
+                      if (await savePlannedBreak(detail.id, plannedBreakDraft)) {
+                        setDetail((current) =>
+                          current?.id === detail.id
+                            ? { ...current, plannedBreakMinutes: plannedBreakDraft }
+                            : current,
+                        );
+                      }
+                    }}
+                  >
+                    保存
+                  </button>
+                </div>
               </div>
               <div>
                 <span>申告休憩</span>
