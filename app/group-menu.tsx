@@ -182,16 +182,16 @@ export default function GroupMenu({
                 type="button"
                 onClick={() => onAnnouncements(group.groupId)}
               >
-                お知らせ・連絡
+                お知らせ
                 {unread > 0 && <span className="unread-badge">{unread}</span>}
               </button>
               <button
                 className={`group-menu-button${assistantUnread ? " has-unread" : ""}`}
                 type="button"
                 onClick={() => onAssistant(group.groupId)}
-                title={group.assistantDisplayName ?? "KINBANアシスタント"}
+                title="連絡"
               >
-                {group.assistantDisplayName ?? "KINBANアシスタント"}
+                連絡
                 {assistantUnread && <span className="assistant-unread-dot" title="未読があります" aria-label="未読があります" />}
               </button>
               <button className="group-menu-button" type="button" onClick={() => onMemos(group.groupId)}>
@@ -229,7 +229,7 @@ export default function GroupMenu({
                       type="button"
                       onClick={() => onAnnouncementManage(group.groupId)}
                     >
-                      お知らせ・連絡管理
+                      お知らせ管理
                       {managerAssistantUnread && <span className="assistant-unread-dot" title="KINBAN未処理があります" aria-label="KINBAN未処理があります" />}
                     </button>
                     <button
@@ -274,7 +274,7 @@ export default function GroupMenu({
                           {pendingMembers > 0 && <span className="unread-badge">{pendingMembers}</span>}
                         </button>
                         <button className={managerAssistantUnread ? "has-unread" : ""} onClick={() => onAnnouncementManage(group.groupId)}>
-                          お知らせ・連絡管理
+                          お知らせ管理
                           {managerAssistantUnread && <span className="assistant-unread-dot" title="KINBAN未処理があります" aria-label="KINBAN未処理があります" />}
                         </button>
                         <button onClick={() => onDashboard(group.groupId)}>

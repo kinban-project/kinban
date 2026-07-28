@@ -15,7 +15,7 @@ function memberName(member: Member) {
   return member.displayName?.trim() || member.userEmail.split("@")[0];
 }
 
-export default function AssistantChat({ groupId, manager = false, assistantName }: { groupId: string; manager?: boolean; assistantName?: string }) {
+export default function AssistantChat({ groupId, manager = false }: { groupId: string; manager?: boolean }) {
   const [data, setData] = useState<ChatData | null>(null);
   const [selectedMember, setSelectedMember] = useState("");
   const [message, setMessage] = useState("");
@@ -80,7 +80,7 @@ export default function AssistantChat({ groupId, manager = false, assistantName 
   const active = data.assistant?.status === "active";
   const viewingOwnChat = selectedMember === data.currentEmail;
   const canCompose = active && (manager ? Boolean(selectedMember) : viewingOwnChat);
-  const assistantLabel = assistantName?.trim() || data.assistant?.displayName?.trim() || "KINBANアシスタント";
+  const assistantLabel = "連絡";
 
   return <section className="assistant-chat">
     <div className="assistant-profile">

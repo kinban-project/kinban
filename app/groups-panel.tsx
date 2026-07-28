@@ -126,17 +126,6 @@ export default function GroupsPanel({ onChanged, initialGroupId }: { onChanged: 
     setSelected((current) => current ? { ...current, assistant: data.assistant } : current);
     setNotice("AIアシスタントの実行権限を更新しました");
   }
-  async function updateAssistantDisplayName(displayName: string) {
-    if (!selected?.assistant) return;
-    const value = displayName.trim();
-    if (value === selected.assistant.displayName.trim()) return;
-    const response = await localApiFetch(`/api/groups/${selected.group.id}/assistant`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ displayName: value }) });
-    const data = await response.json().catch(() => ({})) as { assistant?: Assistant; error?: string };
-    if (!response.ok || !data.assistant) { setNotice(data.error ?? "AIアシスタント名を更新できませんでした"); return; }
-    setSelected((current) => current ? { ...current, assistant: data.assistant } : current);
-    setNotice("AIアシスタント名を更新しました");
-    onChanged();
-  }
   async function removeMember(member: Member) {
     if (!window.confirm(`「${member.displayName?.trim() || member.userEmail}」をメンバーから完全に削除しますか？\n基本設定・勤務希望も削除され、元に戻せません。`)) return;
     if (!selected) return;
@@ -191,7 +180,6 @@ export default function GroupsPanel({ onChanged, initialGroupId }: { onChanged: 
       </article>)}</div>
       {selected.assistant && <><h4>運営支援AI</h4><article className={`member-card assistant-member-card ${selected.assistant.status === "inactive" ? "is-inactive" : ""}`}>
         <div className="member-card-head"><div><strong>{selected.assistant.displayName}</strong><small>システムメンバー・シフト割当対象外</small></div><div className="member-card-badges"><span className="member-role-badge">管理者</span>{selected.assistant.status === "inactive" && <span className="member-status-badge inactive">利用停止</span>}</div></div>
-        {isAdmin && <label className="member-admin-note-field assistant-name-field">KINBANアシスタントの表示名<input defaultValue={selected.assistant.displayName} maxLength={80} placeholder="KINBANアシスタント" onBlur={(event) => { void updateAssistantDisplayName(event.currentTarget.value); }} /></label>}
         <p className="assistant-member-description">メンバーからのシフト・勤怠相談を受け付けます。管理者の直接指示、またはclaimした管理者メッセージに対して、下で有効にした操作を実行できます。</p>
         {isAdmin && <fieldset className="assistant-permissions"><legend>管理者の指示から実行できる操作</legend>{([
           ["canCreateShifts", "シフト作成（割当下書きを含む）"],
