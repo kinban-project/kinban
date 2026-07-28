@@ -111,6 +111,16 @@ export async function GET(
       ),
     )
     .orderBy(asc(assistantMessages.createdAt));
+  const senderRows = await db
+    .select({ userEmail: groupMembers.userEmail, displayName: groupMembers.displayName, role: groupMembers.role })
+    .from(groupMembers)
+    .where(and(eq(groupMembers.groupId, id), eq(groupMembers.status, "active")));
+  const roleLabels: Record<string, string> = { owner: "代表管理者", editor: "管理者", member: "メンバー" };
+  const senderNameByEmail = new Map(senderRows.map((row) => [row.userEmail, row.displayName?.trim() || roleLabels[row.role] || "管理者"]));
+  const messagesWithSender = messages.map((message) => ({
+    ...message,
+    senderDisplayName: message.senderType === "manager" ? senderNameByEmail.get(message.senderEmail) || "管理者" : null,
+  }));
   const readerConversation = managerView ? "*" : user.email;
   const now = (await getDemoNow(id)).toISOString();
   await db.insert(assistantReadStates).values({ id: crypto.randomUUID(), groupId: id, readerEmail: user.email, memberEmail: readerConversation, lastReadAt: now }).onConflictDoUpdate({ target: [assistantReadStates.groupId, assistantReadStates.readerEmail, assistantReadStates.memberEmail], set: { lastReadAt: now } });
@@ -133,7 +143,7 @@ export async function GET(
     : [];
   return Response.json({
     assistant: assistant[0] ?? null,
-    messages,
+    messages: messagesWithSender,
     members,
     drafts,
     swapRequests: swapRequests.map((request) => ({

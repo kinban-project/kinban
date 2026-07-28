@@ -9,7 +9,7 @@ type Member = { userEmail: string; displayName?: string | null };
 type AnnouncementDraft = { id: string; sourceMessageId: string; requesterEmail: string; date: string; startTime: string; endTime: string; role: string; title: string; body: string; status: "needs_review" | "published" | "rejected"; managerNote: string; announcementId?: string | null; createdAt: string };
 type SwapCandidate = { id: string; memberEmail: string; status: "available" | "unavailable"; note: string };
 type SwapRequest = { id: string; requesterEmail: string; date: string; startTime: string; endTime: string; role: string; status: string; replacementEmail?: string | null; candidates: SwapCandidate[] };
-type Message = { id: string; memberEmail: string; senderType: "member" | "manager" | "assistant" | "system"; body: string; status: "pending" | "processing" | "processed" | "failed" | "needs_review"; createdAt: string };
+type Message = { id: string; memberEmail: string; senderEmail?: string | null; senderDisplayName?: string | null; senderType: "member" | "manager" | "assistant" | "system"; body: string; status: "pending" | "processing" | "processed" | "failed" | "needs_review"; createdAt: string };
 type ChatData = { assistant: Assistant | null; messages: Message[]; members: Member[]; drafts?: AnnouncementDraft[]; swapRequests?: SwapRequest[]; currentEmail: string; selectedMember: string; manager: boolean; pendingCounts?: Record<string, number> };
 
 function memberName(member: Member) {
@@ -125,7 +125,7 @@ export default function AssistantChat({ groupId, manager = false }: { groupId: s
     </section>}
     <div className="assistant-messages" aria-live="polite">
       {data.messages.length ? data.messages.map((item) => <div className={`assistant-message ${item.senderType}`} key={item.id}>
-        <strong>{item.senderType === "assistant" || item.senderType === "system" ? assistantLabel : item.senderType === "manager" ? "管理者" : item.memberEmail === data.currentEmail ? "あなた" : item.memberEmail.split("@")[0]}</strong>
+        <strong>{item.senderType === "assistant" || item.senderType === "system" ? data.assistant?.displayName?.trim() || "KINBANアシスタント" : item.senderType === "manager" ? item.senderDisplayName || "管理者" : item.memberEmail === data.currentEmail ? "あなた" : item.memberEmail.split("@")[0]}</strong>
         <p>{item.body}</p>
         {manager && item.senderType === "member" && ["pending", "processing", "needs_review"].includes(item.status) && <button type="button" className="small-action" onClick={() => void acknowledgeMessage(item)}>対応済みにする</button>}
         <small>{formatDateTime(item.createdAt)}{item.senderType === "member" && item.status === "pending" ? "・確認待ち" : item.senderType === "member" && item.status === "processing" ? "・対応中" : item.senderType === "member" && item.status === "needs_review" ? "・管理者確認待ち" : ""}</small>
