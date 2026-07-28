@@ -8,6 +8,7 @@ import { recordAudit } from "../../../audit-log";
 import { canViewAdminNote, toPublicMember } from "../../groups/member-dto";
 import { createSystemMessagesAndPush } from "../../../notification-events";
 import { getDemoNow, jstDate } from "../../../demo-clock";
+import { buildLaborWarnings } from "../../../shift-labor-warnings";
 
 export const dynamic = "force-dynamic";
 
@@ -140,7 +141,22 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const validUsers = new Set(members.map((member) => member.userEmail));
   const requested = body.assignments ?? {};
   const allRows = slots.flatMap((slot) => [...new Set((requested[slot.id] ?? []).filter((email) => validUsers.has(email)))].map((userEmail) => ({ id: crypto.randomUUID(), slotId: slot.id, userEmail })));
-  const warnings = slots.flatMap((slot) => { const count = new Set(requested[slot.id] ?? []).size; return count < slot.requiredCount ? [`${slot.date} ${slot.startTime}：必要人数${slot.requiredCount}人に対して${count}人です`] : count > slot.requiredCount ? [`${slot.date} ${slot.startTime}：必要人数を${count - slot.requiredCount}人超えています`] : []; });
+  const [groupRules] = await db.select({ autoBreakSuggestion: groups.autoBreakSuggestion }).from(groups).where(eq(groups.id, plan.groupId)).limit(1);
+  const laborWarnings = buildLaborWarnings({
+    slots,
+    assignments: allRows,
+    members,
+    autoBreakSuggestion: groupRules?.autoBreakSuggestion !== false,
+    planStartDate: plan.startDate,
+    planEndDate: plan.endDate,
+  });
+  const warnings: string[] = [
+    ...slots.flatMap((slot) => {
+      const count = new Set(requested[slot.id] ?? []).size;
+      return count < slot.requiredCount ? [`${slot.date} ${slot.startTime}：必要人数${slot.requiredCount}人に対して${count}人です`] : count > slot.requiredCount ? [`${slot.date} ${slot.startTime}：必要人数を${count - slot.requiredCount}人超えています`] : [];
+    }),
+    ...laborWarnings.map((warning) => warning.message),
+  ];
   const beforeBySlot = new Map<string, Set<string>>();
   for (const row of beforeAssignments) {
     const users = beforeBySlot.get(row.slotId) ?? new Set<string>();
@@ -187,5 +203,5 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const recipients = [...new Set(assignmentChanges.flatMap((change) => [...change.added, ...change.removed]))];
     await createSystemMessagesAndPush(db, { groupId: plan.groupId, recipients, eventId: `shift-change:${id}:${nextVersion}`, eventType: "published_shift_changed", body: "公開済みシフトが更新されました。シフト一覧を確認してください。", pushTitle: "KINBAN", pushBody: "公開済みシフトが更新されました", url: `/?group=${encodeURIComponent(plan.groupId)}&view=roster` });
   }
-  return Response.json({ ok: true, status, warnings });
+  return Response.json({ ok: true, status, warnings, laborWarnings });
 }

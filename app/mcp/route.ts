@@ -50,6 +50,7 @@ import { shiftRequestDeadlinePassed } from "../shift-request-deadline";
 import { isPreferenceStatus, preferenceStatuses } from "../preference-status";
 import { recordAudit } from "../audit-log";
 import { shiftDateTime, shiftTimeToMinutes } from "../shift-time";
+import { buildLaborWarnings } from "../shift-labor-warnings";
 import {
   getMcpWorkRecords,
   mcpClock,
@@ -2651,6 +2652,33 @@ export async function POST(request: Request) {
             maxHours: preference.maxHours,
             message: `${memberName(member.userEmail)}の勤務日数・時間が基本設定の範囲外です`,
           });
+      }
+      const [groupRules] = await db
+        .select({ autoBreakSuggestion: groups.autoBreakSuggestion })
+        .from(groups)
+        .where(eq(groups.id, found.plan.groupId))
+        .limit(1);
+      const laborWarnings = buildLaborWarnings({
+        slots,
+        assignments,
+        members,
+        autoBreakSuggestion: groupRules?.autoBreakSuggestion !== false,
+        planStartDate: found.plan.startDate,
+        planEndDate: found.plan.endDate,
+      });
+      for (const warning of laborWarnings) {
+        issues.push({
+          type: warning.kind,
+          severity: "warning",
+          memberEmail: warning.memberEmail,
+          memberName: warning.memberName,
+          dates: warning.dates,
+          slotIds: warning.slotIds,
+          startTime: warning.startTime,
+          endTime: warning.endTime,
+          minutes: warning.minutes,
+          message: warning.message,
+        });
       }
       const errors = issues.filter((issue) => issue.severity === "error");
       const warnings = issues.filter((issue) => issue.severity === "warning");

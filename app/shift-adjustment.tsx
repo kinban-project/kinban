@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { localApiFetch } from "./local-api";
 import { getShiftDisplayLabel, getShiftDisplayStatus } from "./shift-status";
 import { displayShiftTime, shiftTimeToMinutes } from "./shift-time";
+import { buildLaborWarnings, type LaborWarning } from "./shift-labor-warnings";
 
 type Group = { id: string; name: string; membership: { role: string } };
 type Plan = {
@@ -65,9 +66,10 @@ type Preference = {
 };
 type AssignmentIssue = {
   id: string;
-  kind: "shortage" | "excess" | "overlap";
+  kind: "shortage" | "excess" | "overlap" | "labor";
   slotIds: string[];
   message: string;
+  laborWarning?: LaborWarning;
 };
 
 function hours(start: string, end: string) {
@@ -143,7 +145,7 @@ export default function ShiftAdjustment({
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [showAllWarnings, setShowAllWarnings] = useState(false);
-  const [warningFilter, setWarningFilter] = useState<"all" | "warnings">("all");
+  const [warningFilter, setWarningFilter] = useState<"all" | "warnings" | "labor">("all");
   const [viewMode, setViewMode] = useState<"preview" | "list" | "calendar">("preview");
   const selectedGroupName = groups.find((group) => group.id === groupId)?.name;
   async function loadGroups() {
@@ -192,6 +194,17 @@ export default function ShiftAdjustment({
     for (const row of detail?.assignments ?? [])
       (map[row.slotId] ??= []).push(row.userEmail);
     return map;
+  }, [detail]);
+  const laborWarnings = useMemo(() => {
+    if (!detail) return [];
+    return buildLaborWarnings({
+      slots: detail.slots,
+      assignments: detail.assignments,
+      members: detail.members,
+      autoBreakSuggestion: detail.autoBreakSuggestion,
+      planStartDate: detail.plan.startDate,
+      planEndDate: detail.plan.endDate,
+    });
   }, [detail]);
   const timeColumns = useMemo(
     () =>
@@ -246,14 +259,23 @@ export default function ShiftAdjustment({
         });
       }
     }
+    for (const warning of laborWarnings) {
+      issues.set(warning.id, {
+        id: warning.id,
+        kind: "labor",
+        slotIds: warning.slotIds,
+        message: warning.message,
+        laborWarning: warning,
+      });
+    }
     return [...issues.values()];
-  }, [detail, assignments]);
+  }, [detail, assignments, laborWarnings]);
   const warningSlotIds = useMemo(
     () => new Set(assignmentIssues.flatMap((issue) => issue.slotIds)),
     [assignmentIssues],
   );
   const visibleSlots = useMemo(
-    () => (warningFilter === "warnings" ? (detail?.slots ?? []).filter((slot) => warningSlotIds.has(slot.id)) : (detail?.slots ?? [])),
+    () => (warningFilter === "all" ? (detail?.slots ?? []) : (detail?.slots ?? []).filter((slot) => warningSlotIds.has(slot.id))),
     [detail, warningFilter, warningSlotIds],
   );
   const dates = useMemo(
@@ -265,6 +287,7 @@ export default function ShiftAdjustment({
       shortage: assignmentIssues.filter((issue) => issue.kind === "shortage").length,
       excess: assignmentIssues.filter((issue) => issue.kind === "excess").length,
       overlap: assignmentIssues.filter((issue) => issue.kind === "overlap").length,
+      labor: assignmentIssues.filter((issue) => issue.kind === "labor").length,
     }),
     [assignmentIssues],
   );
@@ -347,14 +370,15 @@ export default function ShiftAdjustment({
         weeklyDays,
         weeklyHours,
         pref,
-        warnings,
+        warnings: Boolean(warnings || laborWarnings.some((warning) => warning.memberEmail === member.userEmail)),
+        laborWarningCount: laborWarnings.filter((warning) => warning.memberEmail === member.userEmail).length,
         dayDifference,
         hourDifference,
         updatedAt,
         requestComment,
       };
     });
-  }, [detail, assignments]);
+  }, [detail, assignments, laborWarnings]);
   function preferenceFor(slot: Slot, userEmail: string) {
     const request = detail?.requests?.find(
       (row) =>
@@ -570,8 +594,9 @@ export default function ShiftAdjustment({
             <div className="assignment-warning-filter-buttons">
               <button type="button" className={warningFilter === "all" ? "active" : ""} onClick={() => setWarningFilter("all")}>すべて {detail.slots.length}枠</button>
               <button type="button" className={warningFilter === "warnings" ? "active" : ""} onClick={() => setWarningFilter("warnings")}>警告あり {assignmentIssues.length}件</button>
+              <button type="button" className={warningFilter === "labor" ? "active" : ""} onClick={() => setWarningFilter("labor")}>労務注意のみ {warningSummary.labor}件</button>
             </div>
-            <span>未充足 {warningSummary.shortage}・過剰配置 {warningSummary.excess}・時間重複 {warningSummary.overlap}</span>
+            <span>未充足 {warningSummary.shortage}・過剰配置 {warningSummary.excess}・時間重複 {warningSummary.overlap}・労務注意 {warningSummary.labor}</span>
           </div>
           {assignmentIssues.length > 0 && (
             <div className="assignment-warnings" role="alert">
@@ -596,7 +621,7 @@ export default function ShiftAdjustment({
               )}
             </div>
           )}
-          {warningFilter === "warnings" && visibleSlots.length === 0 ? (
+          {warningFilter !== "all" && visibleSlots.length === 0 ? (
             <p className="assignment-warning-empty">割り当て警告はありません。</p>
           ) : <>
           {viewMode === "preview" && (
@@ -712,6 +737,7 @@ export default function ShiftAdjustment({
                       : "範囲内"
                     : "希望未設定"}
                 </span>
+                {row.laborWarningCount > 0 && <small className="summary-warning">労務注意 {row.laborWarningCount}件</small>}
                 <span className={row.updatedAt ? "" : "not-registered"}>
                   希望更新：{formatSubmissionTime(row.updatedAt)}
                 </span>
