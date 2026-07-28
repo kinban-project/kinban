@@ -287,6 +287,10 @@ export default function ShiftAdjustment({
       .filter((row) => row.minutes > 0)
       .sort((left, right) => `${left.date}|${left.userEmail}`.localeCompare(`${right.date}|${right.userEmail}`));
   }, [detail, assignments]);
+  const plannedBreakByMemberDate = useMemo(
+    () => new Map(plannedBreakSummary.map((row) => [`${row.userEmail}|${row.date}`, row.minutes] as const)),
+    [plannedBreakSummary],
+  );
   const memberSummary = useMemo(() => {
     if (!detail) return [];
     const start = new Date(`${detail.plan.startDate}T00:00:00Z`);
@@ -395,17 +399,25 @@ export default function ShiftAdjustment({
   function renderMember(slot: Slot, member: Member) {
     const assigned = (assignments[slot.id] ?? []).includes(member.userEmail);
     const preference = preferenceFor(slot, member.userEmail);
+    const plannedBreakMinutes = assigned
+      ? plannedBreakByMemberDate.get(`${member.userEmail}|${slot.date}`) ?? 0
+      : 0;
     return (
       <label
         className={`${assigned ? "assigned " : ""}pref-${preference}`}
         key={member.userEmail}
-      >
+        >
         <input
           type="checkbox"
           checked={assigned}
           onChange={() => toggle(slot.id, member.userEmail)}
         />
-        {member.displayName || member.userEmail.split("@")[0]}
+        <span className="assignment-member-name">
+          {member.displayName || member.userEmail.split("@")[0]}
+        </span>
+        {plannedBreakMinutes > 0 && (
+          <small className="assignment-break-badge">休憩{plannedBreakMinutes}分</small>
+        )}
       </label>
     );
   }

@@ -628,3 +628,28 @@ button { cursor: pointer; }
   .knowledge-body { font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
   .knowledge-body h3, .knowledge-body h4, .knowledge-body h5 { font-size: 16px; line-height: 1.4; }
 }
+.assignment-calendar .assignment-members { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+.assignment-calendar .assignment-members label {
+  display: grid;
+  grid-template-columns: 15px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  width: 100%;
+  padding: 5px 6px;
+  box-sizing: border-box;
+}
+.assignment-calendar .assignment-members label input { width: 13px; height: 13px; margin: 0; }
+.assignment-calendar .assignment-member-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.assignment-break-badge {
+  color: #5b7e45;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
