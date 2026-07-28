@@ -36,6 +36,19 @@ export async function POST() {
   }
 
   try {
+    for (const table of [
+      "work_breaks", "push_deliveries", "push_subscriptions", "monthly_work_claims",
+      "work_records", "mcp_confirmations", "assistant_contexts", "assistant_message_executions",
+      "shift_swap_candidates", "shift_swap_requests", "assistant_announcement_drafts",
+      "assistant_messages", "assistant_read_states", "group_assistants", "audit_logs",
+      "announcement_replies", "announcement_reads", "group_announcements", "shift_requests",
+      "shift_request_submissions", "shift_request_periods", "shift_availability", "group_preferences",
+      "shift_assignments", "shift_slots", "shift_plans", "events", "group_join_requests",
+      "group_members", "groups", "account_profiles", "knowledge_assets", "knowledge_pages",
+      "knowledge_folders", "memos", "memo_folders",
+    ]) {
+      await env.DB.prepare(`DELETE FROM ${table}`).run();
+    }
     const statements = splitSqlStatements(seedSql);
     for (const [index, statement] of statements.entries()) {
       try {
