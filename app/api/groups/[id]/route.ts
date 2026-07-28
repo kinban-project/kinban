@@ -8,6 +8,39 @@ import { canViewAdminNote, toPublicMember } from "../member-dto";
 
 export const dynamic = "force-dynamic";
 
+const laborRuleBooleanKeys = [
+  "laborPlannedBreakWarning",
+  "laborDailyHoursWarning",
+  "laborWeeklyHoursWarning",
+  "laborRestIntervalWarning",
+  "laborConsecutiveDaysWarning",
+  "laborWeeklyRestWarning",
+] as const;
+const laborRuleNumberKeys = [
+  "laborDailyHoursLimitMinutes",
+  "laborWeeklyHoursLimitMinutes",
+  "laborRestIntervalMinutes",
+  "laborConsecutiveDaysLimit",
+  "laborWeeklyRestDaysRequired",
+  "laborFourWeekRestDaysRequired",
+] as const;
+const laborRuleKeys = [...laborRuleBooleanKeys, ...laborRuleNumberKeys] as const;
+type LaborRulePatch = Partial<Record<(typeof laborRuleKeys)[number], unknown>> & { autoBreakSuggestion?: unknown };
+
+function normalizeLaborRulePatch(body: LaborRulePatch) {
+  const patch: Record<string, boolean | number> = {};
+  for (const key of laborRuleBooleanKeys) {
+    if (typeof body[key] === "boolean") patch[key] = body[key] as boolean;
+  }
+  for (const key of laborRuleNumberKeys) {
+    if (body[key] === undefined) continue;
+    const value = Number(body[key]);
+    if (!Number.isFinite(value)) throw new Error(`${key}は数値で指定してください`);
+    patch[key] = Math.max(0, Math.round(value));
+  }
+  return patch;
+}
+
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const user = await getChatGPTUser();
   if (!user) return Response.json({ error: "ログインが必要です" }, { status: 401 });
@@ -50,12 +83,20 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const membership = await getMembership(id, user.email);
   if (!membership) return Response.json({ error: "このグループのメンバーではありません" }, { status: 403 });
   if (membership.role !== "owner" && membership.role !== "editor") return Response.json({ error: "管理者権限が必要です" }, { status: 403 });
-  const body = await request.json().catch(() => ({})) as { autoBreakSuggestion?: unknown };
-  if (typeof body.autoBreakSuggestion !== "boolean") return Response.json({ error: "autoBreakSuggestionはbooleanで指定してください" }, { status: 400 });
+  const body = await request.json().catch(() => ({})) as LaborRulePatch;
+  let laborPatch: Record<string, boolean | number>;
+  try {
+    laborPatch = normalizeLaborRulePatch(body);
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : "ルールの値が不正です" }, { status: 400 });
+  }
+  if (typeof body.autoBreakSuggestion === "boolean") laborPatch.autoBreakSuggestion = body.autoBreakSuggestion;
+  if (!Object.keys(laborPatch).length) return Response.json({ error: "変更するルールを指定してください" }, { status: 400 });
   const db = getDb();
-  await db.update(groups).set({ autoBreakSuggestion: body.autoBreakSuggestion }).where(eq(groups.id, id));
-  await recordAudit({ groupId: id, userEmail: user.email, action: "group.settings", entityType: "group", entityId: id, summary: `予定休憩の自動提案を${body.autoBreakSuggestion ? "有効" : "無効"}にしました`, details: { autoBreakSuggestion: body.autoBreakSuggestion } });
-  return Response.json({ ok: true, autoBreakSuggestion: body.autoBreakSuggestion });
+  await db.update(groups).set(laborPatch).where(eq(groups.id, id));
+  await recordAudit({ groupId: id, userEmail: user.email, action: "group.settings", entityType: "group", entityId: id, summary: "シフト・勤怠ルールを更新しました", details: laborPatch });
+  const [updated] = await db.select().from(groups).where(eq(groups.id, id)).limit(1);
+  return Response.json({ ok: true, group: updated, ...laborPatch });
 }
 
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {

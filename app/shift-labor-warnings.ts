@@ -22,6 +22,21 @@ type LaborSlot = {
 type LaborAssignment = { slotId: string; userEmail: string };
 type LaborMember = { userEmail: string; displayName?: string | null };
 
+export type LaborRules = {
+  plannedBreakWarning?: boolean;
+  dailyHoursWarning?: boolean;
+  weeklyHoursWarning?: boolean;
+  restIntervalWarning?: boolean;
+  consecutiveDaysWarning?: boolean;
+  weeklyRestWarning?: boolean;
+  dailyHoursLimitMinutes?: number;
+  weeklyHoursLimitMinutes?: number;
+  restIntervalMinutes?: number;
+  consecutiveDaysLimit?: number;
+  weeklyRestDaysRequired?: number;
+  fourWeekRestDaysRequired?: number;
+};
+
 type WorkBlock = {
   date: string;
   start: number;
@@ -70,6 +85,7 @@ export function buildLaborWarnings({
   assignments,
   members,
   autoBreakSuggestion = true,
+  rules = {},
   planStartDate,
   planEndDate,
 }: {
@@ -78,9 +94,24 @@ export function buildLaborWarnings({
   members: LaborMember[];
   preferences?: LaborPreference[];
   autoBreakSuggestion?: boolean;
+  rules?: LaborRules;
   planStartDate: string;
   planEndDate: string;
 }) {
+  const laborRules = {
+    plannedBreakWarning: rules.plannedBreakWarning ?? true,
+    dailyHoursWarning: rules.dailyHoursWarning ?? true,
+    weeklyHoursWarning: rules.weeklyHoursWarning ?? true,
+    restIntervalWarning: rules.restIntervalWarning ?? true,
+    consecutiveDaysWarning: rules.consecutiveDaysWarning ?? true,
+    weeklyRestWarning: rules.weeklyRestWarning ?? true,
+    dailyHoursLimitMinutes: Math.max(1, rules.dailyHoursLimitMinutes ?? 480),
+    weeklyHoursLimitMinutes: Math.max(1, rules.weeklyHoursLimitMinutes ?? 2400),
+    restIntervalMinutes: Math.max(0, rules.restIntervalMinutes ?? 660),
+    consecutiveDaysLimit: Math.max(1, rules.consecutiveDaysLimit ?? 6),
+    weeklyRestDaysRequired: Math.max(0, rules.weeklyRestDaysRequired ?? 1),
+    fourWeekRestDaysRequired: Math.max(0, rules.fourWeekRestDaysRequired ?? 4),
+  };
   const assignmentRows = Array.isArray(assignments)
     ? assignments
     : Object.entries(assignments).flatMap(([slotId, userEmails]) =>
@@ -113,7 +144,7 @@ export function buildLaborWarnings({
       const grossMinutes = blocks.reduce((total, block) => total + block.end - block.start, 0);
       const breakMinutes = blocks.reduce((total, block) => total + requiredBreakMinutes(block.end - block.start), 0);
       const effectiveMinutes = Math.max(0, grossMinutes - breakMinutes);
-      if (!autoBreakSuggestion && breakMinutes > 0) {
+      if (laborRules.plannedBreakWarning && !autoBreakSuggestion && breakMinutes > 0) {
         for (const block of blocks) {
           const required = requiredBreakMinutes(block.end - block.start);
           if (!required) continue;
@@ -131,7 +162,7 @@ export function buildLaborWarnings({
           });
         }
       }
-      if (effectiveMinutes > 480) {
+      if (laborRules.dailyHoursWarning && effectiveMinutes > laborRules.dailyHoursLimitMinutes) {
         warnings.push({
           id: `daily-hours:${email}:${date}`,
           kind: "daily_hours",
@@ -157,7 +188,7 @@ export function buildLaborWarnings({
         (total, block) => total + Math.max(0, block.end - block.start - requiredBreakMinutes(block.end - block.start)),
         0,
       );
-      if (weeklyEffectiveMinutes > 2400) {
+      if (laborRules.weeklyHoursWarning && weeklyEffectiveMinutes > laborRules.weeklyHoursLimitMinutes) {
         warnings.push({
           id: `weekly-hours:${email}:${windowDates[0]}`,
           kind: "weekly_hours",
@@ -174,7 +205,7 @@ export function buildLaborWarnings({
       const previous = allBlocks[index - 1];
       const current = allBlocks[index];
       const rest = dayNumber(current.date) * 1440 + current.start - (dayNumber(previous.date) * 1440 + previous.end);
-      if (rest >= 0 && rest < 660) {
+      if (laborRules.restIntervalWarning && rest >= 0 && rest < laborRules.restIntervalMinutes) {
         warnings.push({
           id: `rest:${email}:${previous.date}:${current.date}:${current.start}`,
           kind: "rest_interval",
@@ -194,7 +225,7 @@ export function buildLaborWarnings({
       const isConsecutive = index < workedDays.length && dayNumber(workedDays[index]) === dayNumber(workedDays[index - 1]) + 1;
       if (isConsecutive) continue;
       const run = workedDays.slice(runStart, index);
-      if (run.length >= 6) {
+      if (laborRules.consecutiveDaysWarning && run.length >= laborRules.consecutiveDaysLimit) {
         warnings.push({
           id: `consecutive:${email}:${run[0]}`,
           kind: "consecutive_days",
@@ -211,7 +242,7 @@ export function buildLaborWarnings({
     for (let windowStart = startDay; windowStart + 6 <= endDay; windowStart += 7) {
       const windowDates = Array.from({ length: 7 }, (_, offset) => dateFromDay(windowStart + offset));
       const offDays = windowDates.filter((date) => !workedDays.includes(date));
-      if (offDays.length === 0) {
+      if (laborRules.weeklyRestWarning && offDays.length < laborRules.weeklyRestDaysRequired) {
         warnings.push({
           id: `weekly-rest:${email}:${windowDates[0]}`,
           kind: "weekly_rest",
@@ -227,7 +258,7 @@ export function buildLaborWarnings({
     for (let windowStart = startDay; windowStart + 27 <= endDay; windowStart += 28) {
       const windowDates = Array.from({ length: 28 }, (_, offset) => dateFromDay(windowStart + offset));
       const offDays = windowDates.filter((date) => !workedDays.includes(date));
-      if (offDays.length < 4) {
+      if (laborRules.weeklyRestWarning && offDays.length < laborRules.fourWeekRestDaysRequired) {
         warnings.push({
           id: `four-week-rest:${email}:${windowDates[0]}`,
           kind: "weekly_rest",

@@ -10,6 +10,18 @@ type Group = {
   description: string;
   ownerEmail: string;
   autoBreakSuggestion?: boolean;
+  laborPlannedBreakWarning?: boolean;
+  laborDailyHoursWarning?: boolean;
+  laborWeeklyHoursWarning?: boolean;
+  laborRestIntervalWarning?: boolean;
+  laborConsecutiveDaysWarning?: boolean;
+  laborWeeklyRestWarning?: boolean;
+  laborDailyHoursLimitMinutes?: number;
+  laborWeeklyHoursLimitMinutes?: number;
+  laborRestIntervalMinutes?: number;
+  laborConsecutiveDaysLimit?: number;
+  laborWeeklyRestDaysRequired?: number;
+  laborFourWeekRestDaysRequired?: number;
   membership: { role: string; showInPersonal: boolean };
   pendingJoin?: boolean;
 };
@@ -103,21 +115,21 @@ export default function GroupsPanel({ onChanged, initialGroupId }: { onChanged: 
     if (!response.ok) return setNotice(((await response.json().catch(() => ({})) as { error?: string }).error) ?? "メンバー情報を保存できませんでした");
     setNotice("保存しました"); await openGroup(selected.group); await loadGroups(); onChanged();
   }
-  async function updateGroupRules(autoBreakSuggestion: boolean) {
+  async function updateGroupRules(patch: Record<string, boolean | number>) {
     if (!selected) return;
     const response = await localApiFetch(`/api/groups/${selected.group.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ autoBreakSuggestion }),
+      body: JSON.stringify(patch),
     });
-    const data = await response.json().catch(() => ({})) as { error?: string; autoBreakSuggestion?: boolean };
+    const data = await response.json().catch(() => ({})) as { error?: string; group?: Group };
     if (!response.ok) {
       setNotice(data.error ?? "シフト・勤怠ルールを保存できませんでした");
       return;
     }
     setSelected((current) => current ? {
       ...current,
-      group: { ...current.group, autoBreakSuggestion: data.autoBreakSuggestion ?? autoBreakSuggestion },
+      group: { ...current.group, ...(data.group ?? patch) },
     } : current);
     setNotice("シフト・勤怠ルールを保存しました");
   }
@@ -213,9 +225,31 @@ export default function GroupsPanel({ onChanged, initialGroupId }: { onChanged: 
       {isAdmin && <section className="group-rules-panel">
         <h4>シフト・勤怠ルール</h4>
         <label className="group-setting-toggle">
-          <input type="checkbox" checked={selected.group.autoBreakSuggestion !== false} onChange={(event) => void updateGroupRules(event.target.checked)} />
+          <input type="checkbox" checked={selected.group.autoBreakSuggestion !== false} onChange={(event) => void updateGroupRules({ autoBreakSuggestion: event.target.checked })} />
           <span><strong>予定休憩を自動設定する</strong><small>同じ日の連続した勤務枠を勤務ブロックとして集計し、6時間を超える場合は45分、8時間を超える場合は60分の予定休憩を自動設定します。</small></span>
         </label>
+        <div className="labor-rule-settings">
+          <p className="labor-rule-caption">労務注意（個別に有効化できます。注意表示のみで、保存・公開は止めません）</p>
+          {([
+            ["laborPlannedBreakWarning", "予定休憩の確認", selected.group.laborPlannedBreakWarning !== false],
+            ["laborDailyHoursWarning", "1日の実働上限", selected.group.laborDailyHoursWarning !== false],
+            ["laborWeeklyHoursWarning", "週の実働上限", selected.group.laborWeeklyHoursWarning !== false],
+            ["laborRestIntervalWarning", "勤務間インターバル", selected.group.laborRestIntervalWarning !== false],
+            ["laborConsecutiveDaysWarning", "連続勤務日数", selected.group.laborConsecutiveDaysWarning !== false],
+            ["laborWeeklyRestWarning", "休日数", selected.group.laborWeeklyRestWarning !== false],
+          ] as const).map(([key, label, checked]) => <label className="labor-rule-toggle" key={key}>
+            <input type="checkbox" checked={checked} onChange={(event) => void updateGroupRules({ [key]: event.target.checked })} />
+            <span>{label}</span>
+          </label>)}
+          <div className="labor-rule-values">
+            <label>1日上限<input type="number" min="1" value={Math.round((selected.group.laborDailyHoursLimitMinutes ?? 480) / 60)} onChange={(event) => setSelected((current) => current ? { ...current, group: { ...current.group, laborDailyHoursLimitMinutes: Number(event.target.value) * 60 } } : current)} onBlur={(event) => void updateGroupRules({ laborDailyHoursLimitMinutes: Number(event.currentTarget.value) * 60 })} /><span>時間</span></label>
+            <label>週上限<input type="number" min="1" value={Math.round((selected.group.laborWeeklyHoursLimitMinutes ?? 2400) / 60)} onChange={(event) => setSelected((current) => current ? { ...current, group: { ...current.group, laborWeeklyHoursLimitMinutes: Number(event.target.value) * 60 } } : current)} onBlur={(event) => void updateGroupRules({ laborWeeklyHoursLimitMinutes: Number(event.currentTarget.value) * 60 })} /><span>時間</span></label>
+            <label>インターバル<input type="number" min="0" value={Math.round((selected.group.laborRestIntervalMinutes ?? 660) / 60)} onChange={(event) => setSelected((current) => current ? { ...current, group: { ...current.group, laborRestIntervalMinutes: Number(event.target.value) * 60 } } : current)} onBlur={(event) => void updateGroupRules({ laborRestIntervalMinutes: Number(event.currentTarget.value) * 60 })} /><span>時間</span></label>
+            <label>連続勤務<input type="number" min="1" value={selected.group.laborConsecutiveDaysLimit ?? 6} onChange={(event) => setSelected((current) => current ? { ...current, group: { ...current.group, laborConsecutiveDaysLimit: Number(event.target.value) } } : current)} onBlur={(event) => void updateGroupRules({ laborConsecutiveDaysLimit: Number(event.currentTarget.value) })} /><span>日</span></label>
+            <label>7日間の休日<input type="number" min="0" value={selected.group.laborWeeklyRestDaysRequired ?? 1} onChange={(event) => setSelected((current) => current ? { ...current, group: { ...current.group, laborWeeklyRestDaysRequired: Number(event.target.value) } } : current)} onBlur={(event) => void updateGroupRules({ laborWeeklyRestDaysRequired: Number(event.currentTarget.value) })} /><span>日以上</span></label>
+            <label>28日間の休日<input type="number" min="0" value={selected.group.laborFourWeekRestDaysRequired ?? 4} onChange={(event) => setSelected((current) => current ? { ...current, group: { ...current.group, laborFourWeekRestDaysRequired: Number(event.target.value) } } : current)} onBlur={(event) => void updateGroupRules({ laborFourWeekRestDaysRequired: Number(event.target.value) })} /><span>日以上</span></label>
+          </div>
+        </div>
       </section>}
       {!isAdmin && <p className="member-privacy-note">他のメンバーの勤務希望は表示せず、本人の情報だけ確認できます。</p>}
       <div className="group-detail-actions">{selected.membership.role === "owner" && <button className="small-action danger" onClick={() => void deleteGroup()}>グループを削除</button>}</div>

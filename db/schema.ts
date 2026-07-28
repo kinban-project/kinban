@@ -39,6 +39,18 @@ export const groups = sqliteTable("groups", {
   autoBreakSuggestion: integer("auto_break_suggestion", { mode: "boolean" })
     .notNull()
     .default(true),
+  laborPlannedBreakWarning: integer("labor_planned_break_warning", { mode: "boolean" }).notNull().default(true),
+  laborDailyHoursWarning: integer("labor_daily_hours_warning", { mode: "boolean" }).notNull().default(true),
+  laborWeeklyHoursWarning: integer("labor_weekly_hours_warning", { mode: "boolean" }).notNull().default(true),
+  laborRestIntervalWarning: integer("labor_rest_interval_warning", { mode: "boolean" }).notNull().default(true),
+  laborConsecutiveDaysWarning: integer("labor_consecutive_days_warning", { mode: "boolean" }).notNull().default(true),
+  laborWeeklyRestWarning: integer("labor_weekly_rest_warning", { mode: "boolean" }).notNull().default(true),
+  laborDailyHoursLimitMinutes: integer("labor_daily_hours_limit_minutes").notNull().default(480),
+  laborWeeklyHoursLimitMinutes: integer("labor_weekly_hours_limit_minutes").notNull().default(2400),
+  laborRestIntervalMinutes: integer("labor_rest_interval_minutes").notNull().default(660),
+  laborConsecutiveDaysLimit: integer("labor_consecutive_days_limit").notNull().default(6),
+  laborWeeklyRestDaysRequired: integer("labor_weekly_rest_days_required").notNull().default(1),
+  laborFourWeekRestDaysRequired: integer("labor_four_week_rest_days_required").notNull().default(4),
   createdAt: text("created_at")
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),

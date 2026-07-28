@@ -29,7 +29,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const membership = await getMembership(plan.groupId, user.email);
   if (!membership) return Response.json({ error: "グループのメンバーではありません" }, { status: 403 });
   const [group] = await db
-    .select({ autoBreakSuggestion: groups.autoBreakSuggestion })
+    .select({ autoBreakSuggestion: groups.autoBreakSuggestion, laborPlannedBreakWarning: groups.laborPlannedBreakWarning, laborDailyHoursWarning: groups.laborDailyHoursWarning, laborWeeklyHoursWarning: groups.laborWeeklyHoursWarning, laborRestIntervalWarning: groups.laborRestIntervalWarning, laborConsecutiveDaysWarning: groups.laborConsecutiveDaysWarning, laborWeeklyRestWarning: groups.laborWeeklyRestWarning, laborDailyHoursLimitMinutes: groups.laborDailyHoursLimitMinutes, laborWeeklyHoursLimitMinutes: groups.laborWeeklyHoursLimitMinutes, laborRestIntervalMinutes: groups.laborRestIntervalMinutes, laborConsecutiveDaysLimit: groups.laborConsecutiveDaysLimit, laborWeeklyRestDaysRequired: groups.laborWeeklyRestDaysRequired, laborFourWeekRestDaysRequired: groups.laborFourWeekRestDaysRequired })
     .from(groups)
     .where(eq(groups.id, plan.groupId))
     .limit(1);
@@ -45,7 +45,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const memberAvailability = canManage ? await db.select().from(shiftAvailability).where(eq(shiftAvailability.groupId, plan.groupId)) : [];
   const requests = canManage && requestPeriod ? await db.select().from(shiftRequests).where(eq(shiftRequests.periodId, requestPeriod.id)) : [];
   const requestSubmissions = canManage && requestPeriod ? await db.select().from(shiftRequestSubmissions).where(eq(shiftRequestSubmissions.periodId, requestPeriod.id)) : [];
-  return Response.json({ currentEmail: user.email, plan, slots, assignments, members: members.map((member) => toPublicMember(member, canViewAdminNote(membership.role))), closedDates, requestPeriod: requestPeriod ?? null, memberPreferences, memberAvailability, requests, requestSubmissions, autoBreakSuggestion: group?.autoBreakSuggestion !== false });
+  return Response.json({ currentEmail: user.email, plan, slots, assignments, members: members.map((member) => toPublicMember(member, canViewAdminNote(membership.role))), closedDates, requestPeriod: requestPeriod ?? null, memberPreferences, memberAvailability, requests, requestSubmissions, autoBreakSuggestion: group?.autoBreakSuggestion !== false, laborRules: group ? { plannedBreakWarning: group.laborPlannedBreakWarning, dailyHoursWarning: group.laborDailyHoursWarning, weeklyHoursWarning: group.laborWeeklyHoursWarning, restIntervalWarning: group.laborRestIntervalWarning, consecutiveDaysWarning: group.laborConsecutiveDaysWarning, weeklyRestWarning: group.laborWeeklyRestWarning, dailyHoursLimitMinutes: group.laborDailyHoursLimitMinutes, weeklyHoursLimitMinutes: group.laborWeeklyHoursLimitMinutes, restIntervalMinutes: group.laborRestIntervalMinutes, consecutiveDaysLimit: group.laborConsecutiveDaysLimit, weeklyRestDaysRequired: group.laborWeeklyRestDaysRequired, fourWeekRestDaysRequired: group.laborFourWeekRestDaysRequired } : undefined });
 }
 
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
@@ -141,12 +141,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const validUsers = new Set(members.map((member) => member.userEmail));
   const requested = body.assignments ?? {};
   const allRows = slots.flatMap((slot) => [...new Set((requested[slot.id] ?? []).filter((email) => validUsers.has(email)))].map((userEmail) => ({ id: crypto.randomUUID(), slotId: slot.id, userEmail })));
-  const [groupRules] = await db.select({ autoBreakSuggestion: groups.autoBreakSuggestion }).from(groups).where(eq(groups.id, plan.groupId)).limit(1);
+  const [groupRules] = await db.select({ autoBreakSuggestion: groups.autoBreakSuggestion, laborPlannedBreakWarning: groups.laborPlannedBreakWarning, laborDailyHoursWarning: groups.laborDailyHoursWarning, laborWeeklyHoursWarning: groups.laborWeeklyHoursWarning, laborRestIntervalWarning: groups.laborRestIntervalWarning, laborConsecutiveDaysWarning: groups.laborConsecutiveDaysWarning, laborWeeklyRestWarning: groups.laborWeeklyRestWarning, laborDailyHoursLimitMinutes: groups.laborDailyHoursLimitMinutes, laborWeeklyHoursLimitMinutes: groups.laborWeeklyHoursLimitMinutes, laborRestIntervalMinutes: groups.laborRestIntervalMinutes, laborConsecutiveDaysLimit: groups.laborConsecutiveDaysLimit, laborWeeklyRestDaysRequired: groups.laborWeeklyRestDaysRequired, laborFourWeekRestDaysRequired: groups.laborFourWeekRestDaysRequired }).from(groups).where(eq(groups.id, plan.groupId)).limit(1);
   const laborWarnings = buildLaborWarnings({
     slots,
     assignments: allRows,
     members,
     autoBreakSuggestion: groupRules?.autoBreakSuggestion !== false,
+    rules: groupRules ? { plannedBreakWarning: groupRules.laborPlannedBreakWarning, dailyHoursWarning: groupRules.laborDailyHoursWarning, weeklyHoursWarning: groupRules.laborWeeklyHoursWarning, restIntervalWarning: groupRules.laborRestIntervalWarning, consecutiveDaysWarning: groupRules.laborConsecutiveDaysWarning, weeklyRestWarning: groupRules.laborWeeklyRestWarning, dailyHoursLimitMinutes: groupRules.laborDailyHoursLimitMinutes, weeklyHoursLimitMinutes: groupRules.laborWeeklyHoursLimitMinutes, restIntervalMinutes: groupRules.laborRestIntervalMinutes, consecutiveDaysLimit: groupRules.laborConsecutiveDaysLimit, weeklyRestDaysRequired: groupRules.laborWeeklyRestDaysRequired, fourWeekRestDaysRequired: groupRules.laborFourWeekRestDaysRequired } : undefined,
     planStartDate: plan.startDate,
     planEndDate: plan.endDate,
   });

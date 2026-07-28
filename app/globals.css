@@ -134,6 +134,12 @@ button { cursor: pointer; }
 .group-detail .modal-head small { color: var(--muted); font-size: 10px; }
 .group-rules-panel { margin: 14px 0 18px; padding: 13px 14px; border: 1px solid var(--line); border-radius: 12px; background: #fbfcfa; }
 .group-rules-panel h4 { margin: 0 0 9px; color: var(--teal); }
+.labor-rule-settings { margin-top: 13px; padding-top: 12px; border-top: 1px dashed var(--line); }
+.labor-rule-caption { margin: 0 0 9px; color: var(--muted); font-size: 11px; }
+.labor-rule-toggle { display: inline-flex; align-items: center; gap: 6px; margin: 0 16px 8px 0; font-size: 12px; }
+.labor-rule-values { display: flex; flex-wrap: wrap; gap: 8px 12px; margin-top: 4px; }
+.labor-rule-values label { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 11px; }
+.labor-rule-values input { width: 58px; padding: 5px 6px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); }
 .group-detail .group-setting-toggle { display: flex; align-items: flex-start; gap: 8px; margin: 0; color: var(--ink); cursor: pointer; }
 .group-detail .group-setting-toggle input { flex: 0 0 auto; width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--teal); }
 .group-detail .group-setting-toggle span { display: grid; gap: 4px; }

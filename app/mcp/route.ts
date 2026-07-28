@@ -2654,7 +2654,7 @@ export async function POST(request: Request) {
           });
       }
       const [groupRules] = await db
-        .select({ autoBreakSuggestion: groups.autoBreakSuggestion })
+        .select({ autoBreakSuggestion: groups.autoBreakSuggestion, laborPlannedBreakWarning: groups.laborPlannedBreakWarning, laborDailyHoursWarning: groups.laborDailyHoursWarning, laborWeeklyHoursWarning: groups.laborWeeklyHoursWarning, laborRestIntervalWarning: groups.laborRestIntervalWarning, laborConsecutiveDaysWarning: groups.laborConsecutiveDaysWarning, laborWeeklyRestWarning: groups.laborWeeklyRestWarning, laborDailyHoursLimitMinutes: groups.laborDailyHoursLimitMinutes, laborWeeklyHoursLimitMinutes: groups.laborWeeklyHoursLimitMinutes, laborRestIntervalMinutes: groups.laborRestIntervalMinutes, laborConsecutiveDaysLimit: groups.laborConsecutiveDaysLimit, laborWeeklyRestDaysRequired: groups.laborWeeklyRestDaysRequired, laborFourWeekRestDaysRequired: groups.laborFourWeekRestDaysRequired })
         .from(groups)
         .where(eq(groups.id, found.plan.groupId))
         .limit(1);
@@ -2663,6 +2663,7 @@ export async function POST(request: Request) {
         assignments,
         members,
         autoBreakSuggestion: groupRules?.autoBreakSuggestion !== false,
+        rules: groupRules ? { plannedBreakWarning: groupRules.laborPlannedBreakWarning, dailyHoursWarning: groupRules.laborDailyHoursWarning, weeklyHoursWarning: groupRules.laborWeeklyHoursWarning, restIntervalWarning: groupRules.laborRestIntervalWarning, consecutiveDaysWarning: groupRules.laborConsecutiveDaysWarning, weeklyRestWarning: groupRules.laborWeeklyRestWarning, dailyHoursLimitMinutes: groupRules.laborDailyHoursLimitMinutes, weeklyHoursLimitMinutes: groupRules.laborWeeklyHoursLimitMinutes, restIntervalMinutes: groupRules.laborRestIntervalMinutes, consecutiveDaysLimit: groupRules.laborConsecutiveDaysLimit, weeklyRestDaysRequired: groupRules.laborWeeklyRestDaysRequired, fourWeekRestDaysRequired: groupRules.laborFourWeekRestDaysRequired } : undefined,
         planStartDate: found.plan.startDate,
         planEndDate: found.plan.endDate,
       });

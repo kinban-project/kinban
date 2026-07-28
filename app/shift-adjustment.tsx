@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { localApiFetch } from "./local-api";
 import { getShiftDisplayLabel, getShiftDisplayStatus } from "./shift-status";
 import { displayShiftTime, shiftTimeToMinutes } from "./shift-time";
-import { buildLaborWarnings, type LaborWarning } from "./shift-labor-warnings";
+import { buildLaborWarnings, type LaborRules, type LaborWarning } from "./shift-labor-warnings";
 
 type Group = { id: string; name: string; membership: { role: string } };
 type Plan = {
@@ -56,6 +56,7 @@ type Detail = {
   requestSubmissions?: RequestSubmission[];
   memberPreferences?: Array<Preference & { userEmail: string }>;
   autoBreakSuggestion?: boolean;
+  laborRules?: LaborRules;
 };
 type Preference = {
   userEmail?: string;
@@ -202,6 +203,7 @@ export default function ShiftAdjustment({
       assignments: detail.assignments,
       members: detail.members,
       autoBreakSuggestion: detail.autoBreakSuggestion,
+      rules: detail.laborRules,
       planStartDate: detail.plan.startDate,
       planEndDate: detail.plan.endDate,
     });
