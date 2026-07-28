@@ -2,9 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { getChatGPTUser } from "../../../../chatgpt-auth";
 import { getDb } from "../../../../../db";
 import {
-  announcementReads,
   assistantMessages,
-  groupAnnouncements,
   groupMembers,
   groups,
   monthlyWorkClaims,
@@ -62,12 +60,10 @@ export async function GET(_request: Request, context: Context) {
   const nowMinutes = currentJstMinutes(demoNow);
   const currentMonth = monthKey(today);
   const previousMonthKey = previousMonth(currentMonth);
-  const [members, plans, periods, announcements, reads, assistantRows] = await Promise.all([
+  const [members, plans, periods, assistantRows] = await Promise.all([
     db.select().from(groupMembers).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.status, "active"))),
     db.select().from(shiftPlans).where(eq(shiftPlans.groupId, groupId)),
     db.select().from(shiftRequestPeriods).where(eq(shiftRequestPeriods.groupId, groupId)),
-    db.select().from(groupAnnouncements).where(eq(groupAnnouncements.groupId, groupId)),
-    db.select().from(announcementReads).where(eq(announcementReads.userEmail, user.email)),
     db.select().from(assistantMessages).where(eq(assistantMessages.groupId, groupId)),
   ]);
   const publishedPlans = plans.filter((plan) => plan.status === "published");
@@ -205,7 +201,6 @@ export async function GET(_request: Request, context: Context) {
     const actual = Math.round((new Date(record.claimedEndAt).getTime() - new Date(record.claimedStartAt).getTime()) / 60000) - Math.max(0, record.claimedBreakMinutes ?? 0);
     return !Number.isFinite(actual) || Math.abs(actual - planned) >= 15;
   }).length;
-  const unreadAnnouncementCount = announcements.filter((announcement) => !reads.some((read) => read.announcementId === announcement.id)).length;
   const managerAttentionStatuses = new Set(["pending", "processing", "needs_review", "failed"]);
   const unprocessedContactCount = assistantRows.filter((message) =>
     message.senderType === "member" &&
@@ -224,7 +219,6 @@ export async function GET(_request: Request, context: Context) {
     coverage,
     approvals: { dailyPending, previousMonthPending: monthlyPending, dailyIssue },
     contacts: { unprocessed: unprocessedContactCount },
-    announcements: { total: announcements.length, unread: unreadAnnouncementCount },
     totals: { publishedPlans: publishedPlans.length, requestOpen: requestActionItems.length, shortagePlans: coverage.filter((item) => item.shortageSlotCount > 0).length },
   });
 }

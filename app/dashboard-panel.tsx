@@ -48,7 +48,6 @@ type DashboardData = {
   coverage: Array<{ planId: string; planName: string; shortageSlotCount: number; shortageMemberCount: number }>;
   approvals: { dailyPending: number; previousMonthPending: number; dailyIssue: number };
   contacts: { unprocessed: number };
-  announcements: { total: number; unread: number };
 };
 
 function shortDate(value: string) {
@@ -135,8 +134,6 @@ export default function DashboardPanel({ groupId, onNavigate }: Props) {
               {dashboard?.todaySchedule.length ? <div className="dashboard-today-list">{dashboard.todaySchedule.map((item, index) => <div key={`${item.userEmail}|${item.startTime}|${index}`}><strong>{item.displayName}</strong><span>{item.startTime}〜{item.endTime} {item.role || "共通"}</span><em className={`dashboard-attendance-status status-${item.status}`}>{item.status}</em></div>)}</div> : <p className="dashboard-empty">今日の公開済みシフトはありません。</p>}
             </article>
           </div>
-
-          {(dashboard?.announcements.unread ?? 0) > 0 && <p className="dashboard-notice-summary">未読のお知らせ {dashboard?.announcements.unread}件</p>}
 
           <div className="dashboard-request-list">
             <div className="dashboard-section-head"><h3>次にやること</h3><small>期限・締め処理</small></div>
