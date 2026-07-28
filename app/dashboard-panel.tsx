@@ -47,6 +47,7 @@ type DashboardData = {
   closedBeforePublish: Array<{ planId: string; planName: string; startDate: string; endDate: string }>;
   coverage: Array<{ planId: string; planName: string; shortageSlotCount: number; shortageMemberCount: number }>;
   approvals: { dailyPending: number; previousMonthPending: number; dailyIssue: number };
+  contacts: { unprocessed: number };
   announcements: { total: number; unread: number };
 };
 
@@ -123,7 +124,7 @@ export default function DashboardPanel({ groupId, onNavigate }: Props) {
             <article className="dashboard-action-card">
               <div className="dashboard-section-head"><h3>要対応</h3><small>優先度の高い順</small></div>
               <div className="dashboard-todo-list">
-                <div className={dashboard?.announcements.unread ? "dashboard-todo urgent" : "dashboard-todo"}><strong>{dashboard?.announcements.unread ?? 0}</strong><span>未読のお知らせ</span></div>
+                <button type="button" className={dashboard?.contacts.unprocessed ? "dashboard-todo urgent" : "dashboard-todo"} onClick={() => navigate("contact")}><strong>{dashboard?.contacts.unprocessed ?? 0}</strong><span>未処理の連絡</span></button>
                 <button type="button" className={todayExceptions.length ? "dashboard-todo urgent" : "dashboard-todo"} onClick={() => navigate("daily-approval")}><strong>{todayExceptions.length}</strong><span>今日の勤怠例外</span></button>
                 <button type="button" className={dashboard?.approvals.dailyIssue ? "dashboard-todo warning" : "dashboard-todo"} onClick={() => navigate("daily-approval")}><strong>{dashboard?.approvals.dailyIssue ?? 0}</strong><span>日次承認の要確認</span></button>
                 <button type="button" className={shortagePlans.length ? "dashboard-todo warning" : "dashboard-todo"} onClick={() => navigate("shift-adjustment")}><strong>{shortagePlans.length}</strong><span>不足のある公開シフト</span></button>
@@ -134,6 +135,8 @@ export default function DashboardPanel({ groupId, onNavigate }: Props) {
               {dashboard?.todaySchedule.length ? <div className="dashboard-today-list">{dashboard.todaySchedule.map((item, index) => <div key={`${item.userEmail}|${item.startTime}|${index}`}><strong>{item.displayName}</strong><span>{item.startTime}〜{item.endTime} {item.role || "共通"}</span><em className={`dashboard-attendance-status status-${item.status}`}>{item.status}</em></div>)}</div> : <p className="dashboard-empty">今日の公開済みシフトはありません。</p>}
             </article>
           </div>
+
+          {(dashboard?.announcements.unread ?? 0) > 0 && <p className="dashboard-notice-summary">未読のお知らせ {dashboard?.announcements.unread}件</p>}
 
           <div className="dashboard-request-list">
             <div className="dashboard-section-head"><h3>次にやること</h3><small>期限・締め処理</small></div>
