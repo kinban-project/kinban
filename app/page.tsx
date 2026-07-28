@@ -234,9 +234,18 @@ export default function Home() {
       setShiftTab(targetView === "requests" ? "requests" : "roster");
       setShiftRosterOpen(true);
     }
-    if (targetView === "announcements" || targetView === "assistant") {
-      setAnnouncementsTab(targetView === "assistant" ? "assistant" : "announcements");
+    if (targetView === "announcements") {
+      setAnnouncementsTab("announcements");
       setAnnouncementsOpen(true);
+    }
+    if (targetView === "assistant") {
+      const targetGroup = groups.find((group) => group.groupId === targetGroupId);
+      if (targetGroup?.role === "owner" || targetGroup?.role === "editor") {
+        setManagerContactOpen(true);
+      } else {
+        setAnnouncementsTab("assistant");
+        setAnnouncementsOpen(true);
+      }
     }
     if (targetView === "work-records") {
       setWorkRecordsManager(false);

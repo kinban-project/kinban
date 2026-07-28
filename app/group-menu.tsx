@@ -153,7 +153,7 @@ export default function GroupMenu({
             <div className="group-menu-actions">
               <ClockControls groupId={group.groupId} />
               <WorkDeclareButton groupId={group.groupId} onClick={() => onWorkDeclare(group.groupId)} />
-              <button
+              {!manager && <button
                 className={`group-menu-button${assistantUnread ? " has-unread" : ""}`}
                 type="button"
                 onClick={() => onAssistant(group.groupId)}
@@ -161,7 +161,7 @@ export default function GroupMenu({
               >
                 連絡
                 {assistantUnread && <span className="assistant-unread-dot" title="未読があります" aria-label="未読があります" />}
-              </button>
+              </button>}
               <button className="group-menu-button" type="button" onClick={() => onMemos(group.groupId)}>
                 メモ
               </button>
