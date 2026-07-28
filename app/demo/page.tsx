@@ -27,18 +27,6 @@ const scenarios = [
       ["night-cast-a", "キャストA", "メンバー"],
     ],
   },
-  {
-    id: "hospital",
-    name: "病院",
-    description: "医師・看護師・受付を分け、平日日中と休日夜間を管理する例です。",
-    detail: "hospital",
-    users: [
-      ["hospital-director", "院長", "代表管理者"],
-      ["hospital-doctor-senior", "ベテラン医師", "メンバー"],
-      ["hospital-nurse-chief", "看護師長", "メンバー"],
-      ["hospital-reception-a", "受付A", "メンバー"],
-    ],
-  },
 ] as const;
 
 export default function DemoPage() {
