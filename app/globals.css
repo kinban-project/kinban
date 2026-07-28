@@ -250,6 +250,7 @@ button { cursor: pointer; }
 @media (max-width: 900px) { .shift-condition-form { grid-template-columns: 1fr; }.shift-condition-form > label:first-child, .shift-condition-form > label:nth-child(2), .shift-condition-form > label:last-of-type, .shift-condition-form > button { grid-column: span 1; }.shift-actions { justify-content: stretch; }.shift-actions button { flex: 1; } }
 @media (max-width: 1100px) { .admin-inline { display: none; }.admin-compact { display: block; } }
 @media (max-width: 760px) { .group-menu-row { align-items: flex-start; flex-direction: column; gap: 8px; }.group-menu-name { min-width: 0; }.group-menu-actions { width: 100%; }.base-grid { grid-template-columns: repeat(2, 1fr); }.period-create { grid-template-columns: 1fr 1fr; }.period-create .primary-button { grid-column: span 2; }.request-slot { grid-template-columns: 1fr 130px; }.request-launch { right: 115px; padding: 8px 10px; }.roster-launch { padding: 8px 10px; } }
+@media (max-width: 760px) { .admin-popover { left: 0; right: auto; min-width: 180px; max-width: calc(100vw - 24px); } }
 @media (max-width: 620px) {
   .request-backdrop { align-items: stretch; padding: 0; }
   .day-agenda-backdrop, .detail-backdrop { align-items: stretch; padding: 0; }

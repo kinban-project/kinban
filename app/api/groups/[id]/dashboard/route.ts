@@ -103,12 +103,22 @@ export async function GET(_request: Request, context: Context) {
     assignmentsBySlot.set(assignment.slotId, current);
   }
   const recordsBySlotMember = new Map(records.map((record) => [`${record.slotId ?? ""}|${record.userEmail}`, record]));
+  // A clock-only attendance record is intentionally stored at the date/member
+  // level. Use it when a published assignment has no slot-linked record yet.
+  const recordsByDateMember = new Map(
+    records
+      .filter((record) => !record.slotId)
+      .map((record) => [`${record.scheduledDate}|${record.userEmail}`, record]),
+  );
   const todayRows = assignments
     .map((assignment) => {
       const slot = slotsById.get(assignment.slotId);
       const plan = slot ? plansById.get(slot.planId) : undefined;
       if (!slot || !plan || slot.date !== today) return null;
-      const record = recordsBySlotMember.get(`${slot.id}|${assignment.userEmail}`) ?? null;
+      const record =
+        recordsBySlotMember.get(`${slot.id}|${assignment.userEmail}`) ??
+        recordsByDateMember.get(`${slot.date}|${assignment.userEmail}`) ??
+        null;
       const breakRow = record ? breaksByRecord.get(record.id) : undefined;
       const startMinutes = shiftTimeToMinutes(slot.startTime);
       const endMinutes = shiftTimeToMinutes(slot.endTime);

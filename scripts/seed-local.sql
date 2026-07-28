@@ -93,16 +93,26 @@ INSERT INTO account_profiles (user_email, nickname) VALUES
   ('member09@local.test', 'パートB');
 
 INSERT INTO site_users (id, user_email, display_name, status, is_site_admin, can_create_groups) VALUES
-  ('seed-site-owner', 'tanaka@local.test', '蠎鈴聞', 'active', 1, 1),
-  ('seed-site-editor', 'member01@local.test', '蜑ｯ蠎鈴聞', 'active', 0, 1),
-  ('seed-site-member-02', 'member02@local.test', '蟄ｦ逕蘗', 'active', 0, 0),
-  ('seed-site-member-03', 'member03@local.test', '蟄ｦ逕檻', 'active', 0, 0),
-  ('seed-site-member-04', 'member04@local.test', '荳ｻ蟀ｦA', 'active', 0, 0),
-  ('seed-site-member-05', 'member05@local.test', '荳ｻ蟀ｦB', 'active', 0, 0),
-  ('seed-site-member-06', 'member06@local.test', '繝輔Μ繝ｼ繧ｿ繝ｼA', 'active', 0, 0),
-  ('seed-site-member-07', 'member07@local.test', '繝輔Μ繝ｼ繧ｿ繝ｼB', 'active', 0, 0),
-  ('seed-site-member-08', 'member08@local.test', '繝代・繝・', 'active', 0, 0),
-  ('seed-site-member-09', 'member09@local.test', '繝代・繝・', 'active', 0, 0);
+  ('seed-site-owner', 'tanaka@local.test', '店長', 'active', 1, 1),
+  ('seed-site-editor', 'member01@local.test', '副店長', 'active', 0, 1),
+  ('seed-site-member-02', 'member02@local.test', '学生A', 'active', 0, 0),
+  ('seed-site-member-03', 'member03@local.test', '学生B', 'active', 0, 0),
+  ('seed-site-member-04', 'member04@local.test', '主婦A', 'active', 0, 0),
+  ('seed-site-member-05', 'member05@local.test', '主婦B', 'active', 0, 0),
+  ('seed-site-member-06', 'member06@local.test', 'フリーターA', 'active', 0, 0),
+  ('seed-site-member-07', 'member07@local.test', 'フリーターB', 'active', 0, 0),
+  ('seed-site-member-08', 'member08@local.test', 'パートA', 'active', 0, 0),
+  ('seed-site-member-09', 'member09@local.test', 'パートB', 'active', 0, 0),
+  ('seed-site-night-manager', 'night-manager@local.test', '店長（ナイトクラブ）', 'active', 0, 1),
+  ('seed-site-night-staff-a', 'night-staff-a@local.test', 'スタッフA', 'active', 0, 0),
+  ('seed-site-night-staff-b', 'night-staff-b@local.test', 'スタッフB', 'active', 0, 0),
+  ('seed-site-night-staff-c', 'night-staff-c@local.test', 'スタッフC', 'active', 0, 0),
+  ('seed-site-night-cast-a', 'night-cast-a@local.test', 'キャストA', 'active', 0, 0),
+  ('seed-site-night-cast-b', 'night-cast-b@local.test', 'キャストB', 'active', 0, 0),
+  ('seed-site-night-cast-c', 'night-cast-c@local.test', 'キャストC', 'active', 0, 0),
+  ('seed-site-night-cast-d', 'night-cast-d@local.test', 'キャストD', 'active', 0, 0),
+  ('seed-site-night-cast-e', 'night-cast-e@local.test', 'キャストE', 'active', 0, 0),
+  ('seed-site-night-cast-f', 'night-cast-f@local.test', 'キャストF', 'active', 0, 0);
 
 INSERT INTO groups (id, name, description, owner_email) VALUES
   ('seed-group-store', 'サンプル店', '勤務枠・シフト・勤務申告のテスト用グループ', 'tanaka@local.test');
