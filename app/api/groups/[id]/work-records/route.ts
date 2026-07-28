@@ -566,6 +566,10 @@ export async function POST(request: Request, context: Context) {
       )
       .limit(1);
     const now = nowIso;
+    const claimedBreakMinutes =
+      resolved.breakMinutes > 0
+        ? resolved.breakMinutes
+        : resolved.plannedBreakMinutes;
     if (existing[0]) {
       if (existing[0].monthlyClosedAt)
         return error("This month has been closed and cannot be changed until an administrator reopens it.", 409);
@@ -579,7 +583,7 @@ export async function POST(request: Request, context: Context) {
           plannedBreakMinutes: resolved.plannedBreakMinutes,
           claimedStartAt,
           claimedEndAt,
-          claimedBreakMinutes: resolved.breakMinutes || resolved.plannedBreakMinutes,
+          claimedBreakMinutes,
           status: "unsubmitted",
           employeeNote: body.employeeNote === undefined
             ? existing[0].employeeNote
@@ -608,7 +612,7 @@ export async function POST(request: Request, context: Context) {
       plannedBreakMinutes: resolved.plannedBreakMinutes,
       claimedStartAt,
       claimedEndAt,
-      claimedBreakMinutes: resolved.breakMinutes || resolved.plannedBreakMinutes,
+      claimedBreakMinutes,
       status: "unsubmitted",
       employeeNote: String(body.employeeNote ?? ""),
       createdAt: now,
@@ -1121,6 +1125,10 @@ export async function PATCH(request: Request, context: Context) {
       record.status === "approved" ||
       record.status === "rejected";
     const now = nowIso;
+    const claimedBreakMinutes =
+      resolved.breakMinutes > 0
+        ? resolved.breakMinutes
+        : resolved.plannedBreakMinutes;
     await current.db
       .update(workRecords)
       .set({
@@ -1132,14 +1140,19 @@ export async function PATCH(request: Request, context: Context) {
         plannedBreakMinutes: resolved.plannedBreakMinutes,
         claimedStartAt: jstIso(scheduledDate, scheduledStartTime),
         claimedEndAt: jstIso(scheduledDate, scheduledEndTime),
-        claimedBreakMinutes: resolved.breakMinutes || resolved.plannedBreakMinutes,
+        claimedBreakMinutes,
         status: resetDailyApproval ? "unsubmitted" : record.status,
         approvedBy: resetDailyApproval ? null : record.approvedBy,
         approvedAt: resetDailyApproval ? null : record.approvedAt,
         updatedAt: now,
       })
       .where(eq(workRecords.id, record.id));
-    return Response.json({ ok: true, recordId: record.id });
+    return Response.json({
+      ok: true,
+      recordId: record.id,
+      plannedBreakMinutes: resolved.plannedBreakMinutes,
+      claimedBreakMinutes,
+    });
   }
   if (body.action === "submit-claim") {
     if (!body.recordId) return error("recordId is required.", 400);
