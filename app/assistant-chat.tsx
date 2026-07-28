@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { localApiFetch } from "./local-api";
+import { formatDateTime } from "./format-date";
 
 type Assistant = { displayName: string; role: "editor"; status: "active" | "inactive" };
 type Member = { userEmail: string; displayName?: string | null };
@@ -127,7 +128,7 @@ export default function AssistantChat({ groupId, manager = false }: { groupId: s
         <strong>{item.senderType === "assistant" || item.senderType === "system" ? assistantLabel : item.senderType === "manager" ? "管理者" : item.memberEmail === data.currentEmail ? "あなた" : item.memberEmail.split("@")[0]}</strong>
         <p>{item.body}</p>
         {manager && item.senderType === "member" && ["pending", "processing", "needs_review"].includes(item.status) && <button type="button" className="small-action" onClick={() => void acknowledgeMessage(item)}>対応済みにする</button>}
-        <small>{item.createdAt}{item.senderType === "member" && item.status === "pending" ? "・確認待ち" : item.senderType === "member" && item.status === "processing" ? "・対応中" : item.senderType === "member" && item.status === "needs_review" ? "・管理者確認待ち" : ""}</small>
+        <small>{formatDateTime(item.createdAt)}{item.senderType === "member" && item.status === "pending" ? "・確認待ち" : item.senderType === "member" && item.status === "processing" ? "・対応中" : item.senderType === "member" && item.status === "needs_review" ? "・管理者確認待ち" : ""}</small>
       </div>) : <p className="empty-state">まだ連絡はありません。管理者への相談や確認依頼を送信できます。</p>}
     </div>
     {canCompose ? <form className="assistant-composer" onSubmit={send}>
