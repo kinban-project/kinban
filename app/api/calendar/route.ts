@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { getDb } from "../../../db";
-import { accountProfiles, assistantMessages, assistantReadStates, events, groupAssistants, groupJoinRequests, groupMembers, groups as groupTable, shiftAssignments, shiftSlots, siteUsers } from "../../../db/schema";
+import { accountProfiles, assistantMessages, assistantReadStates, events, groupAssistants, groupJoinRequests, groupMembers, groups as groupTable, shiftAssignments, shiftRequestPeriods, shiftRequestSubmissions, shiftSlots, siteUsers } from "../../../db/schema";
 import { getMembership } from "../groups/group-access";
 import { toPublicMember } from "../groups/member-dto";
 
@@ -31,6 +31,8 @@ export async function GET() {
   const [profile] = await db.select().from(accountProfiles).where(eq(accountProfiles.userEmail, user.email)).limit(1);
   const [siteUser] = await db.select().from(siteUsers).where(eq(siteUsers.userEmail, user.email)).limit(1);
   const groupTableRows = memberships.length ? await db.select().from(groupTable).where(inArray(groupTable.id, memberships.map((item) => item.groupId))) : [];
+  const requestPeriods = memberships.length ? await db.select().from(shiftRequestPeriods).where(inArray(shiftRequestPeriods.groupId, memberships.map((item) => item.groupId))) : [];
+  const requestSubmissions = requestPeriods.length ? await db.select().from(shiftRequestSubmissions).where(and(eq(shiftRequestSubmissions.userEmail, user.email), inArray(shiftRequestSubmissions.periodId, requestPeriods.map((period) => period.id)))) : [];
   const pendingMemberRequests = memberships.length ? await db.select().from(groupJoinRequests).where(inArray(groupJoinRequests.groupId, memberships.map((item) => item.groupId))) : [];
   const assistantRows = memberships.length ? await db.select().from(groupAssistants).where(inArray(groupAssistants.groupId, memberships.map((item) => item.groupId))) : [];
   const assistantMessagesRows = memberships.length ? await db.select().from(assistantMessages).where(inArray(assistantMessages.groupId, memberships.map((item) => item.groupId))) : [];
@@ -94,7 +96,10 @@ export async function GET() {
       const lastMemberReadTimestamp = memberReadState?.lastReadAt ? timestamp(memberReadState.lastReadAt) : 0;
       const memberAssistantUnread = assistantMessagesRows.some((message) => message.groupId === membership.groupId && message.memberEmail === user.email && timestamp(message.createdAt) > lastMemberReadTimestamp && (message.senderType === "assistant" || message.senderType === "system" || message.senderType === "manager"));
       const managerAssistantUnread = manager && assistantMessagesRows.some((message) => message.groupId === membership.groupId && message.senderType === "member" && message.memberEmail !== user.email && managerAttentionStatuses.has(message.status));
-      return { ...toPublicMember(membership, false), name: groupTableRows.find((group) => group.id === membership.groupId)?.name ?? membership.groupId, assistantDisplayName: assistantRows.find((assistant) => assistant.groupId === membership.groupId)?.displayName?.trim() || "KINBANアシスタント", unreadAssistant: memberAssistantUnread, managerAssistantUnread, pendingMemberRequests: groupTableRows.find((group) => group.id === membership.groupId)?.ownerEmail === user.email ? pendingMemberRequests.filter((request) => request.groupId === membership.groupId && request.status === "pending").length : 0 };
+      const openPeriods = requestPeriods.filter((period) => period.groupId === membership.groupId && period.status === "open");
+      const nextRequestCloseDate = openPeriods.filter((period) => period.closesOn).map((period) => period.closesOn).sort()[0] ?? null;
+      const shiftRequestNeedsSubmission = openPeriods.some((period) => !requestSubmissions.some((submission) => submission.periodId === period.id));
+      return { ...toPublicMember(membership, false), name: groupTableRows.find((group) => group.id === membership.groupId)?.name ?? membership.groupId, assistantDisplayName: assistantRows.find((assistant) => assistant.groupId === membership.groupId)?.displayName?.trim() || "KINBANアシスタント", unreadAssistant: memberAssistantUnread, managerAssistantUnread, pendingMemberRequests: groupTableRows.find((group) => group.id === membership.groupId)?.ownerEmail === user.email ? pendingMemberRequests.filter((request) => request.groupId === membership.groupId && request.status === "pending").length : 0, nextRequestCloseDate, shiftRequestNeedsSubmission };
     }),
     events: rows.map((event) => {
       const membership = event.groupId ? memberships.find((item) => item.groupId === event.groupId) : null;
