@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { getDb } from "../../../db";
-import { groupAssistants, groupInvitations, groupJoinRequests, groupMembers, groups, memoFolders, shiftRequestPeriods } from "../../../db/schema";
+import { groupAssistants, groupInvitations, groupJoinRequests, groupMembers, groups, memoFolders, shiftRequestPeriods, shiftRequestSubmissions } from "../../../db/schema";
 import { recordAudit } from "../../audit-log";
 import { toPublicMember } from "../groups/member-dto";
 import { canCreateGroups, getSiteUser, siteAccessError } from "../../site-access";
@@ -28,6 +28,9 @@ export async function GET() {
   const requests = await db.select().from(groupJoinRequests).where(and(eq(groupJoinRequests.userEmail, user.email), eq(groupJoinRequests.status, "pending")));
   const pendingMemberRequests = ids.length ? await db.select().from(groupJoinRequests).where(and(inArray(groupJoinRequests.groupId, ids), eq(groupJoinRequests.status, "pending"))) : [];
   const periods = ids.length ? await db.select().from(shiftRequestPeriods).where(inArray(shiftRequestPeriods.groupId, ids)) : [];
+  const submissions = periods.length
+    ? await db.select().from(shiftRequestSubmissions).where(and(eq(shiftRequestSubmissions.userEmail, user.email), inArray(shiftRequestSubmissions.periodId, periods.map((period) => period.id))))
+    : [];
   const pendingInvitations = await db.select().from(groupInvitations).where(and(eq(groupInvitations.inviteeEmail, user.email), eq(groupInvitations.status, "pending")));
   const invitationGroups = pendingInvitations.length
     ? await db.select().from(groups).where(inArray(groups.id, pendingInvitations.map((item) => item.groupId)))
@@ -38,7 +41,7 @@ export async function GET() {
       ...invitation,
       group: invitationGroups.find((group) => group.id === invitation.groupId) ?? null,
     })),
-    groups: rows.map((group) => { const membership = activeMemberships.find((item) => item.groupId === group.id); const nextRequestCloseDate = periods.filter((period) => period.groupId === group.id && period.status === "open" && period.closesOn).map((period) => period.closesOn).sort()[0] ?? null; return { ...group, membership: membership ? toPublicMember(membership, false) : { role: "owner", status: "active", showInPersonal: true }, pendingJoin: requests.some((item) => item.groupId === group.id), pendingMemberRequests: group.ownerEmail === user.email ? pendingMemberRequests.filter((item) => item.groupId === group.id).length : 0, nextRequestCloseDate }; })
+    groups: rows.map((group) => { const membership = activeMemberships.find((item) => item.groupId === group.id); const openPeriods = periods.filter((period) => period.groupId === group.id && period.status === "open"); const nextRequestCloseDate = openPeriods.filter((period) => period.closesOn).map((period) => period.closesOn).sort()[0] ?? null; const shiftRequestNeedsSubmission = openPeriods.some((period) => !submissions.some((submission) => submission.periodId === period.id)); return { ...group, membership: membership ? toPublicMember(membership, false) : { role: "owner", status: "active", showInPersonal: true }, pendingJoin: requests.some((item) => item.groupId === group.id), pendingMemberRequests: group.ownerEmail === user.email ? pendingMemberRequests.filter((item) => item.groupId === group.id).length : 0, nextRequestCloseDate, shiftRequestNeedsSubmission }; })
   });
 }
 

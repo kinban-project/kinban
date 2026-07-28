@@ -53,6 +53,8 @@ type GroupMembership = {
   unreadAnnouncements?: number;
   unreadAssistant?: boolean;
   managerAssistantUnread?: boolean;
+  nextRequestCloseDate?: string | null;
+  shiftRequestNeedsSubmission?: boolean;
 };
 type SiteAccess = { isSiteAdmin: boolean; canCreateGroups: boolean };
 
@@ -174,7 +176,7 @@ export default function Home() {
   const [shiftOpen, setShiftOpen] = useState(false);
   const [shiftAdjustmentOpen, setShiftAdjustmentOpen] = useState(false);
   const [shiftRosterOpen, setShiftRosterOpen] = useState(false);
-  const [shiftRequestsOpen, setShiftRequestsOpen] = useState(false);
+  const [shiftTab, setShiftTab] = useState<"roster" | "requests">("roster");
   const [menuGroupId, setMenuGroupId] = useState<string | undefined>();
   const [groupPreferencesOpen, setGroupPreferencesOpen] = useState(false);
   const [announcementsOpen, setAnnouncementsOpen] = useState(false);
@@ -226,7 +228,10 @@ export default function Home() {
     if (!groups.some((group) => group.groupId === targetGroupId)) return;
     notificationTargetRef.current = targetKey;
     setMenuGroupId(targetGroupId);
-    if (targetView === "roster") setShiftRosterOpen(true);
+    if (targetView === "roster" || targetView === "requests") {
+      setShiftTab(targetView === "requests" ? "requests" : "roster");
+      setShiftRosterOpen(true);
+    }
     if (targetView === "announcements" || targetView === "assistant") {
       setAnnouncementsTab(targetView === "assistant" ? "assistant" : "announcements");
       setAnnouncementsOpen(true);
@@ -408,7 +413,7 @@ export default function Home() {
     setMenuGroupId(groupId);
     if (target === "basic") setGroupPreferencesOpen(true);
     if (target === "members") setGroupsOpen(true);
-    if (target === "requests") setShiftRequestsOpen(true);
+    if (target === "requests") { setShiftTab("requests"); setShiftRosterOpen(true); }
     if (target === "shift") setShiftOpen(true);
     if (target === "adjustment") setShiftAdjustmentOpen(true);
   }
@@ -473,9 +478,9 @@ export default function Home() {
           setGroupCreateOpen(true);
         }}
         onBasic={(groupId) => openGroupTarget(groupId, "basic")}
-        onRequests={(groupId) => openGroupTarget(groupId, "requests")}
         onRoster={(groupId) => {
           setMenuGroupId(groupId);
+          setShiftTab("roster");
           setShiftRosterOpen(true);
         }}
         onShiftBuilder={(groupId) => openGroupTarget(groupId, "shift")}
@@ -955,23 +960,13 @@ export default function Home() {
             if (event.target === event.currentTarget) setShiftRosterOpen(false);
           }}
         >
-          <div className="modal shift-modal">
-            <ModalClose onClose={() => setShiftRosterOpen(false)} />
-            <ShiftRoster initialGroupId={menuGroupId} />
-          </div>
-        </div>
-      )}
-      {shiftRequestsOpen && (
-        <div
-          className="modal-backdrop request-backdrop"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget)
-              setShiftRequestsOpen(false);
-          }}
-        >
           <div className="modal shift-modal request-modal">
-            <ModalClose onClose={() => setShiftRequestsOpen(false)} />
-            <ShiftRequests initialGroupId={menuGroupId} />
+            <ModalClose onClose={() => setShiftRosterOpen(false)} />
+            <div className="shift-entry-tabs" role="tablist" aria-label="シフト">
+              <button className={shiftTab === "roster" ? "active" : ""} type="button" role="tab" aria-selected={shiftTab === "roster"} onClick={() => setShiftTab("roster")}>シフト一覧</button>
+              <button className={shiftTab === "requests" ? "active" : ""} type="button" role="tab" aria-selected={shiftTab === "requests"} onClick={() => setShiftTab("requests")}>シフト希望</button>
+            </div>
+            {shiftTab === "roster" ? <ShiftRoster initialGroupId={menuGroupId} /> : <ShiftRequests initialGroupId={menuGroupId} />}
           </div>
         </div>
       )}

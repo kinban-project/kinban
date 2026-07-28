@@ -12,6 +12,7 @@ type Group = {
   managerAssistantUnread?: boolean;
   pendingMemberRequests?: number;
   nextRequestCloseDate?: string | null;
+  shiftRequestNeedsSubmission?: boolean;
 };
 type Props = {
   groups: Group[];
@@ -20,7 +21,6 @@ type Props = {
   onApplications: () => void;
   onCreateGroup: () => void;
   onBasic: (id: string) => void;
-  onRequests: (id: string) => void;
   onRoster: (id: string) => void;
   onShiftBuilder: (id: string) => void;
   onShiftAdjustment: (id: string) => void;
@@ -37,11 +37,6 @@ type Props = {
   onMonthlyDeclare: (id: string) => void;
   onMonthlyApprove: (id: string) => void;
 };
-
-function requestLabel(date?: string | null) {
-  if (!date) return "シフト希望";
-  return `シフト希望（${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}まで）`;
-}
 
 type ClockRecord = { id: string; userEmail: string; status: string; endedAt?: string | null; attendanceExpired?: boolean };
 type ClockBreak = { workRecordId: string; endedAt?: string | null };
@@ -106,7 +101,6 @@ export default function GroupMenu({
   onApplications,
   onCreateGroup,
   onBasic,
-  onRequests,
   onRoster,
   onShiftBuilder,
   onShiftAdjustment,
@@ -156,35 +150,7 @@ export default function GroupMenu({
             </strong>
             <div className="group-menu-actions">
               <ClockControls groupId={group.groupId} />
-              <button
-                className="group-menu-button"
-                type="button"
-                onClick={() => onBasic(group.groupId)}
-              >
-                基本設定
-              </button>
-              <button
-                className="group-menu-button emphasis"
-                type="button"
-                onClick={() => onRequests(group.groupId)}
-              >
-                {requestLabel(group.nextRequestCloseDate)}
-              </button>
-              <button
-                className="group-menu-button"
-                type="button"
-                onClick={() => onRoster(group.groupId)}
-              >
-                シフト一覧
-              </button>
-              <button
-                className={`group-menu-button${unread > 0 ? " has-unread" : ""}`}
-                type="button"
-                onClick={() => onAnnouncements(group.groupId)}
-              >
-                お知らせ
-                {unread > 0 && <span className="unread-badge">{unread}</span>}
-              </button>
+              <WorkDeclareButton groupId={group.groupId} onClick={() => onWorkDeclare(group.groupId)} />
               <button
                 className={`group-menu-button${assistantUnread ? " has-unread" : ""}`}
                 type="button"
@@ -195,10 +161,26 @@ export default function GroupMenu({
                 {assistantUnread && <span className="assistant-unread-dot" title="未読があります" aria-label="未読があります" />}
               </button>
               <button className="group-menu-button" type="button" onClick={() => onMemos(group.groupId)}>
-                業務メモ
+                メモ
               </button>
-              <button className="group-menu-button" type="button" onClick={() => onKnowledge(group.groupId)}>業務ガイド</button>
-              <WorkDeclareButton groupId={group.groupId} onClick={() => onWorkDeclare(group.groupId)} />
+              <button
+                className={`group-menu-button${unread > 0 ? " has-unread" : ""}`}
+                type="button"
+                onClick={() => onAnnouncements(group.groupId)}
+              >
+                お知らせ
+                {unread > 0 && <span className="unread-badge">{unread}</span>}
+              </button>
+              <button
+                className={`group-menu-button${group.shiftRequestNeedsSubmission ? " has-unread" : ""}`}
+                type="button"
+                onClick={() => onRoster(group.groupId)}
+              >
+                シフト
+                {group.shiftRequestNeedsSubmission && <span className="unread-badge">希望を提出</span>}
+              </button>
+              <button className="group-menu-button" type="button" onClick={() => onKnowledge(group.groupId)}>ガイド</button>
+              <button className="group-menu-button" type="button" onClick={() => onBasic(group.groupId)}>設定</button>
               {manager && (
                 <>
                   <div className="admin-inline">
