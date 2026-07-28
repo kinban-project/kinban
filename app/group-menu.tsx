@@ -172,12 +172,12 @@ export default function GroupMenu({
                 {unread > 0 && <span className="unread-badge">{unread}</span>}
               </button>
               <button
-                className={`group-menu-button${group.shiftRequestNeedsSubmission ? " has-unread" : ""}`}
+                className="group-menu-button"
                 type="button"
                 onClick={() => onRoster(group.groupId)}
               >
                 シフト
-                {group.shiftRequestNeedsSubmission && <span className="unread-badge">希望を提出</span>}
+                {group.shiftRequestNeedsSubmission && <span className="request-badge">未提出あり</span>}
               </button>
               <button className="group-menu-button" type="button" onClick={() => onKnowledge(group.groupId)}>ガイド</button>
               <button className="group-menu-button" type="button" onClick={() => onBasic(group.groupId)}>設定</button>
