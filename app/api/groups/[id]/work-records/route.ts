@@ -48,6 +48,7 @@ function recordHasDifference(
     claimedStartAt?: string | null;
     claimedEndAt?: string | null;
     claimedBreakMinutes?: number | null;
+    plannedBreakMinutes?: number | null;
   },
   breaks: Array<{ startedAt: string; endedAt?: string | null }>,
 ) {
@@ -82,7 +83,8 @@ function recordHasDifference(
     Math.round((end - start) / 60000) -
       (record.claimedBreakMinutes ?? breakMinutesFromPunches),
   );
-  return Math.abs(claimed - planned) >= 15;
+  const effectivePlanned = Math.max(0, planned - Math.max(0, record.plannedBreakMinutes ?? 0));
+  return Math.abs(claimed - effectivePlanned) >= 15;
 }
 
 function error(message: string, status: number) {
