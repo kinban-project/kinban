@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { getChatGPTUser } from "../../../../chatgpt-auth";
 import { getDb } from "../../../../../db";
-import { groupMembers, groupPreferences, groups, shiftAvailability } from "../../../../../db/schema";
+import { groupMembers, groupPreferences, shiftAvailability } from "../../../../../db/schema";
 import { getMembership } from "../../group-access";
 import { isValidShiftTime, shiftTimeToMinutes } from "../../../../shift-time";
 import { recordAudit } from "../../../../audit-log";
@@ -16,11 +16,10 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const membership = await getMembership(id, user.email);
   if (!membership) return Response.json({ error: "グループのメンバーではありません" }, { status: 403 });
   const db = getDb();
-  const [group] = await db.select({ autoBreakSuggestion: groups.autoBreakSuggestion }).from(groups).where(eq(groups.id, id)).limit(1);
   const [preferences] = await db.select().from(groupPreferences).where(and(eq(groupPreferences.groupId, id), eq(groupPreferences.userEmail, user.email))).limit(1);
   const [groupMember] = await db.select({ displayName: groupMembers.displayName }).from(groupMembers).where(and(eq(groupMembers.groupId, id), eq(groupMembers.userEmail, user.email))).limit(1);
   const availability = await db.select().from(shiftAvailability).where(and(eq(shiftAvailability.groupId, id), eq(shiftAvailability.userEmail, user.email)));
-  return Response.json({ groupMember, canManage: membership.role === "owner" || membership.role === "editor", autoBreakSuggestion: group?.autoBreakSuggestion !== false, preferences: preferences ?? { groupId: id, userEmail: user.email, minDays: 0, maxDays: 7, minHours: 0, maxHours: 40, weekendPolicy: "any", freeComment: "" }, availability: availability.map((entry) => ({ ...entry, status: entry.status === "want" || entry.status === "off" || entry.status === "unavailable" ? entry.status : "possible" })) });
+  return Response.json({ groupMember, preferences: preferences ?? { groupId: id, userEmail: user.email, minDays: 0, maxDays: 7, minHours: 0, maxHours: 40, weekendPolicy: "any", freeComment: "" }, availability: availability.map((entry) => ({ ...entry, status: entry.status === "want" || entry.status === "off" || entry.status === "unavailable" ? entry.status : "possible" })) });
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -29,7 +28,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const { id } = await context.params;
   const membership = await getMembership(id, user.email);
   if (!membership) return Response.json({ error: "グループのメンバーではありません" }, { status: 403 });
-  const body = await request.json() as { minDays?: number; maxDays?: number; minHours?: number; maxHours?: number; freeComment?: string; displayName?: string; autoBreakSuggestion?: boolean; availability?: Array<{ dayOfWeek: number; status: string; startTime?: string; endTime?: string; note?: string }> };
+  const body = await request.json() as { minDays?: number; maxDays?: number; minHours?: number; maxHours?: number; freeComment?: string; displayName?: string; availability?: Array<{ dayOfWeek: number; status: string; startTime?: string; endTime?: string; note?: string }> };
   const minDays = Math.max(0, Math.min(7, Number(body.minDays ?? 0)));
   const maxDays = Math.max(minDays, Math.min(7, Number(body.maxDays ?? 7)));
   const minHours = Math.max(0, Math.min(168, Number(body.minHours ?? 0)));
@@ -43,10 +42,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     if ((startTime === "") !== (endTime === "") || (startTime && (!isValidShiftTime(startTime) || !isValidShiftTime(endTime) || shiftTimeToMinutes(startTime) >= shiftTimeToMinutes(endTime)))) return Response.json({ error: "時間帯は両方入力し、30分単位で指定してください（終了は30:00まで）" }, { status: 400 });
   }
   const db = getDb();
-  const canManage = membership.role === "owner" || membership.role === "editor";
   const [existing] = await db.select().from(groupPreferences).where(and(eq(groupPreferences.groupId, id), eq(groupPreferences.userEmail, user.email))).limit(1);
   await db.batch([
-    ...(canManage && typeof body.autoBreakSuggestion === "boolean" ? [db.update(groups).set({ autoBreakSuggestion: body.autoBreakSuggestion }).where(eq(groups.id, id))] : []),
     ...(typeof body.displayName === "string" ? [db.update(groupMembers).set({ displayName: body.displayName.trim().slice(0, 40) }).where(and(eq(groupMembers.groupId, id), eq(groupMembers.userEmail, user.email)))] : []),
     existing ? db.update(groupPreferences).set({ minDays, maxDays, minHours, maxHours, freeComment: body.freeComment?.trim().slice(0, 500) ?? "" }).where(eq(groupPreferences.id, existing.id)) : db.insert(groupPreferences).values({ id: crypto.randomUUID(), groupId: id, userEmail: user.email, minDays, maxDays, minHours, maxHours, weekendPolicy: existing?.weekendPolicy ?? "any", freeComment: body.freeComment?.trim().slice(0, 500) ?? "" }),
     db.delete(shiftAvailability).where(and(eq(shiftAvailability.groupId, id), eq(shiftAvailability.userEmail, user.email))),

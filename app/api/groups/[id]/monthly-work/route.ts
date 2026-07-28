@@ -99,7 +99,9 @@ export async function GET(request: Request, context: Context) {
   const summaries = visibleMembers.map((member) => {
     const userAssignments = assignmentByUser.get(member.userEmail) ?? [];
     const userRecords = recordsByUser.get(member.userEmail) ?? [];
-    const plannedMinutes = userAssignments.reduce((total, item) => { const slot = slotMap.get(item.slotId); return total + (slot ? minutesBetween(slot.startTime, slot.endTime) : 0); }, 0);
+    const grossPlannedMinutes = userAssignments.reduce((total, item) => { const slot = slotMap.get(item.slotId); return total + (slot ? minutesBetween(slot.startTime, slot.endTime) : 0); }, 0);
+    const plannedBreakMinutes = userRecords.reduce((total, record) => total + Math.max(0, record.plannedBreakMinutes ?? 0), 0);
+    const plannedMinutes = Math.max(0, grossPlannedMinutes - plannedBreakMinutes);
     const declaredMinutes = userRecords.reduce((total, record) => total + workedMinutes(record), 0);
     const missingCount = userRecords.filter((record) => !record.claimedStartAt || !record.claimedEndAt).length;
     const unresolvedCount = userRecords.filter((record) => ["unsubmitted", "working", "rejected"].includes(record.status)).length;

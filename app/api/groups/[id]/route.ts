@@ -38,7 +38,24 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       ? availability.filter((entry) => entry.userEmail === member.userEmail)
       : [],
   }));
-  return Response.json({ currentEmail: user.email, group, membership: toPublicMember(membership, isAdmin), members: safeMembers, requests, invitations, assistant: assistant ?? null });
+  return Response.json({ currentEmail: user.email, group: { ...group, autoBreakSuggestion: group.autoBreakSuggestion !== false }, membership: toPublicMember(membership, isAdmin), members: safeMembers, requests, invitations, assistant: assistant ?? null });
+}
+
+export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+  const user = await getChatGPTUser();
+  if (!user) return Response.json({ error: "ログインが必要です" }, { status: 401 });
+  const { id } = await context.params;
+  const group = await getGroup(id);
+  if (!group) return Response.json({ error: "グループが見つかりません" }, { status: 404 });
+  const membership = await getMembership(id, user.email);
+  if (!membership) return Response.json({ error: "このグループのメンバーではありません" }, { status: 403 });
+  if (membership.role !== "owner" && membership.role !== "editor") return Response.json({ error: "管理者権限が必要です" }, { status: 403 });
+  const body = await request.json().catch(() => ({})) as { autoBreakSuggestion?: unknown };
+  if (typeof body.autoBreakSuggestion !== "boolean") return Response.json({ error: "autoBreakSuggestionはbooleanで指定してください" }, { status: 400 });
+  const db = getDb();
+  await db.update(groups).set({ autoBreakSuggestion: body.autoBreakSuggestion }).where(eq(groups.id, id));
+  await recordAudit({ groupId: id, userEmail: user.email, action: "group.settings", entityType: "group", entityId: id, summary: `予定休憩の自動提案を${body.autoBreakSuggestion ? "有効" : "無効"}にしました`, details: { autoBreakSuggestion: body.autoBreakSuggestion } });
+  return Response.json({ ok: true, autoBreakSuggestion: body.autoBreakSuggestion });
 }
 
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {

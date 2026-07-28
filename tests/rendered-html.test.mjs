@@ -17,13 +17,15 @@ test("demo mode is explicit and disabled in the shared example", async () => {
 
 test("demo user switching is gated by demo mode", async () => {
   const localApi = await source("app/local-api.ts");
+  const demoMode = await source("app/client-demo-mode.ts");
   const groupsPanel = await source("app/groups-panel.tsx");
   const page = await source("app/page.tsx");
   const demoPage = await source("app/demo/page.tsx");
 
-  assert.match(localApi, /NEXT_PUBLIC_DEMO_MODE/);
+  assert.match(demoMode, /NEXT_PUBLIC_DEMO_MODE/);
+  assert.match(demoMode, /isDemoModeClient/);
   assert.match(localApi, /x-demo-user-id/);
   assert.match(groupsPanel, /NEXT_PUBLIC_DEMO_MODE === "true"/);
-  assert.match(page, /NEXT_PUBLIC_DEMO_MODE === "true"/);
+  assert.match(page, /isDemoModeClient\(\)/);
   assert.match(demoPage, /isDemoModeServer\(\)/);
 });

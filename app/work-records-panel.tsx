@@ -335,6 +335,10 @@ function plannedSummaryForRecord(record: RecordRow) {
         breakMinutes: 0,
       };
 }
+function effectivePlannedMinutes(record: RecordRow, summary = plannedSummaryForRecord(record)) {
+  if (!summary) return null;
+  return Math.max(0, summary.plannedMinutes - Math.max(0, record.plannedBreakMinutes ?? 0));
+}
 function claimedRangeMinutes(record: RecordRow, breaks: BreakRow[]) {
   if (!record.claimedStartAt || !record.claimedEndAt) return null;
   const value = Math.round(
@@ -1405,7 +1409,7 @@ function ManagerView({
     new Set(monthRecords.map((record) => record.scheduledDate)),
   ).sort();
   const hasIssue = (record: RecordRow) => {
-    const planned = plannedSummaryForRecord(record)?.plannedMinutes ?? null;
+    const planned = effectivePlannedMinutes(record);
     const claimed = claimedRangeMinutes(record, breaksFor(record.id));
     return (
       !record.claimedStartAt ||
@@ -1416,7 +1420,7 @@ function ManagerView({
     );
   };
   const severity = (record: RecordRow) => {
-    const planned = plannedSummaryForRecord(record)?.plannedMinutes ?? null;
+    const planned = effectivePlannedMinutes(record);
     const claimed = claimedRangeMinutes(record, breaksFor(record.id));
     if (!record.claimedStartAt || !record.claimedEndAt || claimed === null)
       return "danger";
@@ -1622,7 +1626,7 @@ function ManagerView({
               filtered.map((record) => {
                 const breaks = breaksFor(record.id);
                 const plannedSummary = plannedSummaryForRecord(record);
-                const planned = plannedSummary?.plannedMinutes ?? null;
+                const planned = effectivePlannedMinutes(record, plannedSummary);
                 const claimed = claimedRangeMinutes(record, breaks);
                 const diff =
                   planned !== null && claimed !== null

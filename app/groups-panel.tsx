@@ -9,6 +9,7 @@ type Group = {
   name: string;
   description: string;
   ownerEmail: string;
+  autoBreakSuggestion?: boolean;
   membership: { role: string; showInPersonal: boolean };
   pendingJoin?: boolean;
 };
@@ -102,6 +103,24 @@ export default function GroupsPanel({ onChanged, initialGroupId }: { onChanged: 
     if (!response.ok) return setNotice(((await response.json().catch(() => ({})) as { error?: string }).error) ?? "メンバー情報を保存できませんでした");
     setNotice("保存しました"); await openGroup(selected.group); await loadGroups(); onChanged();
   }
+  async function updateGroupRules(autoBreakSuggestion: boolean) {
+    if (!selected) return;
+    const response = await localApiFetch(`/api/groups/${selected.group.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ autoBreakSuggestion }),
+    });
+    const data = await response.json().catch(() => ({})) as { error?: string; autoBreakSuggestion?: boolean };
+    if (!response.ok) {
+      setNotice(data.error ?? "シフト・勤怠ルールを保存できませんでした");
+      return;
+    }
+    setSelected((current) => current ? {
+      ...current,
+      group: { ...current.group, autoBreakSuggestion: data.autoBreakSuggestion ?? autoBreakSuggestion },
+    } : current);
+    setNotice("シフト・勤怠ルールを保存しました");
+  }
   async function changeStatus(member: Member) {
     const inactive = member.status !== "inactive";
     const message = inactive
@@ -161,6 +180,13 @@ export default function GroupsPanel({ onChanged, initialGroupId }: { onChanged: 
     </>}
     {selected && <div className="group-detail">
       <div className="modal-head"><div><p className="eyebrow">GROUP MANAGEMENT</p><h3>グループ管理（{selected.group.name}）</h3><small>メンバー・シフト／勤怠ルール・運営支援AIを管理します。　{selected.group.id}</small></div></div>
+      {isAdmin && <section className="group-rules-panel">
+        <h4>シフト・勤怠ルール</h4>
+        <label className="group-setting-toggle">
+          <input type="checkbox" checked={selected.group.autoBreakSuggestion !== false} onChange={(event) => void updateGroupRules(event.target.checked)} />
+          <span><strong>予定休憩を自動提案する</strong><small>勤務ブロックの長さに応じて、予定休憩の分数をシフト・勤務申告へ表示します。</small></span>
+        </label>
+      </section>}
       {selected.membership.role === "owner" && selected.requests.filter((request) => request.status === "pending").length > 0 && <><h4>参加申請</h4>{selected.requests.filter((request) => request.status === "pending").map((request) => <div className="member-row" key={request.id}><span>{request.userEmail}</span><span><button className="small-action" onClick={() => void handleRequest(request.id, "approve")}>承認</button><button className="small-action danger" onClick={() => void handleRequest(request.id, "reject")}>却下</button></span></div>)}</>}
       {isAdmin && <section className="group-invitation-panel">
         <h4>メンバーを招待</h4>

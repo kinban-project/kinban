@@ -64,8 +64,6 @@ export default function GroupPreferencesPanel({
     freeComment: "",
   });
   const [groupNickname, setGroupNickname] = useState("");
-  const [canManage, setCanManage] = useState(false);
-  const [autoBreakSuggestion, setAutoBreakSuggestion] = useState(true);
   const [copySourceDay, setCopySourceDay] = useState(1);
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -77,8 +75,6 @@ export default function GroupPreferencesPanel({
           if (!response.ok) return;
           const data = (await response.json()) as {
             groupMember?: { displayName?: string | null };
-            canManage?: boolean;
-            autoBreakSuggestion?: boolean;
             preferences: Preference;
             availability: Array<Day & { status: string }>;
           };
@@ -96,8 +92,6 @@ export default function GroupPreferencesPanel({
             freeComment: data.preferences.freeComment ?? "",
           });
           setGroupNickname(data.groupMember?.displayName ?? "");
-          setCanManage(Boolean(data.canManage));
-          setAutoBreakSuggestion(data.autoBreakSuggestion !== false);
           setDays(next);
         },
       );
@@ -150,7 +144,7 @@ export default function GroupPreferencesPanel({
     const response = await localApiFetch(`/api/groups/${groupId}/preferences`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...preference, availability, displayName: groupNickname, ...(canManage ? { autoBreakSuggestion } : {}) }),
+      body: JSON.stringify({ ...preference, availability, displayName: groupNickname }),
     });
     setNotice(
       response.ok
@@ -184,10 +178,6 @@ export default function GroupPreferencesPanel({
         />
       </div>
       <PushNotificationControl />
-      {canManage && <label className="group-setting-toggle">
-        <input type="checkbox" checked={autoBreakSuggestion} onChange={(event) => setAutoBreakSuggestion(event.target.checked)} />
-        <span><strong>予定休憩を自動提案する</strong><small>勤務ブロックの長さに応じて、予定休憩の分数をシフト・勤務申告へ表示します。</small></span>
-      </label>}
       <ApiKeyPanel groupId={groupId} />
       <div className="section-title">
         <div>
