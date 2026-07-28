@@ -160,7 +160,7 @@ export default function GroupsPanel({ onChanged, initialGroupId }: { onChanged: 
       <div className="group-list">{groups.length ? groups.map((group) => <article className="group-item" key={group.id}><div><strong>{group.name}</strong><small>ID: {group.id}</small><span>{roleLabels[group.membership.role] ?? group.membership.role}</span></div>{group.pendingJoin ? <em>承認待ち</em> : <button className="ghost-button" onClick={() => void openGroup(group)}>詳細</button>}</article>) : <p className="group-empty">参加しているグループはありません。</p>}</div>
     </>}
     {selected && <div className="group-detail">
-      <div className="modal-head"><div><p className="eyebrow">GROUP</p><h3>メンバー管理（{selected.group.name}）</h3><small>{selected.group.id}</small></div></div>
+      <div className="modal-head"><div><p className="eyebrow">GROUP MANAGEMENT</p><h3>グループ管理（{selected.group.name}）</h3><small>メンバー・シフト／勤怠ルール・運営支援AIを管理します。　{selected.group.id}</small></div></div>
       {selected.membership.role === "owner" && selected.requests.filter((request) => request.status === "pending").length > 0 && <><h4>参加申請</h4>{selected.requests.filter((request) => request.status === "pending").map((request) => <div className="member-row" key={request.id}><span>{request.userEmail}</span><span><button className="small-action" onClick={() => void handleRequest(request.id, "approve")}>承認</button><button className="small-action danger" onClick={() => void handleRequest(request.id, "reject")}>却下</button></span></div>)}</>}
       {isAdmin && <section className="group-invitation-panel">
         <h4>メンバーを招待</h4>

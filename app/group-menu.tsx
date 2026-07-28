@@ -205,7 +205,7 @@ export default function GroupMenu({
                       type="button"
                       onClick={() => onMembers(group.groupId)}
                     >
-                      メンバー管理
+                      グループ管理
                       {pendingMembers > 0 && <span className="unread-badge">{pendingMembers}</span>}
                     </button>
                     <button
@@ -261,7 +261,7 @@ export default function GroupMenu({
                           シフト割当
                         </button>
                         <button onClick={() => onMembers(group.groupId)}>
-                          メンバー管理
+                          グループ管理
                           {pendingMembers > 0 && <span className="unread-badge">{pendingMembers}</span>}
                         </button>
                         <button onClick={() => onAnnouncementManage(group.groupId)}>
