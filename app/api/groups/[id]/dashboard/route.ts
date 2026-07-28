@@ -112,15 +112,17 @@ export async function GET(_request: Request, context: Context) {
       if (!slot || !plan || slot.date !== today) return null;
       const record = recordsBySlotMember.get(`${slot.id}|${assignment.userEmail}`) ?? null;
       const breakRow = record ? breaksByRecord.get(record.id) : undefined;
-      const status = !record?.startedAt
-        ? "未打刻"
+      const startMinutes = shiftTimeToMinutes(slot.startTime);
+      const endMinutes = shiftTimeToMinutes(slot.endTime);
+      const status = !record?.startedAt && nowMinutes < startMinutes
+        ? "予定"
+        : !record?.startedAt
+          ? "未打刻"
         : breakRow?.startedAt && !breakRow.endedAt
           ? "休憩中"
           : record.endedAt
             ? "勤務終了"
             : "勤務中";
-      const startMinutes = shiftTimeToMinutes(slot.startTime);
-      const endMinutes = shiftTimeToMinutes(slot.endTime);
       const exception = !record?.startedAt && nowMinutes >= startMinutes
         ? "未打刻"
         : Boolean(record?.startedAt && !record.endedAt && nowMinutes >= endMinutes)
