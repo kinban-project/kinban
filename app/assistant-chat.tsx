@@ -42,7 +42,7 @@ export default function AssistantChat({ groupId, manager = false }: { groupId: s
     setSending(true);
     const response = await localApiFetch(`/api/groups/${groupId}/assistant`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body: message, view: manager ? "manager" : "member", ...(manager && selectedMember ? { memberEmail: selectedMember } : {}) }) });
     const result = await response.json().catch(() => ({})) as { error?: string };
-    setNotice(response.ok ? "KINBANアシスタントへ送りました。AI接続後に順次確認します。" : result.error ?? "送信できませんでした");
+    setNotice(response.ok ? "管理者への連絡を送信しました。確認後に返信します。" : result.error ?? "送信できませんでした");
     if (response.ok) { setMessage(""); await load(); }
     setSending(false);
   }
@@ -76,7 +76,7 @@ export default function AssistantChat({ groupId, manager = false }: { groupId: s
     if (response.ok) await load(selectedMember);
   }
 
-  if (!data) return <p className="empty-state">KINBANアシスタントを読み込んでいます…</p>;
+  if (!data) return <p className="empty-state">連絡を読み込んでいます…</p>;
   const active = data.assistant?.status === "active";
   const viewingOwnChat = selectedMember === data.currentEmail;
   const canCompose = active && (manager ? Boolean(selectedMember) : viewingOwnChat);
@@ -84,8 +84,8 @@ export default function AssistantChat({ groupId, manager = false }: { groupId: s
 
   return <section className="assistant-chat">
     <div className="assistant-profile">
-      <div className="assistant-avatar" aria-hidden="true">AI</div>
-      <div><strong>{assistantLabel}</strong><p>シフトや勤怠について相談できるAIです。必要に応じて管理者へ引き継ぎます。</p></div>
+      <div className="assistant-avatar" aria-hidden="true">連</div>
+      <div><strong>{assistantLabel}</strong><p>シフトや勤怠に関する相談を管理者へ連絡できます。必要に応じて管理者が確認・返信します。</p></div>
       <span className={`assistant-state ${active ? "active" : "inactive"}`}>{active ? "受付中" : "停止中"}</span>
     </div>
     {manager && data.members.length > 0 && <label className="assistant-member-select">確認するメンバー
@@ -124,8 +124,8 @@ export default function AssistantChat({ groupId, manager = false }: { groupId: s
         <strong>{item.senderType === "assistant" || item.senderType === "system" ? assistantLabel : item.senderType === "manager" ? "管理者" : item.memberEmail === data.currentEmail ? "あなた" : item.memberEmail.split("@")[0]}</strong>
         <p>{item.body}</p>
         {manager && item.senderType === "member" && ["pending", "processing", "needs_review"].includes(item.status) && <button type="button" className="small-action" onClick={() => void acknowledgeMessage(item)}>対応済みにする</button>}
-        <small>{item.createdAt}{item.senderType === "member" && item.status === "pending" ? "・AI確認待ち" : item.senderType === "member" && item.status === "processing" ? "・AI対応中" : item.senderType === "member" && item.status === "needs_review" ? "・管理者確認待ち" : ""}</small>
-      </div>) : <p className="empty-state">まだ会話はありません。シフトや勤怠についてメッセージを送れます。</p>}
+        <small>{item.createdAt}{item.senderType === "member" && item.status === "pending" ? "・確認待ち" : item.senderType === "member" && item.status === "processing" ? "・対応中" : item.senderType === "member" && item.status === "needs_review" ? "・管理者確認待ち" : ""}</small>
+      </div>) : <p className="empty-state">まだ連絡はありません。管理者への相談や確認依頼を送信できます。</p>}
     </div>
     {canCompose ? <form className="assistant-composer" onSubmit={send}>
       <textarea rows={3} value={message} onChange={(event) => setMessage(event.target.value)} maxLength={2000} placeholder="例：今日のシフトに行けなくなりました" />
