@@ -43,11 +43,27 @@ export async function GET(
   const memberView = searchParams.get("view") === "member";
   const managerView = isManager(membership.role) && !memberView;
   const requestedMember = searchParams.get("member")?.trim();
-  const memberEmail =
-    managerView && requestedMember
-      ? requestedMember
-      : user.email;
   const db = getDb();
+  const managerAttentionStatuses = new Set(["pending", "processing", "needs_review", "failed"]);
+  const activeMemberRows = managerView
+    ? await db
+        .select({ userEmail: groupMembers.userEmail })
+        .from(groupMembers)
+        .where(and(eq(groupMembers.groupId, id), eq(groupMembers.status, "active")))
+    : [];
+  const activeMemberEmails = new Set(activeMemberRows.map((row) => row.userEmail));
+  const memberMessageRows = managerView
+    ? await db
+        .select({ memberEmail: assistantMessages.memberEmail, status: assistantMessages.status })
+        .from(assistantMessages)
+        .where(eq(assistantMessages.groupId, id))
+    : [];
+  const pendingCounts = new Map<string, number>();
+  for (const row of memberMessageRows) {
+    if (activeMemberEmails.has(row.memberEmail) && managerAttentionStatuses.has(row.status)) pendingCounts.set(row.memberEmail, (pendingCounts.get(row.memberEmail) ?? 0) + 1);
+  }
+  const firstPendingMember = [...pendingCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+  const memberEmail = managerView ? requestedMember || firstPendingMember || user.email : user.email;
   const [target, assistant, drafts, swapRequests] = await Promise.all([
     db
       .select({ userEmail: groupMembers.userEmail })
@@ -127,6 +143,7 @@ export async function GET(
     currentEmail: user.email,
     selectedMember: memberEmail,
     manager: managerView,
+    pendingCounts: Object.fromEntries(pendingCounts),
   });
 }
 

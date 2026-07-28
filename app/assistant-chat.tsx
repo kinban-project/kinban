@@ -9,7 +9,7 @@ type AnnouncementDraft = { id: string; sourceMessageId: string; requesterEmail: 
 type SwapCandidate = { id: string; memberEmail: string; status: "available" | "unavailable"; note: string };
 type SwapRequest = { id: string; requesterEmail: string; date: string; startTime: string; endTime: string; role: string; status: string; replacementEmail?: string | null; candidates: SwapCandidate[] };
 type Message = { id: string; memberEmail: string; senderType: "member" | "manager" | "assistant" | "system"; body: string; status: "pending" | "processing" | "processed" | "failed" | "needs_review"; createdAt: string };
-type ChatData = { assistant: Assistant | null; messages: Message[]; members: Member[]; drafts?: AnnouncementDraft[]; swapRequests?: SwapRequest[]; currentEmail: string; selectedMember: string; manager: boolean };
+type ChatData = { assistant: Assistant | null; messages: Message[]; members: Member[]; drafts?: AnnouncementDraft[]; swapRequests?: SwapRequest[]; currentEmail: string; selectedMember: string; manager: boolean; pendingCounts?: Record<string, number> };
 
 function memberName(member: Member) {
   return member.displayName?.trim() || member.userEmail.split("@")[0];
@@ -32,7 +32,7 @@ export default function AssistantChat({ groupId, manager = false }: { groupId: s
     const next = await response.json() as ChatData;
     setData(next);
     setSelectedMember(next.selectedMember);
-  }, [groupId]);
+  }, [groupId, manager]);
 
   useEffect(() => { const timer = window.setTimeout(() => void load(), 0); return () => window.clearTimeout(timer); }, [load]);
 
@@ -43,7 +43,7 @@ export default function AssistantChat({ groupId, manager = false }: { groupId: s
     const response = await localApiFetch(`/api/groups/${groupId}/assistant`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body: message, view: manager ? "manager" : "member", ...(manager && selectedMember ? { memberEmail: selectedMember } : {}) }) });
     const result = await response.json().catch(() => ({})) as { error?: string };
     setNotice(response.ok ? "管理者への連絡を送信しました。確認後に返信します。" : result.error ?? "送信できませんでした");
-    if (response.ok) { setMessage(""); await load(); }
+    if (response.ok) { setMessage(""); await load(manager ? selectedMember : undefined); }
     setSending(false);
   }
 
@@ -90,7 +90,10 @@ export default function AssistantChat({ groupId, manager = false }: { groupId: s
     </div>
     {manager && data.members.length > 0 && <label className="assistant-member-select">確認するメンバー
       <select value={selectedMember} onChange={(event) => { setSelectedMember(event.target.value); void load(event.target.value); }}>
-        {data.members.map((member) => <option key={member.userEmail} value={member.userEmail}>{memberName(member)}{member.userEmail === data.currentEmail ? "（自分）" : ""}</option>)}
+        {[...data.members].sort((a, b) => (data.pendingCounts?.[b.userEmail] ?? 0) - (data.pendingCounts?.[a.userEmail] ?? 0)).map((member) => {
+          const pendingCount = data.pendingCounts?.[member.userEmail] ?? 0;
+          return <option key={member.userEmail} value={member.userEmail}>{memberName(member)}{pendingCount ? `（未処理 ${pendingCount}件）` : ""}{member.userEmail === data.currentEmail ? "（自分）" : ""}</option>;
+        })}
       </select>
     </label>}
     {manager && !viewingOwnChat && <p className="assistant-manager-note">管理者として会話履歴を確認しています。選択中のメンバーへ返信できます。</p>}
