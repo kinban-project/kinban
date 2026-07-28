@@ -17,6 +17,7 @@ import {
 } from "../../../../../db/schema";
 import { getMembership } from "../../group-access";
 import { getDemoNow, jstDate } from "../../../../demo-clock";
+import { shiftTimeToMinutes } from "../../../../shift-time";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,12 @@ function previousMonth(value: string) {
   return date.toISOString().slice(0, 7);
 }
 
+function currentJstMinutes(value: Date) {
+  const text = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", hour12: false }).format(value);
+  const [hour, minute] = text.split(":").map(Number);
+  return hour * 60 + minute;
+}
+
 export async function GET(_request: Request, context: Context) {
   const user = await getChatGPTUser();
   if (!user) return Response.json({ error: "ログインが必要です" }, { status: 401 });
@@ -49,7 +56,9 @@ export async function GET(_request: Request, context: Context) {
   const [group] = await db.select().from(groups).where(eq(groups.id, groupId)).limit(1);
   if (!group) return Response.json({ error: "グループが見つかりません" }, { status: 404 });
 
-  const today = jstDate(await getDemoNow(groupId));
+  const demoNow = await getDemoNow(groupId);
+  const today = jstDate(demoNow);
+  const nowMinutes = currentJstMinutes(demoNow);
   const currentMonth = monthKey(today);
   const previousMonthKey = previousMonth(currentMonth);
   const [members, plans, periods, announcements, reads] = await Promise.all([
@@ -110,6 +119,13 @@ export async function GET(_request: Request, context: Context) {
           : record.endedAt
             ? "勤務終了"
             : "勤務中";
+      const startMinutes = shiftTimeToMinutes(slot.startTime);
+      const endMinutes = shiftTimeToMinutes(slot.endTime);
+      const exception = !record?.startedAt && nowMinutes >= startMinutes
+        ? "未打刻"
+        : Boolean(record?.startedAt && !record.endedAt && nowMinutes >= endMinutes)
+          ? "勤務中"
+          : null;
       return {
         date: slot.date,
         startTime: slot.startTime,
@@ -119,6 +135,7 @@ export async function GET(_request: Request, context: Context) {
         userEmail: assignment.userEmail,
         displayName: membersByEmail.get(assignment.userEmail)?.displayName ?? assignment.userEmail.split("@")[0],
         status,
+        exception,
         startedAt: record?.startedAt ?? null,
         endedAt: record?.endedAt ?? null,
       };
@@ -177,6 +194,13 @@ export async function GET(_request: Request, context: Context) {
   const plannedPreviousMembers = new Set(scheduledPast.filter(({ slot }) => monthKey(slot.date) === previousMonthKey).map(({ userEmail }) => userEmail));
   const previousClaims = await db.select().from(monthlyWorkClaims).where(and(eq(monthlyWorkClaims.groupId, groupId), eq(monthlyWorkClaims.monthKey, previousMonthKey)));
   const monthlyPending = [...plannedPreviousMembers].filter((email) => previousClaims.find((claim) => claim.userEmail === email)?.status !== "approved").length;
+  const dailyIssue = records.filter((record) => {
+    if (record.status !== "submitted") return false;
+    if (!record.claimedStartAt || !record.claimedEndAt) return true;
+    const planned = shiftTimeToMinutes(record.scheduledEndTime) - shiftTimeToMinutes(record.scheduledStartTime) - Math.max(0, record.plannedBreakMinutes ?? 0);
+    const actual = Math.round((new Date(record.claimedEndAt).getTime() - new Date(record.claimedStartAt).getTime()) / 60000) - Math.max(0, record.claimedBreakMinutes ?? 0);
+    return !Number.isFinite(actual) || Math.abs(actual - planned) >= 15;
+  }).length;
   const unreadAnnouncementCount = announcements.filter((announcement) => !reads.some((read) => read.announcementId === announcement.id)).length;
 
   return Response.json({
@@ -188,7 +212,7 @@ export async function GET(_request: Request, context: Context) {
     requestActionItems,
     closedBeforePublish,
     coverage,
-    approvals: { dailyPending, previousMonthPending: monthlyPending },
+    approvals: { dailyPending, previousMonthPending: monthlyPending, dailyIssue },
     announcements: { total: announcements.length, unread: unreadAnnouncementCount },
     totals: { publishedPlans: publishedPlans.length, requestOpen: requestActionItems.length, shortagePlans: coverage.filter((item) => item.shortageSlotCount > 0).length },
   });

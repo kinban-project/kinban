@@ -1030,7 +1030,26 @@ export default function Home() {
         >
           <div className="modal groups-modal">
             <ModalClose onClose={() => setDashboardOpen(false)} />
-            <DashboardPanel groupId={menuGroupId} />
+            <DashboardPanel
+              groupId={menuGroupId}
+              onNavigate={(view) => {
+                setDashboardOpen(false);
+                if (view === "contact") {
+                  setManagerContactOpen(true);
+                } else if (view === "daily-approval") {
+                  setWorkRecordsManager(true);
+                  setWorkRecordsOpen(true);
+                } else if (view === "monthly-approval") {
+                  setMonthlyWorkManager(true);
+                  setMonthlyWorkOpen(true);
+                } else if (view === "shift-adjustment") {
+                  setShiftAdjustmentOpen(true);
+                } else {
+                  setShiftTab("requests");
+                  setShiftRosterOpen(true);
+                }
+              }}
+            />
           </div>
         </div>
       )}

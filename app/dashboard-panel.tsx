@@ -1,8 +1,15 @@
 "use client";
+
 import { useEffect, useState } from "react";
 import { localApiFetch } from "./local-api";
 import { getShiftDisplayLabel, getShiftDisplayStatus } from "./shift-status";
-type Props = { groupId: string };
+
+type Props = {
+  groupId: string;
+  onNavigate?: (view: DashboardView) => void;
+};
+type DashboardView = "contact" | "daily-approval" | "monthly-approval" | "shift-adjustment" | "shift-requests";
+
 type Plan = {
   id: string;
   name: string;
@@ -15,148 +22,142 @@ type Plan = {
   shortageSlotCount?: number;
   shortageMemberCount?: number;
 };
+
 type DashboardData = {
   today: string;
-  todaySchedule: Array<{ userEmail: string; displayName: string; startTime: string; endTime: string; role: string; planName: string; status: string }>;
-  requestActionItems: Array<{ planId: string; planName: string; closesOn: string; savedCount: number; memberCount: number; daysUntilClose: number }>;
+  todaySchedule: Array<{
+    userEmail: string;
+    displayName: string;
+    startTime: string;
+    endTime: string;
+    role: string;
+    planName: string;
+    status: "未打刻" | "勤務中" | "休憩中" | "勤務終了";
+    exception?: "未打刻" | "勤務中" | null;
+  }>;
+  requestActionItems: Array<{
+    planId: string;
+    planName: string;
+    closesOn: string;
+    savedCount: number;
+    memberCount: number;
+    daysUntilClose: number;
+  }>;
   closedBeforePublish: Array<{ planId: string; planName: string; startDate: string; endDate: string }>;
   coverage: Array<{ planId: string; planName: string; shortageSlotCount: number; shortageMemberCount: number }>;
-  approvals: { dailyPending: number; previousMonthPending: number };
+  approvals: { dailyPending: number; previousMonthPending: number; dailyIssue: number };
   announcements: { total: number; unread: number };
 };
-export default function DashboardPanel({ groupId }: Props) {
+
+function shortDate(value: string) {
+  return value.length >= 10 ? `${Number(value.slice(5, 7))}/${Number(value.slice(8, 10))}` : value;
+}
+
+export default function DashboardPanel({ groupId, onNavigate }: Props) {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [members, setMembers] = useState(0);
   const [announcements, setAnnouncements] = useState(0);
   const [groupName, setGroupName] = useState("");
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [manualRefresh, setManualRefresh] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+
   useEffect(() => {
-    void (async () => {
-      const [p, g, a, d] = await Promise.all([
-        localApiFetch(`/api/shifts?groupId=${groupId}`),
-        localApiFetch(`/api/groups/${groupId}`),
-        localApiFetch(`/api/groups/${groupId}/announcements`),
-        localApiFetch(`/api/groups/${groupId}/dashboard`),
-      ]);
-      if (p.ok) setPlans(((await p.json()) as { plans: Plan[] }).plans);
-      if (g.ok) {
+    let active = true;
+    async function load() {
+      if (active) setRefreshing(true);
+      try {
+        const [p, g, a, d] = await Promise.all([
+          localApiFetch(`/api/shifts?groupId=${groupId}`),
+          localApiFetch(`/api/groups/${groupId}`),
+          localApiFetch(`/api/groups/${groupId}/announcements`),
+          localApiFetch(`/api/groups/${groupId}/dashboard`),
+        ]);
+        if (!active) return;
+        if (!p.ok || !g.ok || !d.ok) throw new Error("ダッシュボード情報を取得できませんでした。");
+        const planData = (await p.json()) as { plans: Plan[] };
         const groupData = (await g.json()) as { group?: { name?: string }; members?: Array<{ status?: string }> };
+        const announcementData = a.ok ? (await a.json()) as { announcements?: unknown[] } : { announcements: [] };
+        setPlans(planData.plans ?? []);
         setGroupName(groupData.group?.name ?? "");
-        const rows = groupData.members ?? [];
-        setMembers(rows.filter((member) => member.status !== "inactive").length);
+        setMembers((groupData.members ?? []).filter((member) => member.status !== "inactive").length);
+        setAnnouncements(announcementData.announcements?.length ?? 0);
+        setDashboard((await d.json()) as DashboardData);
+        setError(null);
+        setLastUpdated(new Date());
+      } catch (caught) {
+        if (active) setError(caught instanceof Error ? caught.message : "更新に失敗しました。");
+      } finally {
+        if (active) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
-      if (a.ok)
-        setAnnouncements(
-          ((await a.json()) as { announcements?: unknown[] }).announcements
-            ?.length ?? 0,
-        );
-      if (d.ok) setDashboard((await d.json()) as DashboardData);
-      setLoading(false);
-    })();
-  }, [groupId]);
+    }
+    void load();
+    const timer = window.setInterval(() => void load(), 30_000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [groupId, manualRefresh]);
+
+  const publishedPlans = plans.filter((plan) => plan.status === "published");
+  const openPlans = plans.filter((plan) => getShiftDisplayStatus(plan) === "request-open");
+  const shortagePlans = plans.filter((plan) => plan.status === "published" && (plan.shortageSlotCount ?? 0) > 0);
+  const todayExceptions = dashboard?.todaySchedule.filter((item) => item.exception) ?? [];
+  const navigate = (view: DashboardView) => onNavigate?.(view);
+
   return (
     <section className="dashboard-panel">
       <div className="modal-head">
         <div>
           <p className="eyebrow">DASHBOARD</p>
-          <h2>グループ状況{groupName ? `（${groupName}）` : ""}</h2>
+          <h2>ダッシュボード{groupName ? `（${groupName}）` : ""}</h2>
+        </div>
+        <div className="dashboard-refresh">
+          <small>{lastUpdated ? `更新 ${lastUpdated.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}` : ""}</small>
+          <button className="small-action" type="button" disabled={refreshing} onClick={() => setManualRefresh((value) => value + 1)}>{refreshing ? "更新中…" : "更新"}</button>
         </div>
       </div>
-      {loading ? (
-        <p>読み込み中…</p>
-      ) : (
+      {error && <p className="dashboard-error">{error}（直前の表示を維持しています）</p>}
+      {loading ? <p>ダッシュボードを読み込んでいます…</p> : (
         <>
           <div className="dashboard-metrics">
-            <div>
-              <strong>{members}</strong>
-              <span>メンバー</span>
-            </div>
-            <div>
-              <strong>
-                {plans.filter((plan) => plan.status === "published").length}
-              </strong>
-              <span>公開済みシフト</span>
-            </div>
-            <div>
-              <strong>
-                {
-                  plans.filter(
-                    (plan) => getShiftDisplayStatus(plan) === "request-open",
-                  ).length
-                }
-              </strong>
-              <span>希望受付中</span>
-            </div>
-            <div>
-              <strong>{announcements}</strong>
-              <small className="dashboard-shortage-metric">公開済み不足 {plans.filter((plan) => plan.status === "published" && (plan.shortageSlotCount ?? 0) > 0).length}件／不足枠 {plans.filter((plan) => plan.status === "published").reduce((sum, plan) => sum + (plan.shortageSlotCount ?? 0), 0)}</small>
-              <span>お知らせ</span>
-            </div>
+            <div><strong>{members}</strong><span>メンバー</span></div>
+            <div><strong>{publishedPlans.length}</strong><span>公開済みシフト</span></div>
+            <div><strong>{openPlans.length}</strong><span>希望受付中</span></div>
+            <div><strong>{announcements}</strong><span>お知らせ</span><small className="dashboard-shortage-metric">未読 {dashboard?.announcements.unread ?? 0}件</small></div>
           </div>
-          <h3>最近のシフト</h3>
-          <div className="dashboard-plans">
-            {plans.slice(0, 5).map((plan) => (
-              <div key={plan.id}>
-                <strong>{plan.name}</strong>
-                <span>
-                  {plan.startDate}〜{plan.endDate}
-                </span>
-                {getShiftDisplayStatus(plan) === "request-open" && (
-                  <small>
-                    希望保存 {plan.requestSavedCount ?? 0}/
-                    {plan.requestMemberCount ?? members}
-                  </small>
-                )}
-                {plan.status === "published" && (plan.shortageSlotCount ?? 0) > 0 && (
-                  <small className="dashboard-plan-shortage">不足 {plan.shortageSlotCount}枠（{plan.shortageMemberCount}人）</small>
-                )}
-                <em className={getShiftDisplayStatus(plan)}>
-                  {getShiftDisplayLabel(getShiftDisplayStatus(plan))}
-                </em>
+
+          <div className="dashboard-action-grid">
+            <article className="dashboard-action-card">
+              <div className="dashboard-section-head"><h3>要対応</h3><small>優先度の高い順</small></div>
+              <div className="dashboard-todo-list">
+                <button type="button" className={dashboard?.announcements.unread ? "dashboard-todo urgent" : "dashboard-todo"} onClick={() => navigate("contact")}><strong>{dashboard?.announcements.unread ?? 0}</strong><span>未処理の連絡</span></button>
+                <button type="button" className={todayExceptions.length ? "dashboard-todo urgent" : "dashboard-todo"} onClick={() => navigate("daily-approval")}><strong>{todayExceptions.length}</strong><span>今日の勤怠例外</span></button>
+                <button type="button" className={dashboard?.approvals.dailyIssue ? "dashboard-todo warning" : "dashboard-todo"} onClick={() => navigate("daily-approval")}><strong>{dashboard?.approvals.dailyIssue ?? 0}</strong><span>日次承認の要確認</span></button>
+                <button type="button" className={shortagePlans.length ? "dashboard-todo warning" : "dashboard-todo"} onClick={() => navigate("shift-adjustment")}><strong>{shortagePlans.length}</strong><span>不足のある公開シフト</span></button>
               </div>
-            ))}
+            </article>
+            <article className="dashboard-action-card">
+              <div className="dashboard-section-head"><h3>今日の勤務状況</h3><small>{dashboard?.today ?? ""}</small></div>
+              {dashboard?.todaySchedule.length ? <div className="dashboard-today-list">{dashboard.todaySchedule.map((item, index) => <div key={`${item.userEmail}|${item.startTime}|${index}`}><strong>{item.displayName}</strong><span>{item.startTime}〜{item.endTime} {item.role || "共通"}</span><em className={`dashboard-attendance-status status-${item.status}`}>{item.status}</em></div>)}</div> : <p className="dashboard-empty">今日の公開済みシフトはありません。</p>}
+            </article>
           </div>
-          {dashboard && (
-            <>
-              <div className="dashboard-action-grid">
-                <article className="dashboard-action-card">
-                  <div className="dashboard-section-head"><h3>今日の勤務状況</h3><small>{dashboard.today}</small></div>
-                  {dashboard.todaySchedule.length ? (
-                    <div className="dashboard-today-list">
-                      {dashboard.todaySchedule.map((item, index) => (
-                        <div key={`${item.userEmail}|${item.startTime}|${index}`}>
-                          <strong>{item.displayName}</strong>
-                          <span>{item.startTime}〜{item.endTime} {item.role || "共通"}</span>
-                          <em className={`dashboard-attendance-status status-${item.status}`}>{item.status}</em>
-                        </div>
-                      ))}
-                    </div>
-                  ) : <p className="dashboard-empty">今日の公開済みシフトはありません。</p>}
-                </article>
-                <article className="dashboard-action-card">
-                  <div className="dashboard-section-head"><h3>要対応</h3><small>管理者向け</small></div>
-                  <div className="dashboard-todo-list">
-                    <div><strong>{dashboard.approvals.dailyPending}</strong><span>日次承認待ち</span></div>
-                    <div><strong>{dashboard.approvals.previousMonthPending}</strong><span>先月の月次承認待ち</span></div>
-                    <div><strong>{dashboard.closedBeforePublish.length}</strong><span>希望締切後・未公開</span></div>
-                    <div><strong>{dashboard.coverage.filter((item) => item.shortageSlotCount > 0).length}</strong><span>不足ありシフト</span></div>
-                  </div>
-                </article>
-              </div>
-              <div className="dashboard-request-list">
-                <div className="dashboard-section-head"><h3>希望受付</h3><small>締切と提出状況</small></div>
-                {dashboard.requestActionItems.length ? dashboard.requestActionItems.map((item) => (
-                  <div key={item.planId} className={item.daysUntilClose <= 2 ? "is-deadline-near" : ""}>
-                    <strong>{item.planName}</strong>
-                    <span>締切 {item.closesOn}</span>
-                    <span>希望保存 {item.savedCount}/{item.memberCount}</span>
-                    <em>{item.daysUntilClose < 0 ? "締切超過" : `あと${item.daysUntilClose}日`}</em>
-                  </div>
-                )) : <p className="dashboard-empty">現在、受付中の希望はありません。</p>}
-              </div>
-            </>
-          )}
+
+          <div className="dashboard-request-list">
+            <div className="dashboard-section-head"><h3>次にやること</h3><small>期限・締め処理</small></div>
+            {dashboard?.requestActionItems.length ? dashboard.requestActionItems.map((item) => <button type="button" key={item.planId} className={`dashboard-request-row ${item.daysUntilClose <= 2 ? "is-deadline-near" : ""}`} onClick={() => navigate("shift-requests")}><strong>{item.planName}</strong><span>締切 {shortDate(item.closesOn)}</span><span>提出 {item.savedCount}/{item.memberCount}人</span><em>{item.daysUntilClose < 0 ? "締切超過" : `あと${item.daysUntilClose}日`}</em></button>) : <p className="dashboard-empty">現在、受付中の希望はありません。</p>}
+            {dashboard?.closedBeforePublish.map((item) => <button type="button" className="dashboard-request-row is-deadline-near" key={`closed|${item.planId}`} onClick={() => navigate("shift-adjustment")}><strong>{item.planName}</strong><span>{shortDate(item.startDate)}〜{shortDate(item.endDate)}</span><span>希望締切後・未公開</span><em>対応</em></button>)}
+            {(dashboard?.approvals.previousMonthPending ?? 0) > 0 && <button type="button" className="dashboard-request-row" onClick={() => navigate("monthly-approval")}><strong>月次承認</strong><span>前月分</span><span>未承認 {dashboard?.approvals.previousMonthPending}人</span><em>確認</em></button>}
+          </div>
+
+          <h3>直近のシフト</h3>
+          <div className="dashboard-plans">{plans.slice(0, 5).map((plan) => <div key={plan.id}><strong>{plan.name}</strong><span>{shortDate(plan.startDate)}〜{shortDate(plan.endDate)}</span>{getShiftDisplayStatus(plan) === "request-open" && <small>提出 {plan.requestSavedCount ?? 0}/{plan.requestMemberCount ?? members}人</small>}{plan.status === "published" && (plan.shortageSlotCount ?? 0) > 0 && <small className="dashboard-plan-shortage">不足 {plan.shortageSlotCount}枠（{plan.shortageMemberCount}人）</small>}<em className={getShiftDisplayStatus(plan)}>{getShiftDisplayLabel(getShiftDisplayStatus(plan))}</em></div>)}</div>
         </>
       )}
     </section>
