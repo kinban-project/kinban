@@ -119,7 +119,9 @@ export async function GET(
   const senderNameByEmail = new Map(senderRows.map((row) => [row.userEmail, row.displayName?.trim() || roleLabels[row.role] || "管理者"]));
   const messagesWithSender = messages.map((message) => ({
     ...message,
-    senderDisplayName: message.senderType === "manager" ? senderNameByEmail.get(message.senderEmail) || "管理者" : null,
+    senderDisplayName: message.senderType === "assistant" || message.senderType === "system"
+      ? null
+      : senderNameByEmail.get(message.senderEmail) || (message.senderType === "manager" ? "管理者" : "メンバー"),
   }));
   const readerConversation = managerView ? "*" : user.email;
   const now = (await getDemoNow(id)).toISOString();
@@ -187,16 +189,6 @@ export async function POST(
       return Response.json({ error: "指定されたメンバーはこのグループに所属していません" }, { status: 404 });
     }
   }
-  const [assistant] = await db
-    .select()
-    .from(groupAssistants)
-    .where(eq(groupAssistants.groupId, id))
-    .limit(1);
-  if (!assistant || assistant.status !== "active")
-    return Response.json(
-      { error: "KINBANアシスタントは現在停止中です" },
-      { status: 409 },
-    );
   const messageId = crypto.randomUUID();
   const createdAt = (await getDemoNow(id)).toISOString();
   await db.insert(assistantMessages).values({
