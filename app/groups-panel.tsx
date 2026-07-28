@@ -180,22 +180,6 @@ export default function GroupsPanel({ onChanged, initialGroupId }: { onChanged: 
     </>}
     {selected && <div className="group-detail">
       <div className="modal-head"><div><p className="eyebrow">GROUP MANAGEMENT</p><h3>グループ管理（{selected.group.name}）</h3><small>メンバー・シフト／勤怠ルール・運営支援AIを管理します。　{selected.group.id}</small></div></div>
-      {isAdmin && <section className="group-rules-panel">
-        <h4>シフト・勤怠ルール</h4>
-        <label className="group-setting-toggle">
-          <input type="checkbox" checked={selected.group.autoBreakSuggestion !== false} onChange={(event) => void updateGroupRules(event.target.checked)} />
-          <span><strong>予定休憩を自動設定する</strong><small>同じ日の連続した勤務枠を勤務ブロックとして集計し、6時間を超える場合は45分、8時間を超える場合は60分の予定休憩を自動設定します。</small></span>
-        </label>
-      </section>}
-      {selected.membership.role === "owner" && selected.requests.filter((request) => request.status === "pending").length > 0 && <><h4>参加申請</h4>{selected.requests.filter((request) => request.status === "pending").map((request) => <div className="member-row" key={request.id}><span>{request.userEmail}</span><span><button className="small-action" onClick={() => void handleRequest(request.id, "approve")}>承認</button><button className="small-action danger" onClick={() => void handleRequest(request.id, "reject")}>却下</button></span></div>)}</>}
-      {isAdmin && <section className="group-invitation-panel">
-        <h4>メンバーを招待</h4>
-        <form className="group-invitation-form" onSubmit={inviteMember}>
-          <input type="email" required value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} placeholder="サイト利用者のメールアドレス" />
-          <button className="small-action" type="submit">招待</button>
-        </form>
-        {(selected.invitations ?? []).filter((invitation) => invitation.status === "pending").map((invitation) => <div className="group-invitation-row" key={invitation.id}><span>{invitation.inviteeEmail}</span><button className="small-action danger" type="button" onClick={() => void revokeInvitation(invitation.id)}>取消</button></div>)}
-      </section>}
       <div className="member-search"><input value={memberQuery} onChange={(event) => setMemberQuery(event.target.value)} placeholder="氏名・メールで検索" aria-label="メンバー検索" /><small>{filteredMembers.length}/{selected.members.length}人</small></div>
       <h4>メンバー</h4><div className="member-cards">{filteredMembers.map((member) => <article className={`member-card ${member.status === "inactive" ? "is-inactive" : ""}`} key={member.userEmail}>
         <div className="member-card-head"><div><strong>{member.displayName?.trim() || member.userEmail.split("@")[0]}</strong><small>{member.userEmail}</small></div><div className="member-card-badges">{member.status === "inactive" && <span className="member-status-badge inactive">利用停止</span>}{isAdmin && member.userEmail !== selected.group.ownerEmail && member.userEmail !== selected.currentEmail && <select className="member-role-select" value={member.role} onChange={(event) => void updateMember({ userEmail: member.userEmail, role: event.target.value })} aria-label={`${member.displayName?.trim() || member.userEmail}の権限`}><option value="member">メンバー</option><option value="editor">管理者</option></select>}</div></div>
@@ -204,6 +188,15 @@ export default function GroupsPanel({ onChanged, initialGroupId }: { onChanged: 
         {isAdmin && <label className="member-admin-note-field">管理者メモ<textarea defaultValue={member.adminNote ?? ""} placeholder="気を付けることなど" rows={2} onBlur={(event) => { const value = event.currentTarget.value.trim(); if (value !== (member.adminNote ?? "")) void updateMember({ userEmail: member.userEmail, adminNote: value }); }} /></label>}
         {isAdmin && member.role !== "owner" && member.userEmail !== selected.currentEmail && <div className="member-admin-actions"><button className="small-action" onClick={() => void changeStatus(member)}>{member.status === "inactive" ? "有効化" : "利用停止"}</button><button className="small-action danger" onClick={() => void removeMember(member)}>メンバーを削除</button></div>}
       </article>)}</div>
+      {isAdmin && <section className="group-invitation-panel">
+        <h4>メンバーを招待</h4>
+        <form className="group-invitation-form" onSubmit={inviteMember}>
+          <input type="email" required value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} placeholder="サイト利用者のメールアドレス" />
+          <button className="small-action" type="submit">招待</button>
+        </form>
+        {(selected.invitations ?? []).filter((invitation) => invitation.status === "pending").map((invitation) => <div className="group-invitation-row" key={invitation.id}><span>{invitation.inviteeEmail}</span><button className="small-action danger" type="button" onClick={() => void revokeInvitation(invitation.id)}>取消</button></div>)}
+      </section>}
+      {selected.membership.role === "owner" && selected.requests.filter((request) => request.status === "pending").length > 0 && <><h4>参加申請</h4>{selected.requests.filter((request) => request.status === "pending").map((request) => <div className="member-row" key={request.id}><span>{request.userEmail}</span><span><button className="small-action" onClick={() => void handleRequest(request.id, "approve")}>承認</button><button className="small-action danger" onClick={() => void handleRequest(request.id, "reject")}>却下</button></span></div>)}</>}
       {selected.assistant && <><h4>運営支援AI</h4><article className={`member-card assistant-member-card ${selected.assistant.status === "inactive" ? "is-inactive" : ""}`}>
         <div className="member-card-head"><div><strong>{selected.assistant.displayName}</strong><small>システムメンバー・シフト割当対象外</small></div><div className="member-card-badges"><span className="member-role-badge">管理者</span>{selected.assistant.status === "inactive" && <span className="member-status-badge inactive">利用停止</span>}</div></div>
         <p className="assistant-member-description">メンバーからのシフト・勤怠相談を受け付けます。管理者の直接指示、またはclaimした管理者メッセージに対して、下で有効にした操作を実行できます。</p>
@@ -217,6 +210,13 @@ export default function GroupsPanel({ onChanged, initialGroupId }: { onChanged: 
         {isAdmin && <div className="member-admin-actions"><button className="small-action" onClick={() => void changeAssistantStatus()}>{selected.assistant.status === "inactive" ? "再開" : "利用停止"}</button></div>}
       </article></>}
       {selected.assistant && isAdmin && <AssistantAccessPanel groupId={selected.group.id} />}
+      {isAdmin && <section className="group-rules-panel">
+        <h4>シフト・勤怠ルール</h4>
+        <label className="group-setting-toggle">
+          <input type="checkbox" checked={selected.group.autoBreakSuggestion !== false} onChange={(event) => void updateGroupRules(event.target.checked)} />
+          <span><strong>予定休憩を自動設定する</strong><small>同じ日の連続した勤務枠を勤務ブロックとして集計し、6時間を超える場合は45分、8時間を超える場合は60分の予定休憩を自動設定します。</small></span>
+        </label>
+      </section>}
       {!isAdmin && <p className="member-privacy-note">他のメンバーの勤務希望は表示せず、本人の情報だけ確認できます。</p>}
       <div className="group-detail-actions">{selected.membership.role === "owner" && <button className="small-action danger" onClick={() => void deleteGroup()}>グループを削除</button>}</div>
     </div>}
