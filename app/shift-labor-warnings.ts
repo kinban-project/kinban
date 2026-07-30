@@ -80,6 +80,12 @@ function requiredBreakMinutes(minutes: number) {
   return minutes > 480 ? 60 : minutes > 360 ? 45 : 0;
 }
 
+function formatHours(minutes: number) {
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return remainder ? `${hours}時間${remainder}分` : `${hours}時間`;
+}
+
 export function buildLaborWarnings({
   slots,
   assignments,
@@ -171,7 +177,7 @@ export function buildLaborWarnings({
           dates: [date],
           slotIds: blocks.flatMap((block) => block.slotIds),
           minutes: effectiveMinutes,
-          message: `${date} ${name}：予定実労働時間が${Math.floor(effectiveMinutes / 60)}時間${effectiveMinutes % 60}分で、8時間を超えています`,
+          message: `${date} ${name}：予定実労働時間が${formatHours(effectiveMinutes)}で、日上限${formatHours(laborRules.dailyHoursLimitMinutes)}を超えています`,
         });
       }
     }
@@ -197,7 +203,7 @@ export function buildLaborWarnings({
           dates: windowDates,
           slotIds: windowBlocks.flatMap((block) => block.slotIds),
           minutes: weeklyEffectiveMinutes,
-          message: `${windowDates[0]}〜${windowDates[6]} ${name}：週の予定実労働時間が${Math.floor(weeklyEffectiveMinutes / 60)}時間${weeklyEffectiveMinutes % 60}分で、40時間を超えています`,
+          message: `${windowDates[0]}〜${windowDates[6]} ${name}：週の予定実労働時間が${formatHours(weeklyEffectiveMinutes)}で、週上限${formatHours(laborRules.weeklyHoursLimitMinutes)}を超えています`,
         });
       }
     }
@@ -214,7 +220,7 @@ export function buildLaborWarnings({
           dates: [previous.date, current.date],
           slotIds: [...previous.slotIds, ...current.slotIds],
           minutes: rest,
-          message: `${current.date} ${name}：前回終業から次回始業までの間隔が${rest}分で、11時間未満です`,
+          message: `${current.date} ${name}：前回終業から次回始業までの間隔が${formatHours(rest)}で、休息間隔${formatHours(laborRules.restIntervalMinutes)}未満です`,
         });
       }
     }
@@ -233,7 +239,7 @@ export function buildLaborWarnings({
           memberName: name,
           dates: run,
           slotIds: memberSlots.filter((slot) => run.includes(slot.date)).map((slot) => slot.id),
-          message: `${run[0]}〜${run[run.length - 1]} ${name}：${run.length}日連続勤務になっています`,
+          message: `${run[0]}〜${run[run.length - 1]} ${name}：${run.length}日連続勤務です（連勤上限${laborRules.consecutiveDaysLimit}日）`,
         });
       }
       runStart = index;
@@ -250,7 +256,7 @@ export function buildLaborWarnings({
           memberName: name,
           dates: windowDates,
           slotIds: memberSlots.filter((slot) => windowDates.includes(slot.date)).map((slot) => slot.id),
-          message: `${windowDates[0]}〜${windowDates[6]} ${name}：週1日の休日を満たさない可能性があります`,
+          message: `${windowDates[0]}〜${windowDates[6]} ${name}：7日間で休日${offDays.length}日（休日数${laborRules.weeklyRestDaysRequired}日以上が必要）`,
         });
       }
     }
@@ -266,7 +272,7 @@ export function buildLaborWarnings({
           memberName: name,
           dates: windowDates,
           slotIds: memberSlots.filter((slot) => windowDates.includes(slot.date)).map((slot) => slot.id),
-          message: `${windowDates[0]}〜${windowDates[27]} ${name}：4週間で4日以上の休日を満たさない可能性があります`,
+          message: `${windowDates[0]}〜${windowDates[27]} ${name}：28日間で休日${offDays.length}日（休日数${laborRules.fourWeekRestDaysRequired}日以上が必要）`,
         });
       }
     }
