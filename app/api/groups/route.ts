@@ -55,7 +55,7 @@ export async function POST(request: Request) {
   const id = crypto.randomUUID();
   const db = getDb();
   await db.batch([
-    db.insert(groups).values({ id, name, description: body.description?.trim() ?? "", ownerEmail: user.email, visibility: "private", participationMode: "invite_only" }),
+    db.insert(groups).values({ id, name, description: body.description?.trim() ?? "", ownerEmail: user.email, visibility: "private", participationMode: "invite_only", laborConsecutiveDaysLimit: 7 }),
     db.insert(groupMembers).values({ id: crypto.randomUUID(), groupId: id, userEmail: user.email, role: "owner", showInPersonal: true }),
     db.insert(groupAssistants).values({ groupId: id }),
     db.insert(memoFolders).values([

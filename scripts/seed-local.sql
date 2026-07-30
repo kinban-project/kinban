@@ -130,8 +130,8 @@ INSERT INTO site_users (id, user_email, display_name, status, is_site_admin, can
   ('seed-site-night-cast-e', 'night-cast-e@local.test', 'キャストE', 'active', 0, 0),
   ('seed-site-night-cast-f', 'night-cast-f@local.test', 'キャストF', 'active', 0, 0);
 
-INSERT INTO groups (id, name, description, owner_email) VALUES
-  ('seed-group-store', 'サンプル店', '勤務枠・シフト・勤務申告のテスト用グループ', 'tanaka@local.test');
+INSERT INTO groups (id, name, description, owner_email, labor_consecutive_days_limit) VALUES
+  ('seed-group-store', 'サンプル店', '勤務枠・シフト・勤務申告のテスト用グループ', 'tanaka@local.test', 7);
 
 -- Local seed only. The raw key is documented in kinban-manager-agent/.env.example.
 -- Do not use this key outside the local development database.
@@ -415,9 +415,9 @@ INSERT INTO account_profiles (user_email, nickname) VALUES
   ('night-cast-a@local.test', 'キャストA'), ('night-cast-b@local.test', 'キャストB'), ('night-cast-c@local.test', 'キャストC'),
   ('night-cast-d@local.test', 'キャストD'), ('night-cast-e@local.test', 'キャストE'), ('night-cast-f@local.test', 'キャストF');
 
-INSERT INTO groups (id, name, description, owner_email) VALUES
-  ('seed-group-night-staff', 'A店スタッフ', 'ナイトクラブのスタッフ勤務を管理するサンプルグループ', 'night-manager@local.test'),
-  ('seed-group-night-cast', 'A店キャスト', 'ナイトクラブのキャスト勤務を管理するサンプルグループ', 'night-manager@local.test');
+INSERT INTO groups (id, name, description, owner_email, labor_consecutive_days_limit) VALUES
+  ('seed-group-night-staff', 'A店スタッフ', 'ナイトクラブのスタッフ勤務を管理するサンプルグループ', 'night-manager@local.test', 7),
+  ('seed-group-night-cast', 'A店キャスト', 'ナイトクラブのキャスト勤務を管理するサンプルグループ', 'night-manager@local.test', 7);
 INSERT INTO group_assistants (group_id, display_name, role, status, can_create_shifts, can_publish_shifts, can_review_daily_work, can_review_monthly_work, can_create_announcements) VALUES
   ('seed-group-night-staff', 'KINBANアシスタント', 'editor', 'active', true, true, true, false, true),
   ('seed-group-night-cast', 'KINBANアシスタント', 'editor', 'active', true, true, true, false, true);

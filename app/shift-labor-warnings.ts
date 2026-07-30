@@ -108,7 +108,7 @@ export function buildLaborWarnings({
     dailyHoursLimitMinutes: Math.max(1, rules.dailyHoursLimitMinutes ?? 480),
     weeklyHoursLimitMinutes: Math.max(1, rules.weeklyHoursLimitMinutes ?? 2400),
     restIntervalMinutes: Math.max(0, rules.restIntervalMinutes ?? 660),
-    consecutiveDaysLimit: Math.max(1, rules.consecutiveDaysLimit ?? 6),
+    consecutiveDaysLimit: Math.max(1, rules.consecutiveDaysLimit ?? 7),
     weeklyRestDaysRequired: Math.max(0, rules.weeklyRestDaysRequired ?? 1),
     fourWeekRestDaysRequired: Math.max(0, rules.fourWeekRestDaysRequired ?? 4),
   };

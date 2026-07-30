@@ -48,7 +48,7 @@ export const groups = sqliteTable("groups", {
   laborDailyHoursLimitMinutes: integer("labor_daily_hours_limit_minutes").notNull().default(480),
   laborWeeklyHoursLimitMinutes: integer("labor_weekly_hours_limit_minutes").notNull().default(2400),
   laborRestIntervalMinutes: integer("labor_rest_interval_minutes").notNull().default(660),
-  laborConsecutiveDaysLimit: integer("labor_consecutive_days_limit").notNull().default(6),
+  laborConsecutiveDaysLimit: integer("labor_consecutive_days_limit").notNull().default(7),
   laborWeeklyRestDaysRequired: integer("labor_weekly_rest_days_required").notNull().default(1),
   laborFourWeekRestDaysRequired: integer("labor_four_week_rest_days_required").notNull().default(4),
   createdAt: text("created_at")
