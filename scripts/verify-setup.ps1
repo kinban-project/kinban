@@ -1,12 +1,14 @@
 [CmdletBinding()]
 param(
   [string]$BaseUrl = "http://localhost:3003",
+  [string]$ManagerAgentPath = ".\kinban-manager-agent",
   [switch]$SkipMcp
 )
 
 $ErrorActionPreference = "Stop"
 $root = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
-$envFile = Join-Path $root ".env.local"
+$managerAgentRoot = [System.IO.Path]::GetFullPath((Join-Path $root $ManagerAgentPath))
+$envFile = Join-Path $managerAgentRoot ".env.local"
 
 function Read-DotEnv([string]$Path) {
   $values = @{}
@@ -21,6 +23,7 @@ function Read-DotEnv([string]$Path) {
 }
 
 Write-Host "KINBAN connectivity check: $BaseUrl"
+Write-Host "MCP configuration file: $envFile"
 $homeResponse = Invoke-WebRequest -Uri ($BaseUrl.TrimEnd("/") + "/") -UseBasicParsing
 if ($homeResponse.StatusCode -ne 200) { throw "Home page HTTP status is not 200: $($homeResponse.StatusCode)" }
 Write-Host "OK: home page HTTP $($homeResponse.StatusCode)"
@@ -35,7 +38,7 @@ $mcpUrl = $values["KINBAN_MCP_URL"]
 $apiKey = $values["KINBAN_ASSISTANT_API_KEY"]
 $groupId = $values["KINBAN_GROUP_ID"]
 if (-not $mcpUrl -or -not $apiKey -or -not $groupId) {
-  Write-Host "MCP check skipped. Set KINBAN_MCP_URL, KINBAN_ASSISTANT_API_KEY, and KINBAN_GROUP_ID in .env.local to enable it."
+  Write-Host "MCP check skipped. Set KINBAN_MCP_URL, KINBAN_ASSISTANT_API_KEY, and KINBAN_GROUP_ID in $envFile to enable it."
   exit 0
 }
 
