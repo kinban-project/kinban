@@ -10,6 +10,11 @@ const docs = [
   "docs/DATABASE.md",
   "docs/AUTHORIZATION.md",
   "docs/TESTING.md",
+  "docs/KINBANガイド目次.md",
+  "docs/管理者ガイド.md",
+  "docs/運営支援AIガイド.md",
+  "docs/サイト管理者ガイド.md",
+  "docs/操作カタログ.md",
 ];
 
 test("technical documentation set exists and links to source of truth", async () => {
