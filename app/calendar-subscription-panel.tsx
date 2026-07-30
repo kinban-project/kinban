@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getLocalUserId, localApiFetch } from "./local-api";
+import { isDemoModeClient } from "./client-demo-mode";
 
 type Subscription = { status: "unconfigured" | "active" | "revoked"; tokenPrefix?: string | null; createdAt?: string | null };
 
@@ -10,15 +11,18 @@ export default function CalendarSubscriptionPanel({ groupId }: { groupId: string
   const [feedUrl, setFeedUrl] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
-  const storageKey = `kinban-calendar-feed:${groupId}:${getLocalUserId()}`;
+  const demoMode = isDemoModeClient();
+  const storageKey = demoMode ? `kinban-calendar-feed:${groupId}:${getLocalUserId()}` : "";
 
   useEffect(() => {
-    const saved = window.localStorage.getItem(storageKey);
-    if (saved) setFeedUrl(saved);
+    if (demoMode) {
+      const saved = window.localStorage.getItem(storageKey);
+      if (saved) setFeedUrl(saved);
+    }
     void localApiFetch(`/api/groups/${groupId}/calendar-subscription`).then(async (response) => {
       if (response.ok) setSubscription(await response.json() as Subscription);
     });
-  }, [groupId, storageKey]);
+  }, [demoMode, groupId, storageKey]);
 
   async function act(action: "issue" | "reissue" | "revoke") {
     if (action === "reissue" && !window.confirm("現在の購読URLを無効にして、新しいURLを発行しますか？")) return;
@@ -28,8 +32,14 @@ export default function CalendarSubscriptionPanel({ groupId }: { groupId: string
     const data = await response.json().catch(() => ({})) as { status?: Subscription["status"]; tokenPrefix?: string; feedUrl?: string; error?: string };
     if (response.ok) {
       setSubscription({ status: data.status ?? (action === "revoke" ? "revoked" : "active"), tokenPrefix: data.tokenPrefix });
-      if (data.feedUrl) { setFeedUrl(data.feedUrl); window.localStorage.setItem(storageKey, data.feedUrl); }
-      if (action === "revoke") { setFeedUrl(""); window.localStorage.removeItem(storageKey); }
+      if (data.feedUrl) {
+        setFeedUrl(data.feedUrl);
+        if (demoMode) window.localStorage.setItem(storageKey, data.feedUrl);
+      }
+      if (action === "revoke") {
+        setFeedUrl("");
+        if (demoMode) window.localStorage.removeItem(storageKey);
+      }
       setNotice(action === "revoke" ? "カレンダー連携を停止しました。" : "購読URLを発行しました。URLは外部に公開しないでください。");
     } else setNotice(data.error ?? "カレンダー連携を更新できませんでした。");
     setBusy(false);
