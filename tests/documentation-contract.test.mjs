@@ -16,7 +16,7 @@ test("technical documentation set exists and links to source of truth", async ()
   const contents = await Promise.all(docs.map((file) => readFile(resolve(root, file), "utf8")));
   for (const content of contents) {
     assert.match(content, /^# /m);
-    assert.doesNotMatch(content, /sk-[A-Za-z0-9_-]{12,}|mcp_[A-Za-z0-9_-]{12,}/);
+    assert.doesNotMatch(content, /(?:sk-|mcp_|md_)[A-Za-z0-9_-]{12,}/);
   }
   assert.match(contents[0], /db\/schema\.ts/);
   assert.match(contents[2], /drizzle\//);
