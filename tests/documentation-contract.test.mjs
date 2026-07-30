@@ -28,5 +28,8 @@ test("technical documentation set exists and links to source of truth", async ()
   assert.match(contents[4], /npm test/);
   assert.match(contents[5], /管理者ガイド/);
   assert.match(contents[9], /関連MCP/);
+  assert.match(contents[9], /submit_work_record/);
+  assert.doesNotMatch(contents[9], /review_work_record/);
+  assert.match(contents[9], /\/api\/groups\/:id\/assistant`/);
 });
 
