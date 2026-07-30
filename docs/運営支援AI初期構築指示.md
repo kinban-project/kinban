@@ -14,3 +14,8 @@
 - DB螟画峩縺ｮ譛臥┌
 - 谺｡縺ｫ莠ｺ髢薙′遒ｺ隱阪☆繧区桃菴・
 螟ｱ謨励＠縺溷ｴ蜷医・縲√←縺ｮ谿ｵ髫弱〒豁｢縺ｾ縺｣縺溘°縲？TTP繧ｹ繝・・繧ｿ繧ｹ縲∝・迴ｾ譚｡莉ｶ繧貞ｱ蜻翫＠縲∫ｧ伜ｯ・､縺ｯ莨上○縺ｾ縺吶・
+
+
+## MCP verification configuration
+
+Use one canonical location for MCP verification: the deployed manager-agent folder's `.env.local`. The KINBAN app `.env.local` is for app settings only. From the KINBAN root, run `scripts/verify-setup.ps1 -ManagerAgentPath .\\kinban-manager-agent-local`; the manager-agent `scripts/verify-connection.ps1` reads the same file. Both checks perform read-only `list_groups` verification and never print the key.
