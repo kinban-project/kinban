@@ -11,8 +11,10 @@
 5. ローカルDBを初期化する場合は、対象がローカルであることとデータ消去を明示してから`-SeedLocal`を使います。
 6. 開発サーバーを起動し、`scripts/verify-setup.ps1 -SkipMcp`でホームの読み取り確認をします。
 7. 管理者から受け取ったグループ専用キーだけを運営支援AIの`.env.local`へ設定します。
-8. `kinban-manager-agent/scripts/verify-connection.ps1`で`list_groups`だけを確認します。
-9. 接続確認の後、対象グループ・対象期間・実行したい操作を明示して作業を始めます。
+8. MCP設定は展開先フォルダの`.env.local`に統一します。本体側`.env.local`には設定しません。
+9. KINBANルートから`scripts/verify-setup.ps1 -ManagerAgentPath .\kinban-manager-agent-local`を実行し、同じ展開先`.env.local`を使って`list_groups`だけを確認します。
+10. `kinban-manager-agent/scripts/verify-connection.ps1`でも同じ`.env.local`を使って`list_groups`だけを確認できます。
+11. 接続確認の後、対象グループ・対象期間・実行したい操作を明示して作業を始めます。
 
 ## 禁止すること
 

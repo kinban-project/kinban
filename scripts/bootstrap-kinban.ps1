@@ -27,8 +27,11 @@ Require-Command "npm"
 Require-Command "npx"
 
 $nodeVersion = (& node --version).Trim().TrimStart("v")
-try { $nodeMajor = [int]($nodeVersion.Split(".")[0]) } catch { throw "Cannot determine Node.js version: $nodeVersion" }
-if ($nodeMajor -lt 22) { throw "Node.js 22.13 or newer is required. Current: $nodeVersion" }
+$nodeVersionMatch = [regex]::Match($nodeVersion, "^(?<version>\d+\.\d+\.\d+)")
+if (-not $nodeVersionMatch.Success) { throw "Cannot determine Node.js version: $nodeVersion" }
+try { $parsedNodeVersion = [Version]$nodeVersionMatch.Groups["version"].Value } catch { throw "Cannot determine Node.js version: $nodeVersion" }
+$minimumNodeVersion = [Version]"22.13.0"
+if ($parsedNodeVersion -lt $minimumNodeVersion) { throw "Node.js 22.13.0 or newer is required. Current: $nodeVersion" }
 
 Write-Host "[1/5] KINBAN working directory: $root"
 Write-Host "Node.js: $nodeVersion"
