@@ -65,7 +65,6 @@ export default function GroupPreferencesPanel({
     freeComment: "",
   });
   const [groupNickname, setGroupNickname] = useState("");
-  const [copySourceDay, setCopySourceDay] = useState(1);
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -258,16 +257,6 @@ export default function GroupPreferencesPanel({
           />
         </label>
       </div>
-      <div className="preference-copy-tools">
-        <label>
-          コピー元
-          <select value={copySourceDay} onChange={(event) => setCopySourceDay(Number(event.target.value))}>
-            {labels.map((label, day) => <option key={day} value={day}>{label}曜日</option>)}
-          </select>
-        </label>
-        <button type="button" className="small-action" onClick={() => copyDay(copySourceDay, [1, 2, 3, 4, 5].filter((day) => day !== copySourceDay))}>平日に適用</button>
-        <button type="button" className="small-action" onClick={() => copyDay(copySourceDay, labels.map((_, day) => day).filter((day) => day !== copySourceDay))}>他の曜日へコピー</button>
-      </div>
       <label className="preference-comment">
         固定休・授業・本業などのフリーコメント
         <textarea
@@ -350,6 +339,13 @@ export default function GroupPreferencesPanel({
                 onClick={() => addDay(day)}
               >
                 ＋時間帯を追加
+              </button>
+              <button
+                type="button"
+                className="small-action"
+                onClick={() => copyDay(day, labels.map((_, target) => target).filter((target) => target !== day))}
+              >
+                他の曜日へコピー
               </button>
             </div>
           </div>
