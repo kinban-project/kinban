@@ -34,3 +34,4 @@ test("technical documentation set exists and links to source of truth", async ()
   assert.match(contents[9], /お知らせ管理 \| お知らせを作成・配信する.*create_announcement/);
   assert.doesNotMatch(contents[9], /お知らせ管理 \| お知らせを作成・配信する.*send_member_message/);
 });
+

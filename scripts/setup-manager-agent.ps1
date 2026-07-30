@@ -26,3 +26,4 @@ if ((Test-Path -LiteralPath $envExample) -and -not (Test-Path -LiteralPath $envL
 Write-Host "Manager agent destination: $destinationPath"
 Write-Host "Set KINBAN_MCP_URL, KINBAN_ASSISTANT_API_KEY, and KINBAN_GROUP_ID in $envLocal."
 Write-Host "Then run scripts/verify-connection.ps1, or from the KINBAN root run verify-setup.ps1 -ManagerAgentPath `"$destinationPath`"."
+

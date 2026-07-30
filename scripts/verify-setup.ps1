@@ -64,3 +64,4 @@ $groups = $text | ConvertFrom-Json
 if (-not ($groups | Where-Object { $_.id -eq $groupId })) { throw "The configured group ID is not available to this key." }
 Write-Host "OK: MCP read-only connection and target group verified."
 Write-Host "No data was changed."
+

@@ -1,37 +1,21 @@
-# 運営支援AIへ渡す初期構築指示
+# 驕句霧謾ｯ謠ｴAI縺ｸ貂｡縺吝・譛滓ｧ狗ｯ画欠遉ｺ
 
-これは、KINBANをGitHubから取得した直後に、開発・運用AIが読むための指示書です。
+縺薙ｌ縺ｯ縲゜INBAN繧竪itHub縺九ｉ蜿門ｾ励＠縺溽峩蠕後↓縲・幕逋ｺ繝ｻ驕狗畑AI縺瑚ｪｭ繧縺溘ａ縺ｮ謖・､ｺ譖ｸ縺ｧ縺吶・
+## 騾ｲ繧∵婿
 
-## 進め方
+1. `README.md`縲～docs/蛻晄悄讒狗ｯ峨ぎ繧､繝・md`縲～OPERATIONS.md`繧定ｪｭ縺ｿ縺ｾ縺吶・2. Node.js/npm縲∽ｽ懈･ｭ繝・ぅ繝ｬ繧ｯ繝医Μ縲；it縺ｮ繝悶Λ繝ｳ繝√→譛ｪ繧ｳ繝溘ャ繝亥､画峩繧堤｢ｺ隱阪＠縺ｾ縺吶・3. `.env.local`縺ｮ蟄伜惠縺縺代ｒ遒ｺ隱阪＠縺ｾ縺吶ょ､繧・ｧ伜ｯ・ｒ蜃ｺ蜉帙＠縺ｾ縺帙ｓ縲・4. `scripts/bootstrap-kinban.ps1`繧偵√∪縺嘖eed縺ｪ縺励・襍ｷ蜍輔↑縺励〒螳溯｡後＠縲∝ｿ・ｦ√↑繧我ｾ晏ｭ倬未菫ゅｒ謨ｴ縺医∪縺吶・5. 繝ｭ繝ｼ繧ｫ繝ｫDB繧貞・譛溷喧縺吶ｋ蝣ｴ蜷医・縲∝ｯｾ雎｡縺後Ο繝ｼ繧ｫ繝ｫ縺ｧ縺ゅｋ縺薙→縺ｨ繝・・繧ｿ豸亥悉繧呈・遉ｺ縺励※縺九ｉ`-SeedLocal`繧剃ｽｿ縺・∪縺吶・6. 髢狗匱繧ｵ繝ｼ繝舌・繧定ｵｷ蜍輔＠縲～scripts/verify-setup.ps1 -SkipMcp`縺ｧ繝帙・繝縺ｮ隱ｭ縺ｿ蜿悶ｊ遒ｺ隱阪ｒ縺励∪縺吶・7. 邂｡逅・・°繧牙女縺大叙縺｣縺溘げ繝ｫ繝ｼ繝怜ｰら畑繧ｭ繝ｼ縺縺代ｒ驕句霧謾ｯ謠ｴAI縺ｮ`.env.local`縺ｸ險ｭ螳壹＠縺ｾ縺吶・8. `kinban-manager-agent/scripts/verify-connection.ps1`縺ｧ`list_groups`縺縺代ｒ遒ｺ隱阪＠縺ｾ縺吶・9. 謗･邯夂｢ｺ隱阪・蠕後∝ｯｾ雎｡繧ｰ繝ｫ繝ｼ繝励・蟇ｾ雎｡譛滄俣繝ｻ螳溯｡後＠縺溘＞謫堺ｽ懊ｒ譏守､ｺ縺励※菴懈･ｭ繧貞ｧ九ａ縺ｾ縺吶・
+## 遖∵ｭ｢縺吶ｋ縺薙→
 
-1. `README.md`、`docs/初期構築ガイド.md`、`OPERATIONS.md`を読みます。
-2. Node.js/npm、作業ディレクトリ、Gitのブランチと未コミット変更を確認します。
-3. `.env.local`の存在だけを確認します。値や秘密を出力しません。
-4. `scripts/bootstrap-kinban.ps1`を、まずseedなし・起動なしで実行し、必要なら依存関係を整えます。
-5. ローカルDBを初期化する場合は、対象がローカルであることとデータ消去を明示してから`-SeedLocal`を使います。
-6. 開発サーバーを起動し、`scripts/verify-setup.ps1 -SkipMcp`でホームの読み取り確認をします。
-7. 管理者から受け取ったグループ専用キーだけを運営支援AIの`.env.local`へ設定します。
-8. MCP設定は展開先フォルダの`.env.local`に統一します。本体側`.env.local`には設定しません。
-9. KINBANルートから`scripts/verify-setup.ps1 -ManagerAgentPath .\kinban-manager-agent-local`を実行し、同じ展開先`.env.local`を使って`list_groups`だけを確認します。
-10. `kinban-manager-agent/scripts/verify-connection.ps1`でも同じ`.env.local`を使って`list_groups`だけを確認できます。
-11. 接続確認の後、対象グループ・対象期間・実行したい操作を明示して作業を始めます。
+- 譛ｬ逡ｪ繝ｻ蜈ｬ髢九ョ繝｢縺ｮDB繧偵√Θ繝ｼ繧ｶ繝ｼ縺ｮ譏守､ｺ縺ｪ縺励↓繝ｪ繧ｻ繝・ヨ縺励↑縺・・- API繧ｭ繝ｼ縲＾Auth繧ｷ繝ｼ繧ｯ繝ｬ繝・ヨ縲∵魚蠕・RL縲∝倶ｺｺ諠・ｱ繧偵Ο繧ｰ繝ｻIssue繝ｻGit縺ｸ譖ｸ縺九↑縺・・- MCP縺ｧ蛻･繧ｰ繝ｫ繝ｼ繝悠D縲∝挨繧ｭ繝ｼ縲∝挨繝ｦ繝ｼ繧ｶ繝ｼ繧呈耳貂ｬ縺励※蜀崎ｩｦ陦後＠縺ｪ縺・・- 隱ｭ縺ｿ蜿悶ｊ遒ｺ隱阪・縺､繧ゅｊ縺ｧ縲√す繝輔ヨ蜈ｬ髢九・謇ｿ隱阪・騾夂衍縺ｪ縺ｩ縺ｮ譖ｸ縺崎ｾｼ縺ｿ繧定｡後ｏ縺ｪ縺・・- `sourceMessageId`繧ЯclaimId`縺悟ｿ・ｦ√↑繝｡繝・そ繝ｼ繧ｸ蜃ｦ逅・ｒ縲∝､縺ｪ縺励〒謗ｨ貂ｬ螳溯｡後＠縺ｪ縺・・
+## 菴懈･ｭ蝣ｱ蜻・
+譛蠕後↓縲∵ｬ｡縺ｮ蠖｢蠑上〒蝣ｱ蜻翫＠縺ｾ縺吶・
+- 遒ｺ隱阪＠縺溽腸蠅・→URL
+- 螳溯｡後＠縺溘さ繝槭Φ繝会ｼ育ｧ伜ｯ・､繧帝勁縺擾ｼ・- 隱ｭ縺ｿ蜿悶ｊ遒ｺ隱阪・邨先棡
+- DB螟画峩縺ｮ譛臥┌
+- 谺｡縺ｫ莠ｺ髢薙′遒ｺ隱阪☆繧区桃菴・
+螟ｱ謨励＠縺溷ｴ蜷医・縲√←縺ｮ谿ｵ髫弱〒豁｢縺ｾ縺｣縺溘°縲？TTP繧ｹ繝・・繧ｿ繧ｹ縲∝・迴ｾ譚｡莉ｶ繧貞ｱ蜻翫＠縲∫ｧ伜ｯ・､縺ｯ莨上○縺ｾ縺吶・
 
-## 禁止すること
 
-- 本番・公開デモのDBを、ユーザーの明示なしにリセットしない。
-- APIキー、OAuthシークレット、招待URL、個人情報をログ・Issue・Gitへ書かない。
-- MCPで別グループID、別キー、別ユーザーを推測して再試行しない。
-- 読み取り確認のつもりで、シフト公開・承認・通知などの書き込みを行わない。
-- `sourceMessageId`や`claimId`が必要なメッセージ処理を、値なしで推測実行しない。
+## MCP verification configuration
 
-## 作業報告
-
-最後に、次の形式で報告します。
-
-- 確認した環境とURL
-- 実行したコマンド（秘密値を除く）
-- 読み取り確認の結果
-- DB変更の有無
-- 次に人間が確認する操作
-
-失敗した場合は、どの段階で止まったか、HTTPステータス、再現条件を報告し、秘密値は伏せます。
+Use one canonical location for MCP verification: the deployed manager-agent folder's `.env.local`. The KINBAN app `.env.local` is for app settings only. From the KINBAN root, run `scripts/verify-setup.ps1 -ManagerAgentPath .\\kinban-manager-agent-local`; the manager-agent `scripts/verify-connection.ps1` reads the same file. Both checks perform read-only `list_groups` verification and never print the key.

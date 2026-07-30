@@ -50,3 +50,4 @@
 - 技術的な安全条件: `docs/AUTHORIZATION.md`、`docs/TESTING.md`
 - 店舗固有の手順: KINBAN画面の業務ガイド
 - 実際の操作結果: 操作ログ、対象画面、API/MCPのレスポンス
+
