@@ -109,6 +109,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     nextVersion = locked.version;
   }
   const slots = await db.select().from(shiftSlots).where(eq(shiftSlots.planId, id));
+  let currentSlots = slots;
   const beforeAssignmentChunks = await Promise.all(chunk(slots.map((slot) => slot.id), 50).map((slotIds) => slotIds.length ? db.select().from(shiftAssignments).where(inArray(shiftAssignments.slotId, slotIds)) : Promise.resolve([])));
   const beforeAssignments = beforeAssignmentChunks.flat();
   const [requestPeriod] = await db.select().from(shiftRequestPeriods).where(eq(shiftRequestPeriods.planId, id)).limit(1);
@@ -126,8 +127,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     if (body.requestCloseDate && requestPeriod?.status === "pending") statements.push(db.update(shiftRequestPeriods).set({ closesOn: body.requestCloseDate }).where(eq(shiftRequestPeriods.id, requestPeriod.id)));
     await db.batch(statements);
     await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: "shift.update", entityType: "shiftPlan", entityId: id, summary: `シフト枠を保存: ${plan.name}`, details: { slotCount: nextSlots.length, closedDates: body.layout.closedDates ?? [] } });
-     if (plan.status === "published") await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: "shift.update", entityType: "shiftPlan", entityId: id, summary: `公開済みシフトの枠を更新: ${plan.name}`, details: { changeType: "layout", reason: body.reason?.trim().slice(0, 300) ?? "", changedSlotCount: layoutChanges.length, changedSlots: layoutChanges.slice(0, 40), closedDates: body.layout.closedDates ?? [] } });
-     if (body.action !== "start-requests") return Response.json({ ok: true, slotCount: nextSlots.length });
+    if (plan.status === "published") await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: "shift.update", entityType: "shiftPlan", entityId: id, summary: `公開済みシフトの枠を更新: ${plan.name}`, details: { changeType: "layout", reason: body.reason?.trim().slice(0, 300) ?? "", changedSlotCount: layoutChanges.length, changedSlots: layoutChanges.slice(0, 40), closedDates: body.layout.closedDates ?? [] } });
+    currentSlots = await db.select().from(shiftSlots).where(eq(shiftSlots.planId, id));
+    if (body.action !== "start-requests" && body.assignments === undefined) return Response.json({ ok: true, slotCount: nextSlots.length });
   }
   if (body.action === "start-requests") {
     if (!requestPeriod || requestPeriod.status !== "pending") return Response.json({ error: "この勤務枠はすでに受付開始済みです" }, { status: 409 });
@@ -145,10 +147,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const members = await db.select().from(groupMembers).where(and(eq(groupMembers.groupId, plan.groupId), eq(groupMembers.status, "active")));
   const validUsers = new Set(members.map((member) => member.userEmail));
   const requested = body.assignments ?? {};
-  const allRows = slots.flatMap((slot) => [...new Set((requested[slot.id] ?? []).filter((email) => validUsers.has(email)))].map((userEmail) => ({ id: crypto.randomUUID(), slotId: slot.id, userEmail })));
+  const allRows = currentSlots.flatMap((slot) => [...new Set((requested[slot.id] ?? []).filter((email) => validUsers.has(email)))].map((userEmail) => ({ id: crypto.randomUUID(), slotId: slot.id, userEmail })));
   const [groupRules] = await db.select({ autoBreakSuggestion: groups.autoBreakSuggestion, laborPlannedBreakWarning: groups.laborPlannedBreakWarning, laborDailyHoursWarning: groups.laborDailyHoursWarning, laborWeeklyHoursWarning: groups.laborWeeklyHoursWarning, laborRestIntervalWarning: groups.laborRestIntervalWarning, laborConsecutiveDaysWarning: groups.laborConsecutiveDaysWarning, laborWeeklyRestWarning: groups.laborWeeklyRestWarning, laborDailyHoursLimitMinutes: groups.laborDailyHoursLimitMinutes, laborWeeklyHoursLimitMinutes: groups.laborWeeklyHoursLimitMinutes, laborRestIntervalMinutes: groups.laborRestIntervalMinutes, laborConsecutiveDaysLimit: groups.laborConsecutiveDaysLimit, laborWeeklyRestDaysRequired: groups.laborWeeklyRestDaysRequired, laborFourWeekRestDaysRequired: groups.laborFourWeekRestDaysRequired }).from(groups).where(eq(groups.id, plan.groupId)).limit(1);
   const laborWarnings = buildLaborWarnings({
-    slots,
+    slots: currentSlots,
     assignments: allRows,
     members,
     autoBreakSuggestion: groupRules?.autoBreakSuggestion !== false,
@@ -157,7 +159,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     planEndDate: plan.endDate,
   });
   const warnings: string[] = [
-    ...slots.flatMap((slot) => {
+    ...currentSlots.flatMap((slot) => {
       const count = new Set(requested[slot.id] ?? []).size;
       return count < slot.requiredCount ? [`${slot.date} ${slot.startTime}：必要人数${slot.requiredCount}人に対して${count}人です`] : count > slot.requiredCount ? [`${slot.date} ${slot.startTime}：必要人数を${count - slot.requiredCount}人超えています`] : [];
     }),
@@ -175,14 +177,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     users.add(row.userEmail);
     afterBySlot.set(row.slotId, users);
   }
-  const assignmentChanges = slots.flatMap((slot) => {
+  const assignmentChanges = currentSlots.flatMap((slot) => {
     const before = beforeBySlot.get(slot.id) ?? new Set<string>();
     const after = afterBySlot.get(slot.id) ?? new Set<string>();
     const added = [...after].filter((email) => !before.has(email));
     const removed = [...before].filter((email) => !after.has(email));
     return added.length || removed.length ? [{ date: slot.date, startTime: slot.startTime, endTime: slot.endTime, role: slot.role, added, removed }] : [];
   });
-  const assignedSlots = slots.flatMap((slot) => [...new Set(requested[slot.id] ?? [])].map((userEmail) => ({ slot, userEmail })));
+  const assignedSlots = currentSlots.flatMap((slot) => [...new Set(requested[slot.id] ?? [])].map((userEmail) => ({ slot, userEmail })));
   for (let index = 0; index < assignedSlots.length; index += 1) {
     for (let nextIndex = index + 1; nextIndex < assignedSlots.length; nextIndex += 1) {
       const left = assignedSlots[index];
@@ -191,7 +193,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     }
   }
   const status = body.status ?? plan.status;
-  const statements = chunk(slots.map((slot) => slot.id), 50).map((slotIds) => db.delete(shiftAssignments).where(inArray(shiftAssignments.slotId, slotIds)));
+  const statements = chunk(currentSlots.map((slot) => slot.id), 50).map((slotIds) => db.delete(shiftAssignments).where(inArray(shiftAssignments.slotId, slotIds)));
   for (const rows of chunk(allRows, 8)) statements.push(db.insert(shiftAssignments).values(rows));
   statements.push(db.update(shiftPlans).set({ ...(nextName !== undefined ? { name: nextName } : {}), status, ...(expectedVersion === undefined ? { version: nextVersion } : {}) }).where(eq(shiftPlans.id, id)));
   if (status === "published") {
@@ -199,7 +201,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const profiles = members.length ? await db.select().from(accountProfiles).where(inArray(accountProfiles.userEmail, members.map((member) => member.userEmail))) : [];
     const memberNames = new Map(members.map((member) => [member.userEmail, member.displayName?.trim() || profiles.find((profile) => profile.userEmail === member.userEmail)?.nickname?.trim() || member.userEmail.split("@")[0]]));
     const [group] = await db.select().from(groups).where(eq(groups.id, plan.groupId)).limit(1);
-    const publishedEvents = slots.map((slot) => ({ slot, assigned: allRows.filter((row) => row.slotId === slot.id).map((row) => memberNames.get(row.userEmail) ?? row.userEmail) })).filter((item) => item.assigned.length > 0).map((item) => { const start = shiftDateTime(item.slot.date, item.slot.startTime); const end = shiftDateTime(item.slot.date, item.slot.endTime); return { id: crypto.randomUUID(), ownerEmail: plan.createdBy, groupId: plan.groupId, shiftPlanId: id, title: item.slot.role?.trim() || group?.name || "予定", date: start.date, endDate: end.date, startTime: start.time, endTime: end.time, category: "仕事", notes: `担当：${item.assigned.join("、")}`, completed: false }; });
+    const publishedEvents = currentSlots.map((slot) => ({ slot, assigned: allRows.filter((row) => row.slotId === slot.id).map((row) => memberNames.get(row.userEmail) ?? row.userEmail) })).filter((item) => item.assigned.length > 0).map((item) => { const start = shiftDateTime(item.slot.date, item.slot.startTime); const end = shiftDateTime(item.slot.date, item.slot.endTime); return { id: crypto.randomUUID(), ownerEmail: plan.createdBy, groupId: plan.groupId, shiftPlanId: id, title: item.slot.role?.trim() || group?.name || "予定", date: start.date, endDate: end.date, startTime: start.time, endTime: end.time, category: "仕事", notes: `担当：${item.assigned.join("、")}`, completed: false }; });
     for (const rows of chunk(publishedEvents, 8)) statements.push(db.insert(events).values(rows));
   }
   await db.batch(statements);
