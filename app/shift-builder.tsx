@@ -337,10 +337,15 @@ export default function ShiftBuilder({
         layout: { notes: detail.plan.notes, slots: detail.slots, closedDates },
       }),
     });
-    const data = (await response.json()) as {
-      error?: string;
-      slotCount?: number;
-    };
+    const responseText = await response.text();
+    let data: { error?: string; slotCount?: number } = {};
+    if (responseText.trim()) {
+      try {
+        data = JSON.parse(responseText) as { error?: string; slotCount?: number };
+      } catch {
+        data = { error: `保存APIがJSONではない応答を返しました（HTTP ${response.status}）` };
+      }
+    }
     setNotice(
       response.ok
         ? action === "start-requests"

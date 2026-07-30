@@ -117,7 +117,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const nextSlots = (body.layout.slots ?? []).filter((slot) => !closedDates.has(slot.date) && slot.date >= plan.startDate && slot.date <= plan.endDate && isValidShiftTime(slot.startTime) && isValidShiftTime(slot.endTime) && shiftTimeToMinutes(slot.startTime) < shiftTimeToMinutes(slot.endTime)).map((slot) => ({ id: slot.id ?? crypto.randomUUID(), planId: id, date: slot.date, startTime: slot.startTime, endTime: slot.endTime, requiredCount: Math.max(1, Math.min(50, Number(slot.requiredCount) || 1)), role: slot.role?.trim() ?? "" }));
      const beforeLayout = new Map(slots.map((slot) => [slot.id, `${slot.date}|${slot.startTime}|${slot.endTime}|${slot.role}|${slot.requiredCount}`]));
      const layoutChanges = nextSlots.flatMap((slot) => beforeLayout.get(slot.id) === `${slot.date}|${slot.startTime}|${slot.endTime}|${slot.role}|${slot.requiredCount}` ? [] : [{ id: slot.id, date: slot.date, startTime: slot.startTime, endTime: slot.endTime, role: slot.role, requiredCount: slot.requiredCount }]);
-    const statements = [db.delete(shiftAssignments).where(inArray(shiftAssignments.slotId, slots.map((slot) => slot.id))), db.delete(shiftSlots).where(eq(shiftSlots.planId, id)), ...chunk(nextSlots, 8).map((rows) => db.insert(shiftSlots).values(rows)), db.update(shiftPlans).set({ ...(nextName !== undefined ? { name: nextName } : {}), notes: body.layout.notes?.trim().slice(0, 2000) ?? plan.notes, ...(expectedVersion === undefined ? { version: nextVersion } : {}) }).where(eq(shiftPlans.id, id))];
+    const statements = [
+      ...chunk(slots.map((slot) => slot.id), 50).map((slotIds) => db.delete(shiftAssignments).where(inArray(shiftAssignments.slotId, slotIds))),
+      db.delete(shiftSlots).where(eq(shiftSlots.planId, id)),
+      ...chunk(nextSlots, 8).map((rows) => db.insert(shiftSlots).values(rows)),
+      db.update(shiftPlans).set({ ...(nextName !== undefined ? { name: nextName } : {}), notes: body.layout.notes?.trim().slice(0, 2000) ?? plan.notes, ...(expectedVersion === undefined ? { version: nextVersion } : {}) }).where(eq(shiftPlans.id, id)),
+    ];
     if (body.requestCloseDate && requestPeriod?.status === "pending") statements.push(db.update(shiftRequestPeriods).set({ closesOn: body.requestCloseDate }).where(eq(shiftRequestPeriods.id, requestPeriod.id)));
     await db.batch(statements);
     await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: "shift.update", entityType: "shiftPlan", entityId: id, summary: `シフト枠を保存: ${plan.name}`, details: { slotCount: nextSlots.length, closedDates: body.layout.closedDates ?? [] } });
