@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { localApiFetch } from "./local-api";
 import { shiftDateTime } from "./shift-time";
+import { downloadWorkRecordsCsv, type WorkCsvRow } from "./work-record-csv";
 
 type RecordRow = {
   id: string;
   userEmail: string;
+  slotId?: string | null;
   scheduledDate: string;
   scheduledStartTime: string;
   scheduledEndTime: string;
@@ -862,6 +864,33 @@ export default function WorkRecordsPanel({
       ),
     [days, recordsByDate, claimDrafts],
   );
+  function downloadMemberCsv() {
+    const rows: WorkCsvRow[] = days.map((date) => {
+      const record = recordsByDate.get(date);
+      const planned = summarizePlannedSlots(date, schedulesByDate.get(date) ?? []);
+      const plannedSlots = planned?.slots ?? [];
+      const draft = record ? claimDrafts[record.id] : undefined;
+      return {
+        month,
+        displayName: members.find((member) => member.userEmail === currentUserEmail)?.displayName ?? currentUserEmail.split("@")[0],
+        email: currentUserEmail,
+        date,
+        role: [...new Set(plannedSlots.map((slot) => slot.role).filter(Boolean))].join(" / "),
+        plannedStart: planned?.startTime ?? "",
+        plannedEnd: planned?.endTime ?? "",
+        plannedBreakMinutes: record?.plannedBreakMinutes ?? 0,
+        declaredStart: record ? claimClock(record.claimedStartAt ?? record.startedAt, date) : "",
+        declaredEnd: record ? claimClock(record.claimedEndAt ?? record.endedAt, date) : "",
+        declaredBreakMinutes: record ? (record.claimedBreakMinutes ?? breakMinutes(breaksFor(record.id))) : 0,
+        actualMinutes: record ? (claimedRangeMinutes(record, breaksFor(record.id)) ?? 0) : 0,
+        dailyStatus: record ? statusLabel(record.status, Boolean(record.endedAt)) : planned ? "未申告" : "対象なし",
+        monthlyStatus: monthlyStatusLabel,
+        outOfShift: record && !record.slotId ? "はい" : "",
+        unentered: !record && planned ? "はい" : "",
+      };
+    });
+    downloadWorkRecordsCsv(`勤怠明細_${month}.csv`, rows);
+  }
   const handleManagerFiltersChange = useCallback((next: ManagerFilters) => {
     setManagerFilters(next);
     setRecordPage(1);
@@ -981,6 +1010,9 @@ export default function WorkRecordsPanel({
               onClick={() => void submitMonthly()}
             >
               {monthlyStatus === "submitted" ? "月次申告済み" : "月次申告"}
+            </button>
+            <button className="small-action" type="button" onClick={downloadMemberCsv}>
+              勤怠明細をCSVダウンロード
             </button>
           </div>
           <div className="mobile-work-record-list">

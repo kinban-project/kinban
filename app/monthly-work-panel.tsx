@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { localApiFetch } from "./local-api";
+import { downloadWorkRecordsCsv, type WorkCsvRow } from "./work-record-csv";
 
 type Summary = {
   userEmail: string;
@@ -16,7 +17,7 @@ type Summary = {
 type Day = {
   date: string;
   planned: Array<{ startTime: string; endTime: string; role: string; planName: string }>;
-  records: Array<{ status: string; endedAt?: string | null; claimedStartAt?: string | null; claimedEndAt?: string | null; workedMinutes: number; breakMinutes: number; employeeNote?: string; managerNote?: string }>;
+  records: Array<{ status: string; slotId?: string | null; endedAt?: string | null; claimedStartAt?: string | null; claimedEndAt?: string | null; plannedBreakMinutes?: number | null; workedMinutes: number; breakMinutes: number; employeeNote?: string; managerNote?: string }>;
 };
 type Data = { month: string; summaries: Summary[]; claims: Array<{ userEmail: string; status: string; managerNote?: string }>; days: Day[]; viewedUserEmail: string; canManage: boolean };
 
@@ -137,6 +138,76 @@ export default function MonthlyWorkPanel({ groupId, manager }: { groupId: string
     setRejectReason("");
     await review(email, "reject", rejectReason.trim());
   }
+  async function downloadManagerCsv() {
+    if (!manager || !data) return;
+    setBusy(true);
+    try {
+      const details = await Promise.all(data.summaries.map(async (summary) => {
+        const response = await localApiFetch(`/api/groups/${groupId}/monthly-work?month=${month}&userEmail=${encodeURIComponent(summary.userEmail)}`);
+        if (!response.ok) return { summary, days: [] as Day[], monthlyStatus: summary.status };
+        const detail = await response.json() as Data;
+        return {
+          summary,
+          days: detail.days,
+          monthlyStatus: detail.claims.find((claim) => claim.userEmail === summary.userEmail)?.status ?? summary.status,
+        };
+      }));
+      const rows: WorkCsvRow[] = [];
+      for (const detail of details) {
+        for (const day of detail.days) {
+          const record = day.records[0];
+          rows.push({
+            month,
+            displayName: detail.summary.displayName,
+            email: detail.summary.userEmail,
+            date: day.date,
+            role: [...new Set(day.planned.map((slot) => slot.role).filter(Boolean))].join(" / "),
+            plannedStart: day.planned[0]?.startTime ?? "",
+            plannedEnd: day.planned.length ? day.planned[day.planned.length - 1].endTime : "",
+            plannedBreakMinutes: record?.plannedBreakMinutes ?? 0,
+            declaredStart: record?.claimedStartAt ? formatDateTime(record.claimedStartAt) : "",
+            declaredEnd: record?.claimedEndAt ? formatDateTime(record.claimedEndAt) : "",
+            declaredBreakMinutes: record?.breakMinutes ?? 0,
+            actualMinutes: record?.workedMinutes ?? 0,
+            dailyStatus: record ? dailyStatusLabel(record.status, Boolean(record.endedAt)) : day.planned.length ? "未申告" : "対象なし",
+            monthlyStatus: statusLabels[detail.monthlyStatus] ?? detail.monthlyStatus,
+            outOfShift: record && !record.slotId ? "はい" : "",
+            unentered: !record && day.planned.length ? "はい" : "",
+          });
+        }
+      }
+      downloadWorkRecordsCsv(`勤怠明細_${month}.csv`, rows);
+    } finally {
+      setBusy(false);
+    }
+  }
+  function downloadMemberMonthlyCsv() {
+    if (manager || !data) return;
+    const summary = data.summaries.find((item) => item.userEmail === data.viewedUserEmail) ?? data.summaries[0];
+    if (!summary) return;
+    const rows: WorkCsvRow[] = data.days.map((day) => {
+      const record = day.records[0];
+      return {
+        month,
+        displayName: summary.displayName,
+        email: summary.userEmail,
+        date: day.date,
+        role: [...new Set(day.planned.map((slot) => slot.role).filter(Boolean))].join(" / "),
+        plannedStart: day.planned[0]?.startTime ?? "",
+        plannedEnd: day.planned.length ? day.planned[day.planned.length - 1].endTime : "",
+        plannedBreakMinutes: record?.plannedBreakMinutes ?? 0,
+        declaredStart: record?.claimedStartAt ? formatDateTime(record.claimedStartAt) : "",
+        declaredEnd: record?.claimedEndAt ? formatDateTime(record.claimedEndAt) : "",
+        declaredBreakMinutes: record?.breakMinutes ?? 0,
+        actualMinutes: record?.workedMinutes ?? 0,
+        dailyStatus: record ? dailyStatusLabel(record.status, Boolean(record.endedAt)) : day.planned.length ? "未申告" : "対象なし",
+        monthlyStatus: statusLabels[selfClaim?.status ?? "unsubmitted"] ?? selfClaim?.status ?? "unsubmitted",
+        outOfShift: record && !record.slotId ? "はい" : "",
+        unentered: !record && day.planned.length ? "はい" : "",
+      };
+    });
+    downloadWorkRecordsCsv(`勤怠明細_${month}.csv`, rows);
+  }
 
   return <section className="monthly-work-panel">
     <div className="modal-head">
@@ -149,6 +220,8 @@ export default function MonthlyWorkPanel({ groupId, manager }: { groupId: string
       </select></label>
       {manager && <label>確認するメンバー<select aria-label="月次確認メンバー" value={selectedEmail} onChange={(event) => setSelectedEmail(event.target.value)}><option value="">全体サマリ</option>{data?.summaries.map((item) => <option value={item.userEmail} key={item.userEmail}>{item.displayName}</option>)}</select></label>}
       {manager && <label>状態<select aria-label="月次承認状態" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">すべて</option><option value="unsubmitted-scheduled">未申告（予定あり）</option><option value="unsubmitted">未申告</option><option value="submitted">月次承認待ち</option><option value="approved">月次承認済み</option><option value="rejected">差戻し</option></select></label>}
+      {manager && <button className="small-action" type="button" disabled={busy || !data} onClick={() => void downloadManagerCsv()}>対象月の勤怠CSVをダウンロード</button>}
+      {!manager && <button className="small-action" type="button" disabled={!data} onClick={downloadMemberMonthlyCsv}>勤怠明細をCSVダウンロード</button>}
     </div>
     {notice && <p className="panel-notice">{notice}</p>}
     {manager && !selectedEmail ? <>
