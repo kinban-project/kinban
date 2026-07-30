@@ -1,5 +1,11 @@
 # My Day 運用構成メモ
 
+## KINBAN 技術運用の正本
+
+技術構成・データ領域・認証境界・テスト責務は `docs/ARCHITECTURE.md`、`docs/DOMAIN_MODEL.md`、`docs/DATABASE.md`、`docs/AUTHORIZATION.md`、`docs/TESTING.md` を参照してください。全カラムや全APIをこの資料へ複製せず、コード・schema・migration・routeを正本として扱います。
+
+本番変更では、対象環境と現在状態を読み取り、バックアップ・migration・ロールバック方法を確認してから実施します。公開デモとローカルはリセット可能ですが、本番D1・R2の全削除やseed投入は行いません。
+
 ## 想定する役割分担
 
 ### 開発・配備エージェント（Dev/Ops）
