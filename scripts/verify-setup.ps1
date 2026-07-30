@@ -7,7 +7,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 $root = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
-$managerAgentRoot = [System.IO.Path]::GetFullPath((Join-Path $root $ManagerAgentPath))
+if ([System.IO.Path]::IsPathRooted($ManagerAgentPath)) {
+  $managerAgentRoot = [System.IO.Path]::GetFullPath($ManagerAgentPath)
+} else {
+  $managerAgentRoot = [System.IO.Path]::GetFullPath((Join-Path $root $ManagerAgentPath))
+}
 $envFile = Join-Path $managerAgentRoot ".env.local"
 
 function Read-DotEnv([string]$Path) {
