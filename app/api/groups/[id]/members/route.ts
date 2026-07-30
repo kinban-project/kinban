@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { getChatGPTUser } from "../../../../chatgpt-auth";
 import { getDb } from "../../../../../db";
-import { accountProfiles, apiTokens, groupMembers, groupPreferences, groups, shiftAssignments, shiftAvailability, shiftPlans, shiftRequestPeriods, shiftRequests, shiftRequestSubmissions, shiftSlots } from "../../../../../db/schema";
+import { accountProfiles, apiTokens, calendarSubscriptions, groupMembers, groupPreferences, groups, shiftAssignments, shiftAvailability, shiftPlans, shiftRequestPeriods, shiftRequests, shiftRequestSubmissions, shiftSlots } from "../../../../../db/schema";
 import { getAnyMembership, getGroup, getMembership } from "../../group-access";
 import { recordAudit } from "../../../../audit-log";
 
@@ -47,6 +47,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (body.status === "inactive") {
     await clearMemberAssignments(id, body.userEmail);
     await getDb().delete(apiTokens).where(and(eq(apiTokens.groupId, id), eq(apiTokens.ownerEmail, body.userEmail), eq(apiTokens.tokenType, "personal")));
+    await getDb().update(calendarSubscriptions).set({ status: "revoked", revokedAt: new Date().toISOString() }).where(and(eq(calendarSubscriptions.groupId, id), eq(calendarSubscriptions.userEmail, body.userEmail)));
   }
   await recordAudit({ groupId: id, userEmail: user.email, action: body.status ? "group.member.status" : "group.member", entityType: "groupMember", entityId: body.userEmail, summary: body.status === "inactive" ? `${body.userEmail}を利用停止にしました` : body.status === "active" ? `${body.userEmail}を有効化しました` : `${body.userEmail}のメンバー情報を変更しました`, details: { role: body.role, status: body.status, displayName: displayName !== undefined, adminNote: adminNote !== undefined } });
   return Response.json({ ok: true });
@@ -67,6 +68,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
   if (target.role === "owner" && targetEmail !== user.email) return Response.json({ error: "代表管理者は先に引き継ぎが必要です" }, { status: 400 });
   const db = getDb();
   await db.delete(apiTokens).where(and(eq(apiTokens.groupId, id), eq(apiTokens.ownerEmail, targetEmail), eq(apiTokens.tokenType, "personal")));
+  await db.update(calendarSubscriptions).set({ status: "revoked", revokedAt: new Date().toISOString() }).where(and(eq(calendarSubscriptions.groupId, id), eq(calendarSubscriptions.userEmail, targetEmail)));
   await clearMemberAssignments(id, targetEmail);
   const periods = await db.select({ id: shiftRequestPeriods.id }).from(shiftRequestPeriods).where(eq(shiftRequestPeriods.groupId, id));
   const periodIds = periods.map((period) => period.id);

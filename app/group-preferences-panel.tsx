@@ -5,6 +5,7 @@ import { localApiFetch } from "./local-api";
 import { displayShiftTime } from "./shift-time";
 import PushNotificationControl from "./push-notification-control";
 import ApiKeyPanel from "./api-guide/api-key-panel";
+import CalendarSubscriptionPanel from "./calendar-subscription-panel";
 
 type PreferenceStatus = "want" | "possible" | "off" | "unavailable";
 type Day = {
@@ -179,6 +180,7 @@ export default function GroupPreferencesPanel({
       </div>
       <PushNotificationControl />
       <ApiKeyPanel groupId={groupId} />
+      <CalendarSubscriptionPanel groupId={groupId} />
       <div className="section-title">
         <div>
           <h4>勤務の基本希望</h4>

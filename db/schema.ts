@@ -673,6 +673,20 @@ export const apiTokens = sqliteTable("api_tokens", {
     .default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const calendarSubscriptions = sqliteTable("calendar_subscriptions", {
+  id: text("id").primaryKey(),
+  groupId: text("group_id").notNull(),
+  userEmail: text("user_email").notNull(),
+  tokenHash: text("token_hash").notNull().unique(),
+  tokenPrefix: text("token_prefix").notNull(),
+  status: text("status", { enum: ["active", "revoked"] }).notNull().default("active"),
+  lastUsedAt: text("last_used_at"),
+  revokedAt: text("revoked_at"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("calendar_subscription_group_user_idx").on(table.groupId, table.userEmail),
+]);
+
 export const mcpConfirmations = sqliteTable("mcp_confirmations", {
   id: text("id").primaryKey(),
   tokenHash: text("token_hash").notNull().unique(),

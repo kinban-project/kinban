@@ -35,6 +35,21 @@ CREATE TABLE IF NOT EXISTS knowledge_assets (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS calendar_subscriptions (
+  id TEXT PRIMARY KEY NOT NULL,
+  group_id TEXT NOT NULL,
+  user_email TEXT NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  token_prefix TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active',
+  last_used_at TEXT,
+  revoked_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS calendar_subscription_group_user_idx
+  ON calendar_subscriptions(group_id, user_email);
+
 DELETE FROM work_breaks;
 DELETE FROM push_deliveries;
 DELETE FROM push_subscriptions;
@@ -67,6 +82,7 @@ DELETE FROM group_members;
 DELETE FROM groups;
 DELETE FROM account_profiles;
 DELETE FROM api_tokens;
+DELETE FROM calendar_subscriptions;
 DELETE FROM demo_clocks;
 DELETE FROM group_invitations;
 DELETE FROM site_invitations;
