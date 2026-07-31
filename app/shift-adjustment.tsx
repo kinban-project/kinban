@@ -130,6 +130,18 @@ function formatShiftDate(value: string) {
   return `${value}（${weekday}）`;
 }
 
+function laborWarningLabel(kind: LaborWarning["kind"]) {
+  switch (kind) {
+    case "daily_hours": return "日上限超過";
+    case "weekly_hours": return "週上限超過";
+    case "rest_interval": return "休息間隔不足";
+    case "consecutive_days": return "連勤上限";
+    case "weekly_rest": return "休日数不足";
+    case "planned_break": return "予定休憩確認";
+    default: return "労務注意";
+  }
+}
+
 export default function ShiftAdjustment({
   initialGroupId,
 }: {
@@ -146,7 +158,7 @@ export default function ShiftAdjustment({
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [showAllWarnings, setShowAllWarnings] = useState(false);
-  const [warningFilter, setWarningFilter] = useState<"all" | "warnings" | "labor">("all");
+  const [warningFilter, setWarningFilter] = useState<"all" | "warnings" | "labor" | "plannedBreak">("all");
   const [viewMode, setViewMode] = useState<"preview" | "list" | "calendar">("preview");
   const selectedGroupName = groups.find((group) => group.id === groupId)?.name;
   async function loadGroups() {
@@ -272,17 +284,14 @@ export default function ShiftAdjustment({
     }
     return [...issues.values()];
   }, [detail, assignments, laborWarnings]);
+  const filteredIssues = useMemo(() => {
+    if (warningFilter === "labor") return assignmentIssues.filter((issue) => issue.kind === "labor");
+    if (warningFilter === "warnings") return assignmentIssues.filter((issue) => issue.kind !== "labor");
+    return assignmentIssues;
+  }, [assignmentIssues, warningFilter]);
   const warningSlotIds = useMemo(
-    () => new Set(assignmentIssues.flatMap((issue) => issue.slotIds)),
-    [assignmentIssues],
-  );
-  const visibleSlots = useMemo(
-    () => (warningFilter === "all" ? (detail?.slots ?? []) : (detail?.slots ?? []).filter((slot) => warningSlotIds.has(slot.id))),
-    [detail, warningFilter, warningSlotIds],
-  );
-  const dates = useMemo(
-    () => [...new Set(visibleSlots.map((slot) => slot.date))].sort(),
-    [visibleSlots],
+    () => new Set(filteredIssues.flatMap((issue) => issue.slotIds)),
+    [filteredIssues],
   );
   const warningSummary = useMemo(
     () => ({
@@ -307,7 +316,7 @@ export default function ShiftAdjustment({
     return [...byMemberDate.entries()]
       .map(([key, slots]) => {
         const [userEmail, date] = key.split("|");
-        return { userEmail, date, minutes: suggestedBreakMinutes(slots) };
+        return { userEmail, date, minutes: suggestedBreakMinutes(slots), slotIds: slots.map((slot) => slot.id) };
       })
       .filter((row) => row.minutes > 0)
       .sort((left, right) => `${left.date}|${left.userEmail}`.localeCompare(`${right.date}|${right.userEmail}`));
@@ -315,6 +324,19 @@ export default function ShiftAdjustment({
   const plannedBreakByMemberDate = useMemo(
     () => new Map(plannedBreakSummary.map((row) => [`${row.userEmail}|${row.date}`, row.minutes] as const)),
     [plannedBreakSummary],
+  );
+  const plannedBreakSlotIds = useMemo(
+    () => new Set(plannedBreakSummary.flatMap((row) => row.slotIds)),
+    [plannedBreakSummary],
+  );
+  const visibleSlots = useMemo(() => {
+    if (warningFilter === "all") return detail?.slots ?? [];
+    const ids = warningFilter === "plannedBreak" ? plannedBreakSlotIds : warningSlotIds;
+    return (detail?.slots ?? []).filter((slot) => ids.has(slot.id));
+  }, [detail, warningFilter, plannedBreakSlotIds, warningSlotIds]);
+  const dates = useMemo(
+    () => [...new Set(visibleSlots.map((slot) => slot.date))].sort(),
+    [visibleSlots],
   );
   const memberSummary = useMemo(() => {
     if (!detail) return [];
@@ -329,8 +351,17 @@ export default function ShiftAdjustment({
         (assignments[slot.id] ?? []).includes(member.userEmail),
       );
       const days = new Set(slots.map((slot) => slot.date)).size;
-      const totalHours = slots.reduce(
-        (sum, slot) => sum + hours(slot.startTime, slot.endTime),
+      const slotsByDate = new Map<string, Slot[]>();
+      for (const slot of slots) {
+        const rows = slotsByDate.get(slot.date) ?? [];
+        rows.push(slot);
+        slotsByDate.set(slot.date, rows);
+      }
+      const totalHours = [...slotsByDate.values()].reduce(
+        (sum, rows) => sum + Math.max(
+          0,
+          rows.reduce((rowTotal, slot) => rowTotal + hours(slot.startTime, slot.endTime), 0) - suggestedBreakMinutes(rows) / 60,
+        ),
         0,
       );
       const pref = detail.memberPreferences?.find(
@@ -428,6 +459,11 @@ export default function ShiftAdjustment({
     const plannedBreakMinutes = assigned
       ? plannedBreakByMemberDate.get(`${member.userEmail}|${slot.date}`) ?? 0
       : 0;
+    const laborLabels = assigned
+      ? [...new Set(laborWarnings
+        .filter((warning) => warning.memberEmail === member.userEmail && warning.slotIds.includes(slot.id))
+        .map((warning) => laborWarningLabel(warning.kind)))]
+      : [];
     return (
       <label
         className={`${assigned ? "assigned " : ""}pref-${preference}`}
@@ -444,6 +480,7 @@ export default function ShiftAdjustment({
         {plannedBreakMinutes > 0 && (
           <small className="assignment-break-badge">休憩{plannedBreakMinutes}分</small>
         )}
+        {laborLabels.map((label) => <small className="assignment-labor-badge" key={label}>{label}</small>)}
       </label>
     );
   }
@@ -499,8 +536,13 @@ export default function ShiftAdjustment({
     if (response.ok) await openPlan(detail.plan.id);
   }
   const renderedWarnings = showAllWarnings
-    ? assignmentIssues
-    : assignmentIssues.slice(0, 5);
+    ? filteredIssues
+    : filteredIssues.slice(0, 5);
+  const filterHasContent = warningFilter === "plannedBreak"
+    ? plannedBreakSummary.length > 0
+    : warningFilter === "all"
+      ? assignmentIssues.length > 0 || plannedBreakSummary.length > 0
+      : filteredIssues.length > 0;
   return (
     <section className="shift-adjustment-card">
       <div className="shift-builder-head">
@@ -580,7 +622,7 @@ export default function ShiftAdjustment({
               <i className="pref-unavailable">勤務不可</i>
             </span>
           </div>
-          {plannedBreakSummary.length > 0 && (
+          {warningFilter === "all" || warningFilter === "plannedBreak" ? plannedBreakSummary.length > 0 && (
             <div className="planned-break-summary">
               <strong>予定休憩（自動提案）</strong>
               <div>
@@ -591,26 +633,27 @@ export default function ShiftAdjustment({
                 ))}
               </div>
             </div>
-          )}
+          ) : null}
           <div className="assignment-warning-filter" aria-label="割り当て警告の表示">
             <div className="assignment-warning-filter-buttons">
-              <button type="button" className={warningFilter === "all" ? "active" : ""} onClick={() => setWarningFilter("all")}>すべて {detail.slots.length}枠</button>
-              <button type="button" className={warningFilter === "warnings" ? "active" : ""} onClick={() => setWarningFilter("warnings")}>警告あり {assignmentIssues.length}件</button>
-              <button type="button" className={warningFilter === "labor" ? "active" : ""} onClick={() => setWarningFilter("labor")}>労務注意のみ {warningSummary.labor}件</button>
+              <button type="button" className={warningFilter === "all" ? "active" : ""} onClick={() => setWarningFilter("all")}>すべて {assignmentIssues.length + plannedBreakSummary.length}件</button>
+              <button type="button" className={warningFilter === "warnings" ? "active" : ""} onClick={() => setWarningFilter("warnings")}>警告 {warningSummary.warnings}件</button>
+              <button type="button" className={warningFilter === "labor" ? "active" : ""} onClick={() => setWarningFilter("labor")}>労務注意 {warningSummary.labor}件</button>
+              <button type="button" className={warningFilter === "plannedBreak" ? "active" : ""} onClick={() => setWarningFilter("plannedBreak")}>予定休憩 {plannedBreakSummary.length}件</button>
             </div>
             <span>未充足 {warningSummary.shortage}・過剰配置 {warningSummary.excess}・時間重複 {warningSummary.overlap}・労務注意 {warningSummary.labor}</span>
           </div>
-          {assignmentIssues.length > 0 && (
+          {filteredIssues.length > 0 && warningFilter !== "plannedBreak" && (
             <div className="assignment-warnings" role="alert">
               <strong>
-                割り当てを確認してください（{assignmentIssues.length}件）
+                {warningFilter === "labor" ? "労務注意を確認してください" : "割り当てを確認してください"}（{filteredIssues.length}件）
               </strong>
               <ul>
                 {renderedWarnings.map((warning) => (
                   <li key={warning.id}>{warning.message}</li>
                 ))}
               </ul>
-              {assignmentIssues.length > 5 && (
+              {filteredIssues.length > 5 && (
                 <button
                   type="button"
                   className="warning-toggle"
@@ -618,13 +661,13 @@ export default function ShiftAdjustment({
                 >
                   {showAllWarnings
                     ? "一部を隠す"
-                    : `すべて表示（残り${assignmentIssues.length - 5}件）`}
+                    : `すべて表示（残り${filteredIssues.length - 5}件）`}
                 </button>
               )}
             </div>
           )}
-          {warningFilter !== "all" && visibleSlots.length === 0 ? (
-            <p className="assignment-warning-empty">割り当て警告はありません。</p>
+          {!filterHasContent ? (
+            <p className="assignment-warning-empty">該当する警告・労務注意・予定休憩はありません。</p>
           ) : <>
           {viewMode === "preview" && (
             <div className="assignment-preview-wrap">
@@ -634,7 +677,14 @@ export default function ShiftAdjustment({
                   const names = [...new Set(assignments[slot.id] ?? [])].map((email) => {
                     const name = detail.members.find((member) => member.userEmail === email)?.displayName || email.split("@")[0];
                     const minutes = plannedBreakByMemberDate.get(`${email}|${date}`) ?? 0;
-                    return minutes > 0 ? `${name}（予定休憩${minutes}分）` : name;
+                    const laborLabels = [...new Set(laborWarnings
+                      .filter((warning) => warning.memberEmail === email && warning.slotIds.includes(slot.id))
+                      .map((warning) => laborWarningLabel(warning.kind)))];
+                    const labels = [
+                      ...(minutes > 0 ? [`予定休憩${minutes}分`] : []),
+                      ...laborLabels,
+                    ];
+                    return labels.length > 0 ? `${name}（${labels.join("、")}）` : name;
                   });
                   const assignedCount = names.length;
                   const hasOverlap = assignmentIssues.some((issue) => issue.kind === "overlap" && issue.slotIds.includes(slot.id));
@@ -721,7 +771,8 @@ export default function ShiftAdjustment({
               <span>メンバー</span>
               <span>希望日数</span>
               <span>希望時間</span>
-              <span>割当</span>
+              <span>期間内割当</span>
+              <span>週平均換算</span>
               <span>差分・判定</span>
               <span>希望更新</span>
             </div>
@@ -736,6 +787,7 @@ export default function ShiftAdjustment({
                 <span>{row.pref ? `週${row.pref.minDays}〜${row.pref.maxDays}日` : "未設定"}</span>
                 <span>{row.pref ? `週${row.pref.minHours}〜${row.pref.maxHours}時間` : "未設定"}</span>
                 <span>{row.days}日 / {row.totalHours.toFixed(1)}時間</span>
+                <span>{row.weeklyDays.toFixed(1)}日 / {row.weeklyHours.toFixed(1)}時間</span>
                 <span className={row.warnings ? "summary-warning" : "summary-ok"}>
                   {row.pref
                     ? row.warnings
