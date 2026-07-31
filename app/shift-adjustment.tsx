@@ -70,6 +70,7 @@ type AssignmentIssue = {
   kind: "shortage" | "excess" | "overlap" | "labor";
   slotIds: string[];
   message: string;
+  memberEmail?: string;
   laborWarning?: LaborWarning;
 };
 
@@ -270,6 +271,7 @@ export default function ShiftAdjustment({
           id: `overlap:${left.userEmail}:${firstId}:${secondId}`,
           kind: "overlap",
           slotIds: [left.slot.id, right.slot.id],
+          memberEmail: left.userEmail,
           message: `${left.slot.date} ${memberName}：${left.slot.role || "共通"}と${right.slot.role || "共通"}の時間帯が重複しています`,
         });
       }
@@ -460,6 +462,9 @@ export default function ShiftAdjustment({
     const plannedBreakMinutes = assigned
       ? plannedBreakByMemberDate.get(`${member.userEmail}|${slot.date}`) ?? 0
       : 0;
+    const hasMemberOverlap = assigned && assignmentIssues.some(
+      (issue) => issue.kind === "overlap" && issue.memberEmail === member.userEmail && issue.slotIds.includes(slot.id),
+    );
     const laborLabels = assigned
       ? [...new Set(laborWarnings
         .filter((warning) => warning.memberEmail === member.userEmail && warning.slotIds.includes(slot.id))
@@ -477,6 +482,7 @@ export default function ShiftAdjustment({
         />
         <span className="assignment-member-name">
           {member.displayName || member.userEmail.split("@")[0]}
+          {hasMemberOverlap && <small className="assignment-overlap-badge">（時間重複）</small>}
         </span>
         {plannedBreakMinutes > 0 && (
           <small className="assignment-break-badge">休憩{plannedBreakMinutes}分</small>
@@ -489,11 +495,8 @@ export default function ShiftAdjustment({
     const assignedCount = new Set(assignments[slot.id] ?? []).size;
     const isShortage = assignedCount < slot.requiredCount;
     const isExcess = assignedCount > slot.requiredCount;
-    const hasOverlap = assignmentIssues.some(
-      (issue) => issue.kind === "overlap" && issue.slotIds.includes(slot.id),
-    );
     return (
-      <div className={`assignment-calendar-slot ${isShortage ? "is-shortage" : ""} ${isExcess ? "is-excess" : ""} ${hasOverlap ? "has-overlap" : ""}`} key={slot.id}>
+      <div className={`assignment-calendar-slot ${isShortage ? "is-shortage" : ""} ${isExcess ? "is-excess" : ""}`} key={slot.id}>
         <strong>
           {slot.role || "共通"}
           <small>{assignedCount}/{slot.requiredCount}人</small>
@@ -693,12 +696,12 @@ export default function ShiftAdjustment({
                     const labels = [
                       ...(minutes > 0 ? [`予定休憩${minutes}分`] : []),
                       ...laborLabels,
+                      ...(assignmentIssues.some((issue) => issue.kind === "overlap" && issue.memberEmail === email && issue.slotIds.includes(slot.id)) ? ["時間重複"] : []),
                     ];
                     return labels.length > 0 ? `${name}（${labels.join("、")}）` : name;
                   });
                   const assignedCount = names.length;
-                  const hasOverlap = assignmentIssues.some((issue) => issue.kind === "overlap" && issue.slotIds.includes(slot.id));
-                  return <div className={`assignment-preview-slot ${assignedCount < slot.requiredCount ? "is-shortage" : ""} ${assignedCount > slot.requiredCount ? "is-excess" : ""} ${hasOverlap ? "has-overlap" : ""}`} key={slot.id}><div><strong>{slot.role || "共通"}</strong><span>{assignedCount}/{slot.requiredCount}人</span></div><p>{names.length ? names.join("、") : "未割当"}</p></div>;
+                  return <div className={`assignment-preview-slot ${assignedCount < slot.requiredCount ? "is-shortage" : ""} ${assignedCount > slot.requiredCount ? "is-excess" : ""}`} key={slot.id}><div><strong>{slot.role || "共通"}</strong><span>{assignedCount}/{slot.requiredCount}人</span></div><p>{names.length ? names.join("、") : "未割当"}</p></div>;
                 })}</td>)}</tr>)}</tbody>
               </table>
             </div>
@@ -718,8 +721,7 @@ export default function ShiftAdjustment({
                 <tbody>
                   {visibleSlots.map((slot) => {
                     const assignedCount = new Set(assignments[slot.id] ?? []).size;
-                    const hasOverlap = assignmentIssues.some((issue) => issue.kind === "overlap" && issue.slotIds.includes(slot.id));
-                    return <tr className={`${assignedCount < slot.requiredCount ? "assignment-row-shortage" : ""} ${assignedCount > slot.requiredCount ? "assignment-row-excess" : ""} ${hasOverlap ? "assignment-row-overlap" : ""}`} key={slot.id}>
+                    return <tr className={`${assignedCount < slot.requiredCount ? "assignment-row-shortage" : ""} ${assignedCount > slot.requiredCount ? "assignment-row-excess" : ""}`} key={slot.id}>
                       <td>{formatShiftDate(slot.date)}</td>
                       <td>
                         {displayShiftTime(slot.startTime)}〜
@@ -727,7 +729,7 @@ export default function ShiftAdjustment({
                       </td>
                       <td>{slot.role || "共通"}</td>
                       <td><span className={assignedCount < slot.requiredCount ? "assignment-count shortage" : assignedCount > slot.requiredCount ? "assignment-count excess" : "assignment-count"}>{assignedCount}/{slot.requiredCount}人</span></td>
-                      <td className={`${assignedCount < slot.requiredCount ? "assignment-members-cell shortage" : "assignment-members-cell"} ${hasOverlap ? "overlap" : ""}`}>
+                      <td className={assignedCount < slot.requiredCount ? "assignment-members-cell shortage" : "assignment-members-cell"}>
                         <div className="assignment-members">
                           {detail.members.map((member) =>
                             renderMember(slot, member),

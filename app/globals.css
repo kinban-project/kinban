@@ -425,7 +425,7 @@ button { cursor: pointer; }
 @media (max-width: 640px) { .demo-clock-panel { align-items: stretch; flex-direction: column; }.demo-clock-actions { justify-content: flex-start; }.demo-clock-target { align-items: stretch; }.demo-clock-target input { min-width: 0; width: 100%; }.demo-clock-target button { align-self: end; white-space: nowrap; } }
 .roster-table td.roster-shortage { background: #fff0ee; box-shadow: inset 0 0 0 1px #e8a39b; }.roster-shortage-count { display: block; margin-top: 4px; color: #a44942; font-size: 9px; font-weight: 700; }.roster-legend-shortage { padding: 4px 7px; border-radius: 999px; color: #a44942; background: #fff0ee; }
 .assignment-row-shortage { background: #fff8f6; }.assignment-count { color: var(--muted); }.assignment-count.shortage { color: #a44942; font-weight: 800; }.assignment-calendar-slot.is-shortage { margin: -1px; padding: 5px; background: #fff0ee; box-shadow: inset 0 0 0 1px #e8a39b; }.assignment-calendar-slot.is-shortage > strong { color: #8f413b; }
-.assignment-row-excess { background: #fff9e8; }.assignment-row-overlap { box-shadow: inset 3px 0 0 #b36b9e; }.assignment-count.excess { color: #9d7d22; font-weight: 800; }.assignment-members-cell.overlap { box-shadow: inset 0 0 0 1px #d9b3cf; }.assignment-calendar-slot.is-excess { background: #fff0cd; box-shadow: inset 0 0 0 1px #e7cc79; }.assignment-calendar-slot.has-overlap { border-left: 3px solid #b36b9e; }.assignment-preview-slot.has-overlap { box-shadow: inset 3px 0 0 #b36b9e; }
+.assignment-row-excess { background: #fff9e8; }.assignment-count.excess { color: #9d7d22; font-weight: 800; }.assignment-calendar-slot.is-excess { background: #fff0cd; box-shadow: inset 0 0 0 1px #e7cc79; }
 .assignment-members-cell.shortage { background: #fff0ee; box-shadow: inset 0 0 0 1px #e8a39b; }
 .assignment-preview-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
 .assignment-preview-table { width: 100%; min-width: 980px; border-collapse: collapse; font-size: 11px; }
@@ -679,3 +679,4 @@ button { cursor: pointer; }
   line-height: 1;
   white-space: nowrap;
 }
+.assignment-overlap-badge { color: #a44942; font-weight: 700; }
