@@ -136,6 +136,7 @@ const personalTools = new Set([
   "get_work_records",
   "clock_work",
   "submit_work_record",
+  "submit_my_work_record",
   "create_work_record",
   "reopen_work_record",
   "save_work_record",
@@ -670,6 +671,20 @@ const tools = [
         managerNote: { type: "string" },
         sourceMessageId: { type: "string" },
         claimId: { type: "string" },
+        confirm: { type: "boolean" },
+      },
+    },
+  },
+  {
+    name: "submit_my_work_record",
+    description:
+      "Submit the authenticated member's own daily work record. This typed member-only action always submits with status submitted; use reopen_work_record and save_work_record first when correction is needed. Requires confirm:true. Never use this action for approval or rejection.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId", "recordId", "confirm"],
+      properties: {
+        groupId: { type: "string" },
+        recordId: { type: "string" },
         confirm: { type: "boolean" },
       },
     },
@@ -1593,6 +1608,24 @@ export async function POST(request: Request) {
         text(args.recordId),
         status,
         text(args.managerNote),
+      );
+      return "error" in result
+        ? rpcError(payload.id, result.error)
+        : completeManagedExecution(result);
+    }
+    if (name === "submit_my_work_record") {
+      const groupId = text(args.groupId);
+      const restricted = assistantGroupError(identity, groupId);
+      if (restricted) return rpcError(payload.id, restricted);
+      if (identity.tokenType !== "personal")
+        return rpcError(payload.id, "This member submission tool requires a personal AI key.");
+      if (args.confirm !== true) return rpcError(payload.id, mutating);
+      const result = await mcpDailyReview(
+        db,
+        groupId,
+        identity.email,
+        text(args.recordId),
+        "submitted",
       );
       return "error" in result
         ? rpcError(payload.id, result.error)
