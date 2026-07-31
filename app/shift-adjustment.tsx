@@ -158,6 +158,7 @@ export default function ShiftAdjustment({
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [showAllWarnings, setShowAllWarnings] = useState(false);
+  const [showAllPlannedBreaks, setShowAllPlannedBreaks] = useState(false);
   const [warningFilter, setWarningFilter] = useState<"all" | "warnings" | "labor" | "plannedBreak">("all");
   const [viewMode, setViewMode] = useState<"preview" | "list" | "calendar">("preview");
   const selectedGroupName = groups.find((group) => group.id === groupId)?.name;
@@ -622,18 +623,6 @@ export default function ShiftAdjustment({
               <i className="pref-unavailable">勤務不可</i>
             </span>
           </div>
-          {warningFilter === "all" || warningFilter === "plannedBreak" ? plannedBreakSummary.length > 0 && (
-            <div className="planned-break-summary">
-              <strong>予定休憩（自動提案）</strong>
-              <div>
-                {plannedBreakSummary.map((row) => (
-                  <span key={`${row.date}|${row.userEmail}`}>
-                    {formatShiftDate(row.date)}・{detail.members.find((member) => member.userEmail === row.userEmail)?.displayName || row.userEmail.split("@")[0]}：{row.minutes}分
-                  </span>
-                ))}
-              </div>
-            </div>
-          ) : null}
           <div className="assignment-warning-filter" aria-label="割り当て警告の表示">
             <div className="assignment-warning-filter-buttons">
               <button type="button" className={warningFilter === "all" ? "active" : ""} onClick={() => setWarningFilter("all")}>すべて {assignmentIssues.length + plannedBreakSummary.length}件</button>
@@ -643,6 +632,27 @@ export default function ShiftAdjustment({
             </div>
             <span>未充足 {warningSummary.shortage}・過剰配置 {warningSummary.excess}・時間重複 {warningSummary.overlap}・労務注意 {warningSummary.labor}</span>
           </div>
+          {warningFilter === "all" || warningFilter === "plannedBreak" ? plannedBreakSummary.length > 0 && (
+            <div className="planned-break-summary">
+              <strong>予定休憩（自動提案）</strong>
+              <div className={showAllPlannedBreaks ? "" : "is-collapsed"}>
+                {plannedBreakSummary.map((row) => (
+                  <span key={`${row.date}|${row.userEmail}`}>
+                    {formatShiftDate(row.date)}・{detail.members.find((member) => member.userEmail === row.userEmail)?.displayName || row.userEmail.split("@")[0]}：{row.minutes}分
+                  </span>
+                ))}
+              </div>
+              {plannedBreakSummary.length > 5 && (
+                <button
+                  type="button"
+                  className="warning-toggle planned-break-toggle"
+                  onClick={() => setShowAllPlannedBreaks((current) => !current)}
+                >
+                  {showAllPlannedBreaks ? "一部を隠す" : `すべて表示（残り${plannedBreakSummary.length - 5}件）`}
+                </button>
+              )}
+            </div>
+          ) : null}
           {filteredIssues.length > 0 && warningFilter !== "plannedBreak" && (
             <div className="assignment-warnings" role="alert">
               <strong>
