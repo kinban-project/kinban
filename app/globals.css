@@ -680,3 +680,4 @@ button { cursor: pointer; }
   white-space: nowrap;
 }
 .assignment-overlap-badge { color: #a44942; font-weight: 700; }
+.assignment-table-wrap { max-height: none; overflow-x: auto; overflow-y: hidden; }
