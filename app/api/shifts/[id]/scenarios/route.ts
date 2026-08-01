@@ -1,0 +1,152 @@
+import { and, desc, eq, inArray } from "drizzle-orm";
+import { getChatGPTUser } from "../../../../chatgpt-auth";
+import { getDb } from "../../../../../db";
+import { getMembership } from "../../../groups/group-access";
+import { buildLaborWarnings } from "../../../../shift-labor-warnings";
+import { shiftTimeToMinutes } from "../../../../shift-time";
+import { groupMembers, shiftAssignmentScenarios, shiftAssignments, shiftPlans, shiftSlots, shiftAvailability, groupPreferences, shiftRequestPeriods, shiftRequests } from "../../../../../db/schema";
+
+export const dynamic = "force-dynamic";
+
+type ScenarioSettings = {
+  priority?: "labor" | "preference" | "fairness" | "minimal";
+  unavailableMode?: "exclude" | "prefer_exclude";
+  existingMode?: "fixed" | "keep" | "recalculate";
+  target?: "unfilled" | "all";
+};
+
+function text(value: unknown, fallback = "") {
+  return typeof value === "string" ? value.trim() : fallback;
+}
+
+function parseJson<T>(value: string, fallback: T): T {
+  try { return JSON.parse(value) as T; } catch { return fallback; }
+}
+
+function seededScore(seed: string, value: string) {
+  let hash = 2166136261;
+  for (const char of `${seed}|${value}`) {
+    hash ^= char.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) / 4294967296;
+}
+
+function overlaps(left: { date: string; startTime: string; endTime: string }, right: { date: string; startTime: string; endTime: string }) {
+  return left.date === right.date &&
+    shiftTimeToMinutes(left.startTime) < shiftTimeToMinutes(right.endTime) &&
+    shiftTimeToMinutes(right.startTime) < shiftTimeToMinutes(left.endTime);
+}
+
+function preferenceStatus(value: string | undefined) {
+  return value === "unavailable" || value === "off" ? value : value === "want" ? "want" : "possible";
+}
+
+function settingsFor(value: unknown): ScenarioSettings {
+  const input = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  return {
+    priority: ["labor", "preference", "fairness", "minimal"].includes(text(input.priority)) ? input.priority as ScenarioSettings["priority"] : "preference",
+    unavailableMode: input.unavailableMode === "prefer_exclude" ? "prefer_exclude" : "exclude",
+    existingMode: ["fixed", "keep", "recalculate"].includes(text(input.existingMode)) ? input.existingMode as ScenarioSettings["existingMode"] : "keep",
+    target: input.target === "all" ? "all" : "unfilled",
+  };
+}
+
+async function access(id: string) {
+  const user = await getChatGPTUser();
+  if (!user) return { error: Response.json({ error: "ログインが必要です" }, { status: 401 }) } as const;
+  const db = getDb();
+  const [plan] = await db.select().from(shiftPlans).where(eq(shiftPlans.id, id)).limit(1);
+  if (!plan) return { error: Response.json({ error: "シフト計画が見つかりません" }, { status: 404 }) } as const;
+  const membership = await getMembership(plan.groupId, user.email);
+  if (!membership || (membership.role !== "owner" && membership.role !== "editor")) return { error: Response.json({ error: "割当案の管理権限がありません" }, { status: 403 }) } as const;
+  return { user, db, plan } as const;
+}
+
+export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+  const { id } = await context.params;
+  const result = await access(id);
+  if ("error" in result) return result.error;
+  const scenarios = await result.db.select().from(shiftAssignmentScenarios).where(eq(shiftAssignmentScenarios.planId, id)).orderBy(desc(shiftAssignmentScenarios.updatedAt));
+  return Response.json({ scenarios: scenarios.map((row) => ({ ...row, settings: parseJson(row.settingsJson, {}), assignments: parseJson(row.assignmentsJson, {}) })) });
+}
+
+async function generateAssignments(db: ReturnType<typeof getDb>, planId: string, groupId: string, seed: string, rawSettings: unknown) {
+  const settings = settingsFor(rawSettings);
+  const [plan] = await db.select().from(shiftPlans).where(eq(shiftPlans.id, planId)).limit(1);
+  const slots = await db.select().from(shiftSlots).where(eq(shiftSlots.planId, planId));
+  const members = await db.select().from(groupMembers).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.status, "active")));
+  const availability = await db.select().from(shiftAvailability).where(eq(shiftAvailability.groupId, groupId));
+  const preferences = await db.select().from(groupPreferences).where(eq(groupPreferences.groupId, groupId));
+  const [period] = await db.select().from(shiftRequestPeriods).where(eq(shiftRequestPeriods.planId, planId)).limit(1);
+  const requests = period ? await db.select().from(shiftRequests).where(eq(shiftRequests.periodId, period.id)) : [];
+  const basicPreference = new Map(preferences.map((row) => [row.userEmail, row]));
+  const existingBySlot = new Map<string, string[]>();
+  const allExistingRows = slots.length ? await db.select().from(shiftAssignments).where(inArray(shiftAssignments.slotId, slots.map((slot) => slot.id))) : [];
+  for (const row of allExistingRows) existingBySlot.set(row.slotId, [...(existingBySlot.get(row.slotId) ?? []), row.userEmail]);
+  const assignments: Record<string, string[]> = {};
+  for (const slot of slots) {
+    const keep = settings.existingMode === "recalculate" || settings.target === "all" ? [] : [...new Set(existingBySlot.get(slot.id) ?? [])];
+    assignments[slot.id] = keep;
+  }
+  const assignedFor = (email: string) => slots.filter((slot) => (assignments[slot.id] ?? []).includes(email));
+  const canWork = (email: string, slot: typeof slots[number]) => {
+    const request = requests.find((row) => row.userEmail === email && row.date === slot.date && row.startTime === slot.startTime && row.endTime === slot.endTime);
+    if (request) {
+      const status = preferenceStatus(request.preference);
+      return { status, allowed: status !== "unavailable" && status !== "off" };
+    }
+    const memberAvailability = availability.filter((row) => row.userEmail === email && row.dayOfWeek === new Date(`${slot.date}T00:00:00Z`).getUTCDay());
+    const match = memberAvailability.find((row) => !row.startTime || (shiftTimeToMinutes(row.startTime) <= shiftTimeToMinutes(slot.startTime) && shiftTimeToMinutes(row.endTime) >= shiftTimeToMinutes(slot.endTime)));
+    const status = preferenceStatus(match?.status);
+    const weekend = [0, 6].includes(new Date(`${slot.date}T00:00:00Z`).getUTCDay());
+    const weekendRestricted = weekend && basicPreference.get(email)?.weekendPolicy === "prefer_off";
+    return { status, allowed: status !== "unavailable" && (settings.unavailableMode === "prefer_exclude" || status !== "off") && !weekendRestricted };
+  };
+  const orderedSlots = [...slots].sort((a, b) => {
+    const aCandidates = members.filter((member) => canWork(member.userEmail, a).allowed).length;
+    const bCandidates = members.filter((member) => canWork(member.userEmail, b).allowed).length;
+    return aCandidates - bCandidates || a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime);
+  });
+  for (const slot of orderedSlots) {
+    const current = assignments[slot.id] ?? [];
+    const candidates = members.filter((member) => {
+      if (current.includes(member.userEmail)) return false;
+      const availabilityResult = canWork(member.userEmail, slot);
+      if (!availabilityResult.allowed) return false;
+      return !assignedFor(member.userEmail).some((other) => overlaps(slot, other));
+    }).sort((a, b) => {
+      const av = canWork(a.userEmail, slot).status;
+      const bv = canWork(b.userEmail, slot).status;
+      const prefScore = (value: string) => value === "want" ? 30 : value === "possible" ? 10 : 0;
+      const aCount = assignedFor(a.userEmail).length;
+      const bCount = assignedFor(b.userEmail).length;
+      const preferenceOrder = settings.priority === "preference" ? prefScore(bv) - prefScore(av) : 0;
+      const fairnessOrder = settings.priority === "fairness" ? aCount - bCount : 0;
+      const minimalOrder = settings.priority === "minimal" ? bCount - aCount : 0;
+      return preferenceOrder || fairnessOrder || minimalOrder || seededScore(seed, `${slot.id}|${a.userEmail}`) - seededScore(seed, `${slot.id}|${b.userEmail}`);
+    });
+    for (const candidate of candidates) {
+      if ((assignments[slot.id] ?? []).length >= slot.requiredCount) break;
+      assignments[slot.id].push(candidate.userEmail);
+    }
+  }
+  const warnings = plan ? buildLaborWarnings({ slots, assignments: slots.flatMap((slot) => (assignments[slot.id] ?? []).map((userEmail) => ({ slotId: slot.id, userEmail }))), members, planStartDate: plan.startDate, planEndDate: plan.endDate }) : [];
+  return { assignments, settings, seed, warnings: warnings.map((warning) => warning.message), unfilled: slots.filter((slot) => (assignments[slot.id] ?? []).length < slot.requiredCount).length };
+}
+
+export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+  const { id } = await context.params;
+  const result = await access(id);
+  if ("error" in result) return result.error;
+  let body: Record<string, unknown>;
+  try { body = await request.json() as Record<string, unknown>; } catch { return Response.json({ error: "JSONを読み取れません" }, { status: 400 }); }
+  const name = text(body.name);
+  if (!name) return Response.json({ error: "案名を入力してください" }, { status: 400 });
+  const seed = text(body.seed, crypto.randomUUID());
+  const generated = body.action === "auto" ? await generateAssignments(result.db, id, result.plan.groupId, seed, body.settings) : null;
+  const assignments = generated?.assignments ?? (body.assignments && typeof body.assignments === "object" ? body.assignments : {});
+  const settings = generated?.settings ?? settingsFor(body.settings);
+  const [row] = await result.db.insert(shiftAssignmentScenarios).values({ id: crypto.randomUUID(), planId: id, name, description: text(body.description), createdBy: result.user.email, seed, settingsJson: JSON.stringify(settings), baseVersion: result.plan.version, assignmentsJson: JSON.stringify(assignments) }).returning();
+  return Response.json({ scenario: { ...row, settings, assignments }, generated }, { status: 201 });
+}

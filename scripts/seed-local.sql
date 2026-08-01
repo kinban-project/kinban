@@ -50,6 +50,22 @@ CREATE TABLE IF NOT EXISTS calendar_subscriptions (
 CREATE UNIQUE INDEX IF NOT EXISTS calendar_subscription_group_user_idx
   ON calendar_subscriptions(group_id, user_email);
 
+CREATE TABLE IF NOT EXISTS shift_assignment_scenarios (
+  id TEXT PRIMARY KEY NOT NULL,
+  plan_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  created_by TEXT NOT NULL,
+  seed TEXT NOT NULL DEFAULT '',
+  settings_json TEXT NOT NULL DEFAULT '{}',
+  base_version INTEGER NOT NULL DEFAULT 1,
+  assignments_json TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS shift_assignment_scenario_plan_idx
+  ON shift_assignment_scenarios(plan_id, updated_at);
+
 DELETE FROM work_breaks;
 DELETE FROM push_deliveries;
 DELETE FROM push_subscriptions;
@@ -74,6 +90,7 @@ DELETE FROM shift_request_periods;
 DELETE FROM shift_availability;
 DELETE FROM group_preferences;
 DELETE FROM shift_assignments;
+DELETE FROM shift_assignment_scenarios;
 DELETE FROM shift_slots;
 DELETE FROM shift_plans;
 DELETE FROM events;

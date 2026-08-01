@@ -681,3 +681,14 @@ button { cursor: pointer; }
 }
 .assignment-overlap-badge { color: #a44942; font-weight: 700; }
 .assignment-table-wrap { max-height: none; overflow-x: auto; overflow-y: hidden; }
+ .assignment-scenarios { margin: 10px 0 14px; padding: 10px 12px; border: 1px solid #d8e8d0; border-radius: 10px; background: #f8fbf5; }
+.assignment-scenarios-head { display: flex; gap: 10px; align-items: baseline; margin-bottom: 8px; font-size: 11px; }
+.assignment-scenarios-head span, .assignment-scenario-meta { color: var(--muted); font-size: 10px; }
+.assignment-scenarios-controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.assignment-scenarios-controls select { min-width: 220px; flex: 1; }
+.assignment-scenario-form { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
+.assignment-scenario-form input, .assignment-scenario-form select { min-width: 150px; flex: 1; }
+   .assignment-scenario-meta { margin: 7px 0 0; }
+   .assignment-scenario-compare { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); font-size: 11px; }
+   .assignment-scenario-compare-list { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 5px; color: var(--muted); }
+   .danger-button { color: #a44942; }

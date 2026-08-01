@@ -673,6 +673,22 @@ export const apiTokens = sqliteTable("api_tokens", {
     .default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const shiftAssignmentScenarios = sqliteTable("shift_assignment_scenarios", {
+  id: text("id").primaryKey(),
+  planId: text("plan_id").notNull(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  createdBy: text("created_by").notNull(),
+  seed: text("seed").notNull().default(""),
+  settingsJson: text("settings_json").notNull().default("{}"),
+  baseVersion: integer("base_version").notNull().default(1),
+  assignmentsJson: text("assignments_json").notNull().default("{}"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("shift_assignment_scenario_plan_idx").on(table.planId, table.updatedAt),
+]);
+
 export const calendarSubscriptions = sqliteTable("calendar_subscriptions", {
   id: text("id").primaryKey(),
   groupId: text("group_id").notNull(),

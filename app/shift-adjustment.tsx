@@ -58,6 +58,17 @@ type Detail = {
   autoBreakSuggestion?: boolean;
   laborRules?: LaborRules;
 };
+type AssignmentScenario = {
+  id: string;
+  name: string;
+  description: string;
+  seed: string;
+  baseVersion: number;
+  settings: Record<string, unknown>;
+  assignments: Record<string, string[]>;
+  createdAt: string;
+  updatedAt: string;
+};
 type Preference = {
   userEmail?: string;
   minDays: number;
@@ -162,6 +173,15 @@ export default function ShiftAdjustment({
   const [showAllPlannedBreaks, setShowAllPlannedBreaks] = useState(false);
   const [warningFilter, setWarningFilter] = useState<"all" | "warnings" | "labor" | "plannedBreak">("all");
   const [viewMode, setViewMode] = useState<"preview" | "list" | "calendar">("preview");
+  const [scenarios, setScenarios] = useState<AssignmentScenario[]>([]);
+  const [selectedScenarioId, setSelectedScenarioId] = useState("");
+  const [scenarioName, setScenarioName] = useState("");
+  const [scenarioDescription, setScenarioDescription] = useState("");
+  const [scenarioSeed, setScenarioSeed] = useState("");
+  const [scenarioPriority, setScenarioPriority] = useState("preference");
+  const [scenarioTarget, setScenarioTarget] = useState("unfilled");
+  const [scenarioOpen, setScenarioOpen] = useState(false);
+  const [showScenarioCompare, setShowScenarioCompare] = useState(false);
   const selectedGroupName = groups.find((group) => group.id === groupId)?.name;
   async function loadGroups() {
     const response = await localApiFetch("/api/groups");
@@ -185,6 +205,14 @@ export default function ShiftAdjustment({
     const response = await localApiFetch(`/api/shifts/${id}`);
     if (response.ok) setDetail((await response.json()) as Detail);
   }
+  async function loadScenarios(id: string) {
+    if (!id) return;
+    const response = await localApiFetch(`/api/shifts/${id}/scenarios`);
+    if (!response.ok) return;
+    const data = (await response.json()) as { scenarios: AssignmentScenario[] };
+    setScenarios(data.scenarios ?? []);
+    setSelectedScenarioId("");
+  }
   async function loadPreferences(id: string) {
     const response = await localApiFetch(`/api/groups/${id}/preferences`);
     if (!response.ok) return;
@@ -203,6 +231,7 @@ export default function ShiftAdjustment({
   }, [groupId]);
   useEffect(() => {
     void openPlan(planId);
+    void loadScenarios(planId);
   }, [planId]);
   const assignments = useMemo(() => {
     const map: Record<string, string[]> = {};
@@ -507,6 +536,98 @@ export default function ShiftAdjustment({
       </div>
     );
   }
+  function selectScenario(value: string) {
+    setSelectedScenarioId(value);
+    const scenario = scenarios.find((item) => item.id === value);
+    if (!scenario) {
+      setScenarioName("");
+      setScenarioDescription("");
+      if (detail) void openPlan(detail.plan.id);
+      return;
+    }
+    setScenarioName(scenario.name);
+    setScenarioDescription(scenario.description);
+    setScenarioSeed(scenario.seed);
+    setDetail((current) => current ? {
+      ...current,
+      assignments: Object.entries(scenario.assignments).flatMap(([slotId, users]) => users.map((userEmail) => ({ slotId, userEmail }))),
+    } : current);
+  }
+  async function createScenario(action: "manual" | "auto") {
+    if (!detail || !scenarioName.trim()) {
+      setNotice("割当案名を入力してください");
+      return;
+    }
+    setBusy(true);
+    const response = await localApiFetch(`/api/shifts/${detail.plan.id}/scenarios`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: action === "auto" ? "auto" : undefined,
+        name: scenarioName.trim(),
+        description: scenarioDescription.trim(),
+        seed: scenarioSeed.trim() || crypto.randomUUID(),
+        settings: { priority: scenarioPriority, target: scenarioTarget, unavailableMode: "exclude", existingMode: "keep" },
+        assignments: assignments,
+      }),
+    });
+    const data = (await response.json()) as { error?: string; scenario?: AssignmentScenario };
+    if (!response.ok || !data.scenario) {
+      setNotice(data.error ?? "割当案を保存できませんでした");
+      setBusy(false);
+      return;
+    }
+    setScenarios((current) => [data.scenario!, ...current]);
+    setSelectedScenarioId(data.scenario.id);
+    setScenarioSeed(data.scenario.seed);
+    if (action === "auto") setDetail((current) => current ? { ...current, assignments: Object.entries(data.scenario!.assignments).flatMap(([slotId, users]) => users.map((userEmail) => ({ slotId, userEmail }))) } : current);
+    setScenarioOpen(false);
+    setNotice("割当案を保存しました。本体割当はまだ変更されていません。");
+    setBusy(false);
+  }
+  async function saveSelectedScenario() {
+    if (!detail || !selectedScenarioId) return;
+    setBusy(true);
+    const response = await localApiFetch(`/api/shifts/${detail.plan.id}/scenarios/${selectedScenarioId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: scenarioName.trim(), description: scenarioDescription.trim(), assignments }),
+    });
+    const data = (await response.json()) as { error?: string; scenario?: AssignmentScenario };
+    if (response.ok && data.scenario) setScenarios((current) => current.map((item) => item.id === data.scenario!.id ? data.scenario! : item));
+    setNotice(response.ok ? "割当案を更新しました。本体割当はまだ変更されていません。" : (data.error ?? "割当案を更新できませんでした"));
+    setBusy(false);
+  }
+  function duplicateSelectedScenario() {
+    const scenario = scenarios.find((item) => item.id === selectedScenarioId);
+    if (!scenario) return;
+    setScenarioName(`${scenario.name} コピー`);
+    setScenarioDescription(scenario.description);
+    setScenarioSeed(`${scenario.seed}-copy`);
+    setScenarioPriority(typeof scenario.settings.priority === "string" ? scenario.settings.priority : "preference");
+    setScenarioTarget(typeof scenario.settings.target === "string" ? scenario.settings.target : "unfilled");
+    setScenarioOpen(true);
+  }
+  function scenarioAssignedCount(scenario: AssignmentScenario) {
+    return Object.values(scenario.assignments).reduce((total, users) => total + users.length, 0);
+  }
+  function scenarioUnfilledCount(scenario: AssignmentScenario) {
+    return detail?.slots.filter((slot) => (scenario.assignments[slot.id]?.length ?? 0) < slot.requiredCount).length ?? 0;
+  }
+  async function deleteSelectedScenario() {
+    if (!detail || !selectedScenarioId || !window.confirm("この割当案を削除しますか？")) return;
+    setBusy(true);
+    const response = await localApiFetch(`/api/shifts/${detail.plan.id}/scenarios/${selectedScenarioId}`, { method: "DELETE" });
+    if (response.ok) {
+      setScenarios((current) => current.filter((item) => item.id !== selectedScenarioId));
+      setSelectedScenarioId("");
+      setScenarioName("");
+      setScenarioDescription("");
+      setDetail((current) => current ? { ...current, assignments: [] } : current);
+    }
+    setNotice(response.ok ? "割当案を削除しました" : "割当案を削除できませんでした");
+    setBusy(false);
+  }
   async function save(status: "draft" | "published") {
     if (!detail) return;
     const nextStatus = detail.plan.status === "published" ? "published" : status;
@@ -615,6 +736,43 @@ export default function ShiftAdjustment({
             >
               保存
             </button>
+          </div>
+          <div className="assignment-scenarios">
+            <div className="assignment-scenarios-head">
+              <strong>割当案</strong>
+              <span>現行下書き以外の案は、採用するまで本体の割当・公開シフトに影響しません。</span>
+            </div>
+            <div className="assignment-scenarios-controls">
+              <select value={selectedScenarioId} onChange={(event) => selectScenario(event.target.value)}>
+                <option value="">現行下書き（本体割当）</option>
+                {scenarios.map((scenario) => <option key={scenario.id} value={scenario.id}>{scenario.name}{scenario.baseVersion !== detail.plan.version ? "（再計算が必要）" : ""}</option>)}
+              </select>
+              <button type="button" className="ghost-button" onClick={() => { setScenarioName(""); setScenarioDescription(""); setScenarioSeed(""); setScenarioOpen(true); }}>＋割当案を作成</button>
+              {selectedScenarioId && <>
+                <button type="button" className="ghost-button" onClick={duplicateSelectedScenario} disabled={busy}>複製</button>
+                <button type="button" className="ghost-button" onClick={() => setShowScenarioCompare((value) => !value)}>{showScenarioCompare ? "比較を閉じる" : "比較"}</button>
+                <button type="button" className="ghost-button" onClick={() => void saveSelectedScenario()} disabled={busy}>案を保存</button>
+                <button type="button" className="ghost-button danger-button" onClick={() => void deleteSelectedScenario()} disabled={busy}>案を削除</button>
+                <button type="button" className="primary-button" onClick={() => { if (window.confirm("この案を現行下書きへ採用しますか？保存済みの他の案は残ります。")) void save("draft"); }} disabled={busy}>現行下書きに採用</button>
+              </>}
+            </div>
+            {selectedScenarioId && <p className="assignment-scenario-meta">{scenarioDescription || "説明なし"} ／ seed: {scenarioSeed || scenarios.find((item) => item.id === selectedScenarioId)?.seed || "-"}</p>}
+            {showScenarioCompare && <div className="assignment-scenario-compare">
+              <strong>割当案の比較</strong>
+              <div className="assignment-scenario-compare-list">
+                {scenarios.map((scenario) => <span key={scenario.id}>{scenario.name}：{scenarioAssignedCount(scenario)}人枠／未充足 {scenarioUnfilledCount(scenario)}枠</span>)}
+              </div>
+            </div>}
+            {scenarioOpen && <div className="assignment-scenario-form">
+              <input value={scenarioName} onChange={(event) => setScenarioName(event.target.value)} placeholder="案名（例：希望優先案A）" />
+              <input value={scenarioDescription} onChange={(event) => setScenarioDescription(event.target.value)} placeholder="説明・店長メモ" />
+              <input value={scenarioSeed} onChange={(event) => setScenarioSeed(event.target.value)} placeholder="乱数シード（同じ条件なら再現）" />
+              <select value={scenarioPriority} onChange={(event) => setScenarioPriority(event.target.value)}><option value="labor">労務優先</option><option value="preference">希望優先</option><option value="fairness">公平性優先</option><option value="minimal">変更最小</option></select>
+              <select value={scenarioTarget} onChange={(event) => setScenarioTarget(event.target.value)}><option value="unfilled">未充足枠のみ</option><option value="all">全枠を再計算</option></select>
+              <button type="button" className="ghost-button" onClick={() => void createScenario("manual")} disabled={busy}>現在の割当を案として保存</button>
+              <button type="button" className="primary-button" onClick={() => void createScenario("auto")} disabled={busy}>条件付きで作成・保存</button>
+              <button type="button" className="ghost-button" onClick={() => setScenarioOpen(false)}>キャンセル</button>
+            </div>}
           </div>
           <div className="assignment-summary">
             <strong>{detail.plan.name}</strong>
