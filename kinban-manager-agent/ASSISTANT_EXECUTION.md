@@ -12,3 +12,5 @@
   - announcement distribution
 - Do not request, record, or pass context or confirmation tokens. For a direct task, MCP verifies the key owner and group permission; for a queued message, it verifies the claimed manager message and group permission before a write.
 - Before executing a write, state the target and intended outcome in the task report. MCP writes an audit record for every completed operation.
+- Do not call KINBAN by direct HTTP, edit source code, use Git, modify local DB/R2, change environment variables, or deploy from this runtime. If an MCP operation is missing, report it to the development/operations AI instead of changing the application.
+- Treat this runtime as separate from the development environment. A copied folder is not an isolation boundary when the same PC or user can access the development project.
