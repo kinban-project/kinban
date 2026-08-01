@@ -164,6 +164,7 @@ export default function ShiftAdjustment({
   const [groupId, setGroupId] = useState(initialGroupId ?? "");
   const [planId, setPlanId] = useState("");
   const [detail, setDetail] = useState<Detail | null>(null);
+  const [baseAssignments, setBaseAssignments] = useState<Record<string, string[]>>({});
   const [preferences, setPreferences] = useState<Record<string, Preference>>(
     {},
   );
@@ -206,7 +207,13 @@ export default function ShiftAdjustment({
   async function openPlan(id: string) {
     if (!id) return;
     const response = await localApiFetch(`/api/shifts/${id}`);
-    if (response.ok) setDetail((await response.json()) as Detail);
+    if (response.ok) {
+      const next = (await response.json()) as Detail;
+      setDetail(next);
+      const map: Record<string, string[]> = {};
+      for (const row of next.assignments) (map[row.slotId] ??= []).push(row.userEmail);
+      setBaseAssignments(map);
+    }
   }
   async function loadScenarios(id: string) {
     if (!id) return;
@@ -655,19 +662,37 @@ export default function ShiftAdjustment({
   function scenarioDifferenceCount(scenario: AssignmentScenario) {
     if (!detail) return 0;
     return detail.slots.reduce((total, slot) => {
-      const current = new Set(assignments[slot.id] ?? []);
+      const current = new Set(baseAssignments[slot.id] ?? []);
       const candidate = new Set(scenario.assignments[slot.id] ?? []);
       return total + [...new Set([...current, ...candidate])].filter((email) => current.has(email) !== candidate.has(email)).length;
     }, 0);
   }
-  function currentPreferenceOutOfRangeCount() {
+  function preferenceOutOfRangeCount(source: Record<string, string[]>) {
     if (!detail) return 0;
     return detail.members.filter((member) => {
-      const assignedSlots = detail.slots.filter((slot) => (assignments[slot.id] ?? []).includes(member.userEmail));
+      const assignedSlots = detail.slots.filter((slot) => (source[slot.id] ?? []).includes(member.userEmail));
       const days = new Set(assignedSlots.map((slot) => slot.date)).size;
       const totalHours = assignedSlots.reduce((total, slot) => total + hours(slot.startTime, slot.endTime), 0);
       const preference = detail.memberPreferences?.find((item) => item.userEmail === member.userEmail);
       return Boolean(preference && (days < preference.minDays || days > preference.maxDays || totalHours < preference.minHours || totalHours > preference.maxHours));
+    }).length;
+  }
+  function baseAssignedCount() {
+    return Object.values(baseAssignments).reduce((total, users) => total + users.length, 0);
+  }
+  function baseUnfilledCount() {
+    return detail?.slots.filter((slot) => (baseAssignments[slot.id]?.length ?? 0) < slot.requiredCount).length ?? 0;
+  }
+  function baseLaborCount() {
+    if (!detail) return 0;
+    return buildLaborWarnings({
+      slots: detail.slots,
+      assignments: Object.entries(baseAssignments).flatMap(([slotId, users]) => users.map((userEmail) => ({ slotId, userEmail }))),
+      members: detail.members,
+      autoBreakSuggestion: detail.autoBreakSuggestion,
+      rules: detail.laborRules,
+      planStartDate: detail.plan.startDate,
+      planEndDate: detail.plan.endDate,
     }).length;
   }
   async function deleteSelectedScenario() {
@@ -816,7 +841,7 @@ export default function ShiftAdjustment({
             {showScenarioCompare && <div className="assignment-scenario-compare">
               <strong>割当案の比較</strong>
               <div className="assignment-scenario-compare-list">
-                <span>現行下書き：{detail.assignments.length}人枠／未充足 {assignmentIssues.filter((issue) => issue.kind === "shortage").length}枠／労務注意 {warningSummary.labor}件／希望範囲外 {currentPreferenceOutOfRangeCount()}人／差分 -</span>
+                <span>現行下書き：{baseAssignedCount()}人枠／未充足 {baseUnfilledCount()}枠／労務注意 {baseLaborCount()}件／希望範囲外 {preferenceOutOfRangeCount(baseAssignments)}人／差分 -</span>
                 {scenarios.map((scenario) => <span key={scenario.id}>{scenario.name}：{scenarioAssignedCount(scenario)}人枠／未充足 {scenarioUnfilledCount(scenario)}枠／労務注意 {scenarioLaborCount(scenario)}件／希望範囲外 {scenarioPreferenceOutOfRangeCount(scenario)}人／現行との差分 {scenarioDifferenceCount(scenario)}件</span>)}
               </div>
             </div>}

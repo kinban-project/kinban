@@ -34,4 +34,7 @@ test("shift adjustment exposes scenario lifecycle without changing the base unti
   assert.match(adjustment, /比較/);
   assert.match(adjustment, /現行下書きに採用/);
   assert.match(adjustment, /本体割当はまだ変更されていません/);
+  assert.match(adjustment, /setBaseAssignments/);
+  assert.match(adjustment, /preferenceOutOfRangeCount/);
+  assert.match(adjustment, /baseAssignments\[slot\.id\]/);
 });
