@@ -478,6 +478,20 @@ export default function ShiftAdjustment({
     );
     return match ? preferenceClass(match.status) : "unavailable";
   }
+  function previewPreferenceFor(slot: Slot, userEmail: string) {
+    const request = detail?.requests?.find(
+      (row) => row.userEmail === userEmail && row.date === slot.date && row.startTime === slot.startTime && row.endTime === slot.endTime,
+    );
+    if (request) return preferenceClass(request.preference);
+    const weekday = new Date(`${slot.date}T00:00:00`).getDay();
+    const rows = detail?.memberAvailability?.filter((row) => row.userEmail === userEmail && row.dayOfWeek === weekday) ?? [];
+    if (!rows.length) return "none";
+    const match = rows.find(
+      (row) => (!row.startTime && !row.endTime) ||
+        (shiftTimeToMinutes(row.startTime) <= shiftTimeToMinutes(slot.startTime) && shiftTimeToMinutes(row.endTime) >= shiftTimeToMinutes(slot.endTime)),
+    );
+    return match ? preferenceClass(match.status) : "unavailable";
+  }
   function toggle(slotId: string, userEmail: string) {
     setDetail((currentDetail) => {
       if (!currentDetail) return currentDetail;
@@ -528,6 +542,28 @@ export default function ShiftAdjustment({
         )}
         {laborLabels.map((label) => <small className="assignment-labor-badge" key={label}>{label}</small>)}
       </label>
+    );
+  }
+  function renderPreviewPerson(slot: Slot, userEmail: string, index: number) {
+    const member = detail?.members.find((item) => item.userEmail === userEmail);
+    const preference = previewPreferenceFor(slot, userEmail);
+    const minutes = plannedBreakByMemberDate.get(`${userEmail}|${slot.date}`) ?? 0;
+    const laborLabels = [...new Set(laborWarnings
+      .filter((warning) => warning.memberEmail === userEmail && warning.slotIds.includes(slot.id))
+      .map((warning) => laborWarningLabel(warning.kind)))];
+    const hasOverlap = assignmentIssues.some(
+      (issue) => issue.kind === "overlap" && issue.memberEmail === userEmail && issue.slotIds.includes(slot.id),
+    );
+    const labels = [
+      ...(minutes > 0 ? [`予定休憩${minutes}分`] : []),
+      ...laborLabels,
+      ...(hasOverlap ? ["時間重複"] : []),
+    ];
+    return (
+      <span className={`assignment-preview-person pref-${preference}`} key={`${slot.id}|${userEmail}|${index}`}>
+        <strong>{member?.displayName || userEmail.split("@")[0]}</strong>
+        {labels.length > 0 && <small>（{labels.join("、")}）</small>}
+      </span>
     );
   }
   function renderSlot(slot: Slot) {
@@ -867,6 +903,8 @@ export default function ShiftAdjustment({
               <i className="pref-possible">可能</i>
               <i className="pref-off">休み希望</i>
               <i className="pref-unavailable">勤務不可</i>
+              <i className="pref-none">希望未提出</i>
+              <i className="is-unassigned">未割当</i>
             </span>
           </div>
           <div className="assignment-warning-filter" aria-label="割り当て警告の表示">
@@ -930,21 +968,13 @@ export default function ShiftAdjustment({
               <table className="assignment-preview-table">
                 <thead><tr><th>日付</th>{timeColumns.map((time) => <th key={`${time.startTime}|${time.endTime}`}>{displayShiftTime(time.startTime)}<small>{displayShiftTime(time.endTime)}</small></th>)}</tr></thead>
                 <tbody>{dates.map((date) => <tr key={date}><th>{formatShiftDate(date)}</th>{timeColumns.map((time) => <td key={`${date}|${time.startTime}|${time.endTime}`}>{visibleSlots.filter((slot) => slot.date === date && slot.startTime === time.startTime && slot.endTime === time.endTime).map((slot) => {
-                  const names = [...new Set(assignments[slot.id] ?? [])].map((email) => {
-                    const name = detail.members.find((member) => member.userEmail === email)?.displayName || email.split("@")[0];
-                    const minutes = plannedBreakByMemberDate.get(`${email}|${date}`) ?? 0;
-                    const laborLabels = [...new Set(laborWarnings
-                      .filter((warning) => warning.memberEmail === email && warning.slotIds.includes(slot.id))
-                      .map((warning) => laborWarningLabel(warning.kind)))];
-                    const labels = [
-                      ...(minutes > 0 ? [`予定休憩${minutes}分`] : []),
-                      ...laborLabels,
-                      ...(assignmentIssues.some((issue) => issue.kind === "overlap" && issue.memberEmail === email && issue.slotIds.includes(slot.id)) ? ["時間重複"] : []),
-                    ];
-                    return labels.length > 0 ? `${name}（${labels.join("、")}）` : name;
-                  });
-                  const assignedCount = names.length;
-                  return <div className={`assignment-preview-slot ${assignedCount < slot.requiredCount ? "is-shortage" : ""} ${assignedCount > slot.requiredCount ? "is-excess" : ""}`} key={slot.id}><div><strong>{slot.role || "共通"}</strong><span>{assignedCount}/{slot.requiredCount}人</span></div><p>{names.length ? names.join("、") : "未割当"}</p></div>;
+                  const emails = [...new Set(assignments[slot.id] ?? [])];
+                  const assignedCount = emails.length;
+                  const people = [
+                    ...emails.map((email) => ({ email, unassigned: false })),
+                    ...Array.from({ length: Math.max(0, slot.requiredCount - assignedCount) }, () => ({ email: "", unassigned: true })),
+                  ];
+                  return <div className={`assignment-preview-slot ${assignedCount < slot.requiredCount ? "is-shortage" : ""} ${assignedCount > slot.requiredCount ? "is-excess" : ""}`} key={slot.id}><div><strong>{slot.role || "共通"}</strong><span>{assignedCount}/{slot.requiredCount}人</span></div><div className="assignment-preview-people">{people.length > 0 ? people.map((person, index) => person.unassigned ? <span className="assignment-preview-person is-unassigned" key={`${slot.id}|unassigned|${index}`}>未割当</span> : renderPreviewPerson(slot, person.email, index)) : <span className="assignment-preview-person is-unassigned">未割当</span>}</div></div>;
                 })}</td>)}</tr>)}</tbody>
               </table>
             </div>
