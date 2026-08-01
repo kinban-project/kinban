@@ -35,6 +35,7 @@ import {
   memoFolders,
   memos,
   shiftAssignments,
+  shiftAssignmentScenarios,
   shiftSwapCandidates,
   shiftSwapRequests,
   shiftAvailability,
@@ -49,7 +50,12 @@ import { canViewAdminNote, toPublicMember } from "../api/groups/member-dto";
 import { shiftRequestDeadlinePassed } from "../shift-request-deadline";
 import { isPreferenceStatus, preferenceStatuses } from "../preference-status";
 import { recordAudit } from "../audit-log";
-import { shiftDateTime, shiftTimeToMinutes } from "../shift-time";
+import {
+  isValidShiftTime,
+  minutesToShiftTime,
+  shiftDateTime,
+  shiftTimeToMinutes,
+} from "../shift-time";
 import { buildLaborWarnings } from "../shift-labor-warnings";
 import {
   getMcpWorkRecords,
@@ -70,6 +76,53 @@ import {
 export const dynamic = "force-dynamic";
 
 type Args = Record<string, unknown>;
+
+type McpCustomSlot = {
+  date: string;
+  startTime: string;
+  endTime: string;
+  requiredCount: number;
+  role: string;
+};
+
+function parseMcpCustomSlots(input: unknown, planId: string, startDate: string, endDate: string) {
+  const parsed = typeof input === "string" ? JSON.parse(input) : input;
+  const rows = Array.isArray(parsed)
+    ? parsed
+    : parsed && typeof parsed === "object" && Array.isArray((parsed as { slots?: unknown }).slots)
+      ? (parsed as { slots: unknown[] }).slots
+      : null;
+  if (!rows?.length) throw new Error("customSlots must contain at least one slot");
+  if (rows.length > 5000) throw new Error("customSlots cannot contain more than 5000 slots");
+  const used = new Set<string>();
+  return rows.map((raw, index) => {
+    if (!raw || typeof raw !== "object") throw new Error(`Invalid custom slot at index ${index}`);
+    const item = raw as Record<string, unknown>;
+    const date = text(item.date);
+    const startTime = text(item.startTime);
+    const endTime = text(item.endTime);
+    const role = text(item.role).slice(0, 100);
+    const requiredCount = Number(item.requiredCount);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < startDate || date > endDate)
+      throw new Error(`custom slot ${index + 1} has an invalid date`);
+    if (!isValidShiftTime(startTime) || !isValidShiftTime(endTime) || shiftTimeToMinutes(startTime) >= shiftTimeToMinutes(endTime))
+      throw new Error(`custom slot ${index + 1} has an invalid time range`);
+    if (!Number.isInteger(requiredCount) || requiredCount < 1 || requiredCount > 50)
+      throw new Error(`custom slot ${index + 1} has an invalid requiredCount`);
+    const key = `${date}|${startTime}|${endTime}|${role}`;
+    if (used.has(key)) throw new Error(`duplicate custom slot: ${key}`);
+    used.add(key);
+    return {
+      id: crypto.randomUUID(),
+      planId,
+      date,
+      startTime: minutesToShiftTime(shiftTimeToMinutes(startTime)),
+      endTime: minutesToShiftTime(shiftTimeToMinutes(endTime)),
+      requiredCount,
+      role,
+    };
+  }) as Array<McpCustomSlot & { id: string; planId: string }>;
+}
 type RpcRequest = {
   jsonrpc?: string;
   id?: string | number | null;
@@ -87,6 +140,8 @@ const assistantTools = new Set([
   "get_group_members",
   "list_shift_plans",
   "get_shift_plan",
+  "get_shift_planning_context",
+  "validate_shift_assignment_candidate",
   "list_knowledge_pages",
   "search_knowledge_pages",
   "get_knowledge_page",
@@ -110,6 +165,13 @@ const assistantTools = new Set([
   "delete_draft_shift_plan",
   "update_slot_counts",
   "set_shift_assignments",
+  "clear_draft_assignments",
+  "create_shift_assignment_scenario",
+  "update_shift_assignment_scenario",
+  "delete_shift_assignment_scenario",
+  "apply_shift_assignment_scenario",
+  "list_shift_assignment_scenarios",
+  "compare_shift_assignment_scenario",
   "submit_work_record",
   "review_monthly_work",
   "create_announcement",
@@ -162,6 +224,149 @@ const chunk = <T>(items: T[], size: number) => {
     chunks.push(items.slice(index, index + size));
   return chunks;
 };
+
+type PlanningContext = {
+  plan: typeof shiftPlans.$inferSelect;
+  slots: Array<typeof shiftSlots.$inferSelect>;
+  assignments: Array<typeof shiftAssignments.$inferSelect>;
+  members: Array<typeof groupMembers.$inferSelect>;
+  preferences: Array<typeof groupPreferences.$inferSelect>;
+  availability: Array<typeof shiftAvailability.$inferSelect>;
+  period: typeof shiftRequestPeriods.$inferSelect | null;
+  requests: Array<typeof shiftRequests.$inferSelect>;
+  submissions: Array<typeof shiftRequestSubmissions.$inferSelect>;
+  laborRules: Parameters<typeof buildLaborWarnings>[0]["rules"];
+};
+
+async function readPlanningContext(
+  db: ReturnType<typeof getDb>,
+  plan: typeof shiftPlans.$inferSelect,
+): Promise<PlanningContext> {
+  const slots = await db.select().from(shiftSlots).where(eq(shiftSlots.planId, plan.id));
+  const slotIds = slots.map((slot) => slot.id);
+  const assignmentRows = (await Promise.all(chunk(slotIds, 50).map((ids) =>
+    ids.length ? db.select().from(shiftAssignments).where(inArray(shiftAssignments.slotId, ids)) : Promise.resolve([]),
+  ))).flat();
+  const members = await db.select().from(groupMembers).where(eq(groupMembers.groupId, plan.groupId));
+  const memberEmails = members.map((member) => member.userEmail);
+  const [period] = await db.select().from(shiftRequestPeriods)
+    .where(and(eq(shiftRequestPeriods.groupId, plan.groupId), eq(shiftRequestPeriods.planId, plan.id)))
+    .orderBy(desc(shiftRequestPeriods.opensOn)).limit(1);
+  const [requests, submissions, preferences, availability, group] = await Promise.all([
+    period ? db.select().from(shiftRequests).where(eq(shiftRequests.periodId, period.id)) : Promise.resolve([]),
+    period ? db.select().from(shiftRequestSubmissions).where(eq(shiftRequestSubmissions.periodId, period.id)) : Promise.resolve([]),
+    memberEmails.length ? db.select().from(groupPreferences).where(and(eq(groupPreferences.groupId, plan.groupId), inArray(groupPreferences.userEmail, memberEmails))) : Promise.resolve([]),
+    memberEmails.length ? db.select().from(shiftAvailability).where(and(eq(shiftAvailability.groupId, plan.groupId), inArray(shiftAvailability.userEmail, memberEmails))) : Promise.resolve([]),
+    db.select().from(groups).where(eq(groups.id, plan.groupId)).limit(1),
+  ]);
+  const rules = group[0] ? {
+    plannedBreakWarning: group[0].laborPlannedBreakWarning,
+    dailyHoursWarning: group[0].laborDailyHoursWarning,
+    weeklyHoursWarning: group[0].laborWeeklyHoursWarning,
+    restIntervalWarning: group[0].laborRestIntervalWarning,
+    consecutiveDaysWarning: group[0].laborConsecutiveDaysWarning,
+    weeklyRestWarning: group[0].laborWeeklyRestWarning,
+    dailyHoursLimitMinutes: group[0].laborDailyHoursLimitMinutes,
+    weeklyHoursLimitMinutes: group[0].laborWeeklyHoursLimitMinutes,
+    restIntervalMinutes: group[0].laborRestIntervalMinutes,
+    consecutiveDaysLimit: group[0].laborConsecutiveDaysLimit,
+    weeklyRestDaysRequired: group[0].laborWeeklyRestDaysRequired,
+    fourWeekRestDaysRequired: group[0].laborFourWeekRestDaysRequired,
+  } : undefined;
+  return { plan, slots, assignments: assignmentRows, members, preferences, availability, period: period ?? null, requests, submissions, laborRules: rules };
+}
+
+function assignmentObjectFromRows(rows: Array<typeof shiftAssignments.$inferSelect>) {
+  const result: Record<string, string[]> = {};
+  for (const row of rows) result[row.slotId] = [...new Set([...(result[row.slotId] ?? []), row.userEmail])];
+  return result;
+}
+
+function normalizeAssignmentObject(value: unknown, slotIds: Set<string>, memberEmails: Set<string>) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("assignments must be an object");
+  const result: Record<string, string[]> = {};
+  for (const [slotId, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (!slotIds.has(slotId)) throw new Error(`Unknown slotId: ${slotId}`);
+    if (!Array.isArray(raw)) throw new Error(`Assignments for ${slotId} must be an array`);
+    const emails = raw.filter((email): email is string => typeof email === "string");
+    if (emails.length !== raw.length || emails.some((email) => !memberEmails.has(email))) throw new Error(`Assignments for ${slotId} contain an unknown member`);
+    result[slotId] = [...new Set(emails)];
+  }
+  return result;
+}
+
+function validateCandidate(context: PlanningContext, candidate: Record<string, string[]>) {
+  const saved = assignmentObjectFromRows(context.assignments);
+  const slotById = new Map(context.slots.map((slot) => [slot.id, slot]));
+  const memberByEmail = new Map(context.members.map((member) => [member.userEmail, member]));
+  const memberName = (email: string) => memberByEmail.get(email)?.displayName?.trim() || email.split("@")[0];
+  const issues: Array<Record<string, unknown>> = [];
+  const startOf = (slot: typeof context.slots[number]) => Date.parse(`${slot.date}T00:00:00Z`) / 60000 + shiftTimeToMinutes(slot.startTime);
+  const endOf = (slot: typeof context.slots[number]) => Date.parse(`${slot.date}T00:00:00Z`) / 60000 + shiftTimeToMinutes(slot.endTime);
+  const assignedRows = context.slots.flatMap((slot) => (candidate[slot.id] ?? []).map((userEmail) => ({ slotId: slot.id, userEmail })));
+  for (const slot of context.slots) {
+    const assigned = candidate[slot.id] ?? [];
+    if (assigned.length < slot.requiredCount) issues.push({ type: "shortage", severity: "error", slotId: slot.id, required: slot.requiredCount, assigned: assigned.length, message: `${slot.date} ${slot.startTime}-${slot.endTime}: ${slot.requiredCount}名に対して${assigned.length}名です` });
+    if (assigned.length > slot.requiredCount) issues.push({ type: "excess", severity: "warning", slotId: slot.id, required: slot.requiredCount, assigned: assigned.length, message: `${slot.date} ${slot.startTime}-${slot.endTime}: ${assigned.length - slot.requiredCount}名超過です` });
+    for (const email of assigned) if (!memberByEmail.get(email) || memberByEmail.get(email)?.status !== "active") issues.push({ type: "inactive_member", severity: "error", slotId: slot.id, memberEmail: email, memberName: memberName(email), message: `${memberName(email)}は有効なメンバーではありません` });
+  }
+  const assignedSlots: Array<{ slot: typeof context.slots[number]; userEmail: string }> = [];
+  for (const row of assignedRows) { const slot = slotById.get(row.slotId); if (slot) assignedSlots.push({ slot, userEmail: row.userEmail }); }
+  for (let i = 0; i < assignedSlots.length; i++) for (let j = i + 1; j < assignedSlots.length; j++) {
+    const left = assignedSlots[i], right = assignedSlots[j];
+    if (left.userEmail === right.userEmail && startOf(left.slot) < endOf(right.slot) && startOf(right.slot) < endOf(left.slot)) issues.push({ type: "overlap", severity: "error", slotIds: [left.slot.id, right.slot.id], memberEmail: left.userEmail, memberName: memberName(left.userEmail), message: `${memberName(left.userEmail)}の勤務時間が重複しています` });
+  }
+  const preferenceFor = (slot: typeof context.slots[number], email: string) => {
+    const exact = context.requests.find((request) => request.userEmail === email && request.date === slot.date && request.startTime === slot.startTime && request.endTime === slot.endTime);
+    if (exact) return exact.preference;
+    const weekday = new Date(`${slot.date}T00:00:00Z`).getUTCDay();
+    const rows = context.availability.filter((entry) => entry.userEmail === email && entry.dayOfWeek === weekday);
+    if (!rows.length) return "possible";
+    const start = shiftTimeToMinutes(slot.startTime), end = shiftTimeToMinutes(slot.endTime);
+    return rows.find((entry) => (!entry.startTime && !entry.endTime) || (shiftTimeToMinutes(entry.startTime) <= start && shiftTimeToMinutes(entry.endTime) >= end))?.status ?? "unavailable";
+  };
+  for (const { slot, userEmail } of assignedSlots) { const preference = preferenceFor(slot, userEmail); if (preference === "off" || preference === "unavailable") issues.push({ type: "preference_conflict", severity: "warning", slotId: slot.id, memberEmail: userEmail, memberName: memberName(userEmail), preference, message: `${memberName(userEmail)}の希望と一致しません` }); }
+  for (const preference of context.preferences) {
+    const memberSlots = assignedSlots.filter((row) => row.userEmail === preference.userEmail).map((row) => row.slot);
+    const days = new Set(memberSlots.map((slot) => slot.date)).size;
+    const totalMinutes = memberSlots.reduce((sum, slot) => sum + Math.max(0, endOf(slot) - startOf(slot)), 0);
+    if (days < preference.minDays || days > preference.maxDays || totalMinutes < preference.minHours * 60 || totalMinutes > preference.maxHours * 60) issues.push({ type: "member_range", severity: "warning", memberEmail: preference.userEmail, memberName: memberName(preference.userEmail), days, totalMinutes, minDays: preference.minDays, maxDays: preference.maxDays, minHours: preference.minHours, maxHours: preference.maxHours, message: `${memberName(preference.userEmail)}の勤務日数・時間が基本設定の範囲外です` });
+  }
+  const laborWarnings = buildLaborWarnings({ slots: context.slots, assignments: assignedRows, members: context.members, rules: context.laborRules, planStartDate: context.plan.startDate, planEndDate: context.plan.endDate });
+  for (const warning of laborWarnings) issues.push({ type: warning.kind, severity: "warning", memberEmail: warning.memberEmail, memberName: warning.memberName, dates: warning.dates, slotIds: warning.slotIds, message: warning.message });
+  const changed = context.slots.filter((slot) => JSON.stringify(saved[slot.id] ?? []) !== JSON.stringify(candidate[slot.id] ?? [])).map((slot) => ({ slotId: slot.id, saved: saved[slot.id] ?? [], candidate: candidate[slot.id] ?? [] }));
+  const errors = issues.filter((issue) => issue.severity === "error"), warnings = issues.filter((issue) => issue.severity === "warning");
+  return { ok: errors.length === 0, canPublish: errors.length === 0, summary: { slotCount: context.slots.length, assignmentCount: assignedRows.length, errorCount: errors.length, warningCount: warnings.length, changedSlotCount: changed.length }, errors, warnings, changed };
+}
+
+function generateCandidate(context: PlanningContext, seed = "") {
+  const candidate = assignmentObjectFromRows(context.assignments);
+  const assigned = (email: string) => context.slots.filter((slot) => (candidate[slot.id] ?? []).includes(email));
+  const overlaps = (left: typeof context.slots[number], right: typeof context.slots[number]) => {
+    const start = (slot: typeof context.slots[number]) => Date.parse(`${slot.date}T00:00:00Z`) / 60000 + shiftTimeToMinutes(slot.startTime);
+    const end = (slot: typeof context.slots[number]) => Date.parse(`${slot.date}T00:00:00Z`) / 60000 + shiftTimeToMinutes(slot.endTime);
+    return start(left) < end(right) && start(right) < end(left);
+  };
+  const allowed = (email: string, slot: typeof context.slots[number]) => {
+    const exact = context.requests.find((request) => request.userEmail === email && request.date === slot.date && request.startTime === slot.startTime && request.endTime === slot.endTime);
+    if (exact) return exact.preference !== "off" && exact.preference !== "unavailable";
+    const weekday = new Date(`${slot.date}T00:00:00Z`).getUTCDay();
+    const rows = context.availability.filter((entry) => entry.userEmail === email && entry.dayOfWeek === weekday);
+    if (!rows.length) return true;
+    const start = shiftTimeToMinutes(slot.startTime), end = shiftTimeToMinutes(slot.endTime);
+    const match = rows.find((entry) => (!entry.startTime && !entry.endTime) || (shiftTimeToMinutes(entry.startTime) <= start && shiftTimeToMinutes(entry.endTime) >= end));
+    return match ? match.status !== "off" && match.status !== "unavailable" : false;
+  };
+  for (const slot of context.slots) {
+    candidate[slot.id] ??= [];
+    const candidates = context.members.filter((member) => member.status === "active" && allowed(member.userEmail, slot) && !candidate[slot.id].includes(member.userEmail) && !assigned(member.userEmail).some((other) => overlaps(slot, other)));
+    let index = 0;
+    while (candidate[slot.id].length < slot.requiredCount && candidates.length) {
+      candidate[slot.id].push(candidates[(index++ + seed.length) % candidates.length].userEmail);
+    }
+  }
+  return candidate;
+}
 
 function hasScope(
   identity: Awaited<ReturnType<typeof requireApiIdentity>>,
@@ -220,6 +425,11 @@ const assistantManagementTools = new Set([
   "delete_draft_shift_plan",
   "update_slot_counts",
   "set_shift_assignments",
+  "clear_draft_assignments",
+  "create_shift_assignment_scenario",
+  "update_shift_assignment_scenario",
+  "delete_shift_assignment_scenario",
+  "apply_shift_assignment_scenario",
   "confirm_shift_swap",
   "submit_work_record",
   "review_monthly_work",
@@ -690,6 +900,29 @@ const tools = [
     },
   },
   {
+    name: "get_shift_planning_context",
+    description:
+      "Get the complete read-only planning context for a shift plan: slots, saved assignments, active members, preferences, availability, request period/requests, labor rules, and the current version. Use this before comparing or changing assignment candidates.",
+    inputSchema: {
+      type: "object",
+      required: ["planId"],
+      properties: { planId: { type: "string" } },
+    },
+  },
+  {
+    name: "validate_shift_assignment_candidate",
+    description:
+      "Validate an unsaved assignment candidate without changing the database. Reports shortages, excess staffing, unavailable/inactive members, overlapping assignments, preference conflicts, labor warnings, and the difference from the saved assignment. assignments is an object keyed by slotId with member email arrays.",
+    inputSchema: {
+      type: "object",
+      required: ["planId", "assignments"],
+      properties: {
+        planId: { type: "string" },
+        assignments: { type: "object" },
+      },
+    },
+  },
+  {
     name: "create_work_record",
     description: "Create the authenticated member's daily work declaration. With slotId it uses an assigned published shift as the initial value; without slotId it creates a manual declaration. Requires confirm:true.",
     inputSchema: {
@@ -788,6 +1021,24 @@ const tools = [
         notes: { type: "string" },
         reason: { type: "string" },
         slotRules: { type: "array" },
+        customSlots: {
+          type: "array",
+          minItems: 1,
+          maxItems: 5000,
+          items: {
+            type: "object",
+            required: ["date", "startTime", "endTime", "requiredCount", "role"],
+            properties: {
+              date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+              startTime: { type: "string" },
+              endTime: { type: "string" },
+              requiredCount: { type: "integer", minimum: 1, maximum: 50 },
+              role: { type: "string", maxLength: 100 },
+            },
+          },
+          description:
+            "Optional exact slot rows. Each row requires date, startTime, endTime, requiredCount, and role. Use this to clone plans with variable time ranges.",
+        },
         requestPeriod: {
           type: "object",
           description:
@@ -906,6 +1157,108 @@ const tools = [
         confirm: { type: "boolean" },
         sourceMessageId: { type: "string" },
         claimId: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "clear_draft_assignments",
+    description:
+      "Clear all saved assignments from a draft plan without deleting the plan, slots, request period, or scenarios. Requires the latest expectedVersion, confirm:true, and a non-empty reason.",
+    inputSchema: {
+      type: "object",
+      required: ["planId", "expectedVersion", "confirm", "reason"],
+      properties: {
+        planId: { type: "string" },
+        expectedVersion: { type: "number" },
+        confirm: { type: "boolean" },
+        reason: { type: "string", minLength: 1, maxLength: 500 },
+        sourceMessageId: { type: "string" },
+        claimId: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "list_shift_assignment_scenarios",
+    description: "List saved assignment scenarios for a shift plan without changing the plan.",
+    inputSchema: {
+      type: "object",
+      required: ["planId"],
+      properties: { planId: { type: "string" } },
+    },
+  },
+  {
+    name: "create_shift_assignment_scenario",
+    description:
+      "Save an assignment scenario for a plan. With action:auto, generate it using the same settings as the screen. This does not change the plan or publish it.",
+    inputSchema: {
+      type: "object",
+      required: ["planId", "name", "confirm"],
+      properties: {
+        planId: { type: "string" },
+        name: { type: "string", minLength: 1, maxLength: 100 },
+        description: { type: "string", maxLength: 500 },
+        seed: { type: "string", maxLength: 200 },
+        action: { type: "string", enum: ["manual", "auto"] },
+        settings: { type: "object" },
+        assignments: { type: "object" },
+        confirm: { type: "boolean" },
+      },
+    },
+  },
+  {
+    name: "update_shift_assignment_scenario",
+    description: "Update a saved scenario name, description, or assignments without changing the plan.",
+    inputSchema: {
+      type: "object",
+      required: ["planId", "scenarioId", "confirm"],
+      properties: {
+        planId: { type: "string" },
+        scenarioId: { type: "string" },
+        name: { type: "string", maxLength: 100 },
+        description: { type: "string", maxLength: 500 },
+        assignments: { type: "object" },
+        confirm: { type: "boolean" },
+      },
+    },
+  },
+  {
+    name: "delete_shift_assignment_scenario",
+    description: "Delete one saved assignment scenario. The shift plan is unchanged.",
+    inputSchema: {
+      type: "object",
+      required: ["planId", "scenarioId", "confirm"],
+      properties: {
+        planId: { type: "string" },
+        scenarioId: { type: "string" },
+        confirm: { type: "boolean" },
+      },
+    },
+  },
+  {
+    name: "compare_shift_assignment_scenario",
+    description: "Compare one saved scenario with the current saved assignments and return changed slots and counts. No data is changed.",
+    inputSchema: {
+      type: "object",
+      required: ["planId", "scenarioId"],
+      properties: {
+        planId: { type: "string" },
+        scenarioId: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "apply_shift_assignment_scenario",
+    description:
+      "Apply a saved scenario to a draft plan after an expectedVersion check. This changes assignments only; it never publishes. Use validate_shift_assignment_candidate first.",
+    inputSchema: {
+      type: "object",
+      required: ["planId", "scenarioId", "expectedVersion", "confirm"],
+      properties: {
+        planId: { type: "string" },
+        scenarioId: { type: "string" },
+        expectedVersion: { type: "number" },
+        confirm: { type: "boolean" },
+        reason: { type: "string", maxLength: 500 },
       },
     },
   },
@@ -1346,6 +1699,11 @@ export async function POST(request: Request) {
           "delete_draft_shift_plan",
           "update_slot_counts",
           "set_shift_assignments",
+          "clear_draft_assignments",
+          "create_shift_assignment_scenario",
+          "update_shift_assignment_scenario",
+          "delete_shift_assignment_scenario",
+          "apply_shift_assignment_scenario",
         ].includes(name)
       ) {
         const [plan] = await db
@@ -1356,7 +1714,7 @@ export async function POST(request: Request) {
         if (!plan) return rpcError(payload.id, "Shift plan not found");
         groupId = plan.groupId;
         permission =
-          name === "set_shift_assignments" &&
+          ["set_shift_assignments", "apply_shift_assignment_scenario"].includes(name) &&
           (plan.status === "published" || args.status === "published")
             ? "canPublishShifts"
             : "canCreateShifts";
@@ -2447,6 +2805,29 @@ export async function POST(request: Request) {
             : allAssignments,
       });
     }
+    if (name === "get_shift_planning_context") {
+      const found = await planFor(db, text(args.planId), identity.email);
+      if ("error" in found) return rpcError(payload.id, found.error);
+      const restricted = assistantGroupError(identity, found.plan.groupId);
+      if (restricted) return rpcError(payload.id, restricted);
+      if (identity.tokenType === "assistant" && !hasScope(identity, "shift:read")) return rpcError(payload.id, "Assistant token scope does not allow shift reads.");
+      if (identity.tokenType === "personal" && found.plan.status !== "published") return rpcError(payload.id, "Personal member keys can only read published shifts.");
+      const context = await readPlanningContext(db, found.plan);
+      const visibleAssignments = identity.tokenType === "personal" ? context.assignments.filter((row) => row.userEmail === identity.email) : context.assignments;
+      return rpc(payload.id, { demoTime: await getDemoTimeContext(found.plan.groupId), plan: context.plan, slots: context.slots, assignments: visibleAssignments, members: context.members.filter((member) => member.status === "active").map((member) => ({ userEmail: member.userEmail, displayName: member.displayName, role: member.role })), preferences: context.preferences, availability: context.availability, requestPeriod: context.period, requests: context.requests, submissions: context.submissions, laborRules: context.laborRules });
+    }
+    if (name === "validate_shift_assignment_candidate") {
+      const found = await planFor(db, text(args.planId), identity.email);
+      if ("error" in found) return rpcError(payload.id, found.error);
+      const restricted = assistantGroupError(identity, found.plan.groupId);
+      if (restricted) return rpcError(payload.id, restricted);
+      if (identity.tokenType === "assistant" && !hasScope(identity, "shift:read")) return rpcError(payload.id, "Assistant token scope does not allow shift reads.");
+      const context = await readPlanningContext(db, found.plan);
+      try {
+        const candidate = normalizeAssignmentObject(args.assignments, new Set(context.slots.map((slot) => slot.id)), new Set(context.members.filter((member) => member.status === "active").map((member) => member.userEmail)));
+        return rpc(payload.id, { demoTime: await getDemoTimeContext(found.plan.groupId), plan: { id: found.plan.id, name: found.plan.name, status: found.plan.status, version: found.plan.version }, ...validateCandidate(context, candidate), savedAssignmentCount: context.assignments.length });
+      } catch (error) { return rpcError(payload.id, error instanceof Error ? error.message : "Invalid assignment candidate"); }
+    }
     if (name === "check_shift_assignments") {
       const found = await planFor(db, text(args.planId), identity.email);
       if ("error" in found) return rpcError(payload.id, found.error);
@@ -2795,6 +3176,7 @@ export async function POST(request: Request) {
       const openingTime = text(args.openingTime, "09:00");
       const closingTime = text(args.closingTime, "18:00");
       const slotMinutes = Number(args.slotMinutes ?? 60);
+      const customSlotsProvided = args.customSlots !== undefined;
       const rules = (
         Array.isArray(args.slotRules)
           ? args.slotRules
@@ -2815,7 +3197,7 @@ export async function POST(request: Request) {
         !startDate ||
         !endDate ||
         startDate > endDate ||
-        ![30, 60, 120].includes(slotMinutes)
+        !customSlotsProvided && ![30, 60, 120].includes(slotMinutes)
       )
         return rpcError(payload.id, "Invalid plan fields");
       const parse = (v: string) => {
@@ -2842,30 +3224,37 @@ export async function POST(request: Request) {
         );
       const requestPeriodId = period ? crypto.randomUUID() : null;
       const planId = crypto.randomUUID();
-      const dates: string[] = [];
-      const cursor = new Date(`${startDate}T00:00:00Z`);
-      const last = new Date(`${endDate}T00:00:00Z`);
-      while (cursor <= last) {
-        dates.push(cursor.toISOString().slice(0, 10));
-        cursor.setUTCDate(cursor.getUTCDate() + 1);
+      let rows: Array<typeof shiftSlots.$inferInsert> = [];
+      if (customSlotsProvided) {
+        try { rows = parseMcpCustomSlots(args.customSlots, planId, startDate, endDate); }
+        catch (error) { return rpcError(payload.id, error instanceof Error ? error.message : "Invalid customSlots"); }
       }
-      const rows: Array<typeof shiftSlots.$inferInsert> = [];
-      for (const date of dates)
-        for (
-          let t = parse(openingTime);
-          t + slotMinutes <= parse(closingTime);
-          t += slotMinutes
-        )
-          for (const rule of rules)
-            rows.push({
-              id: crypto.randomUUID(),
-              planId,
-              date,
-              startTime: `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`,
-              endTime: `${String(Math.floor((t + slotMinutes) / 60)).padStart(2, "0")}:${String((t + slotMinutes) % 60).padStart(2, "0")}`,
-              role: text(rule.role),
-              requiredCount: Math.max(1, Number(rule.requiredCount ?? 1)),
-            });
+      if (!customSlotsProvided) {
+        const dates: string[] = [];
+        const cursor = new Date(`${startDate}T00:00:00Z`);
+        const last = new Date(`${endDate}T00:00:00Z`);
+        while (cursor <= last) {
+          dates.push(cursor.toISOString().slice(0, 10));
+          cursor.setUTCDate(cursor.getUTCDate() + 1);
+        }
+        for (const date of dates)
+          for (
+            let t = parse(openingTime);
+            t + slotMinutes <= parse(closingTime);
+            t += slotMinutes
+          )
+            for (const rule of rules)
+              rows.push({
+                id: crypto.randomUUID(),
+                planId,
+                date,
+                startTime: `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`,
+                endTime: `${String(Math.floor((t + slotMinutes) / 60)).padStart(2, "0")}:${String(Math.floor((t + slotMinutes) % 60)).padStart(2, "0")}`,
+                role: text(rule.role),
+                requiredCount: Math.max(1, Number(rule.requiredCount ?? 1)),
+              });
+      }
+      if (!rows.length) return rpcError(payload.id, "No slots were provided");
       await db.batch([
         db.insert(shiftPlans).values({
           id: planId,
@@ -2875,7 +3264,7 @@ export async function POST(request: Request) {
           endDate,
           openingTime,
           closingTime,
-          slotMinutes,
+          slotMinutes: customSlotsProvided ? 30 : slotMinutes,
           defaultRequiredCount: Number(rules[0]?.requiredCount ?? 1),
           notes: text(args.notes).slice(0, 2000),
           status: "draft",
@@ -2931,14 +3320,15 @@ export async function POST(request: Request) {
         .from(shiftSlots)
         .where(eq(shiftSlots.planId, found.plan.id));
       const slotIds = slots.map((s) => s.id);
+      const assignmentDeletes = [];
+      for (let index = 0; index < slotIds.length; index += 50)
+        assignmentDeletes.push(
+          db
+            .delete(shiftAssignments)
+            .where(inArray(shiftAssignments.slotId, slotIds.slice(index, index + 50))),
+        );
       await db.batch([
-        ...(slotIds.length
-          ? [
-              db
-                .delete(shiftAssignments)
-                .where(inArray(shiftAssignments.slotId, slotIds)),
-            ]
-          : []),
+        ...assignmentDeletes,
         db.delete(shiftSlots).where(eq(shiftSlots.planId, found.plan.id)),
         db
           .delete(shiftRequestPeriods)
@@ -2955,6 +3345,79 @@ export async function POST(request: Request) {
         details: { source: "mcp" },
       });
       return completeManagedExecution({ ok: true, planId: found.plan.id });
+    }
+    if (["list_shift_assignment_scenarios", "create_shift_assignment_scenario", "update_shift_assignment_scenario", "delete_shift_assignment_scenario", "compare_shift_assignment_scenario", "apply_shift_assignment_scenario", "clear_draft_assignments"].includes(name)) {
+      const planId = text(args.planId);
+      const found = await planFor(db, planId, identity.email);
+      if ("error" in found || !editorRoles.has(found.member.role)) return rpcError(payload.id, "Editor membership required");
+      const context = await readPlanningContext(db, found.plan);
+      if (name === "list_shift_assignment_scenarios") {
+        const scenarios = await db.select().from(shiftAssignmentScenarios).where(eq(shiftAssignmentScenarios.planId, planId)).orderBy(desc(shiftAssignmentScenarios.updatedAt));
+        return rpc(payload.id, { planId, currentVersion: found.plan.version, scenarios: scenarios.map((scenario) => ({ ...scenario, settings: JSON.parse(scenario.settingsJson || "{}"), assignments: JSON.parse(scenario.assignmentsJson || "{}") })) });
+      }
+      if (name === "create_shift_assignment_scenario") {
+        if (args.confirm !== true) return rpcError(payload.id, mutating);
+        const baseName = text(args.name).slice(0, 100);
+        if (!baseName) return rpcError(payload.id, "Scenario name is required");
+        const existing = await db.select({ name: shiftAssignmentScenarios.name }).from(shiftAssignmentScenarios).where(eq(shiftAssignmentScenarios.planId, planId));
+        const used = new Set(existing.map((row) => row.name));
+        let nameValue = baseName, suffix = 2;
+        while (used.has(nameValue)) nameValue = `${baseName} ${suffix++}`;
+        let assignments: Record<string, string[]>;
+        try { assignments = args.action === "auto" ? generateCandidate(context, text(args.seed)) : normalizeAssignmentObject(args.assignments ?? {}, new Set(context.slots.map((slot) => slot.id)), new Set(context.members.filter((member) => member.status === "active").map((member) => member.userEmail))); }
+        catch (error) { return rpcError(payload.id, error instanceof Error ? error.message : "Invalid scenario assignments"); }
+        const id = crypto.randomUUID();
+        const settings = args.settings && typeof args.settings === "object" ? args.settings : {};
+        const [scenario] = await db.insert(shiftAssignmentScenarios).values({ id, planId, name: nameValue, description: text(args.description).slice(0, 500), createdBy: identity.email, seed: text(args.seed), settingsJson: JSON.stringify(settings), baseVersion: found.plan.version, assignmentsJson: JSON.stringify(assignments) }).returning();
+        await recordAudit({ groupId: found.plan.groupId, userEmail: identity.email, action: "shift.scenario.create", entityType: "shiftAssignmentScenario", entityId: id, summary: `MCPで割当案を保存: ${nameValue}`, details: { source: "mcp", planId, action: args.action === "auto" ? "auto" : "manual" } });
+        return completeManagedExecution({ ok: true, scenario: { ...scenario, settings, assignments }, validation: validateCandidate(context, assignments) });
+      }
+      const scenarioId = text(args.scenarioId);
+      const [scenario] = await db.select().from(shiftAssignmentScenarios).where(and(eq(shiftAssignmentScenarios.id, scenarioId), eq(shiftAssignmentScenarios.planId, planId))).limit(1);
+      if (!scenario) return rpcError(payload.id, "Scenario not found");
+      let scenarioAssignments: Record<string, string[]>;
+      try { scenarioAssignments = normalizeAssignmentObject(JSON.parse(scenario.assignmentsJson || "{}"), new Set(context.slots.map((slot) => slot.id)), new Set(context.members.filter((member) => member.status === "active").map((member) => member.userEmail))); }
+      catch (error) { return rpcError(payload.id, error instanceof Error ? error.message : "Stored scenario is invalid"); }
+      if (name === "compare_shift_assignment_scenario") return rpc(payload.id, { planId, scenarioId, scenario: { name: scenario.name, description: scenario.description, baseVersion: scenario.baseVersion }, ...validateCandidate(context, scenarioAssignments) });
+      if (name === "update_shift_assignment_scenario") {
+        if (args.confirm !== true) return rpcError(payload.id, mutating);
+        let assignments = scenarioAssignments;
+        if (args.assignments !== undefined) try { assignments = normalizeAssignmentObject(args.assignments, new Set(context.slots.map((slot) => slot.id)), new Set(context.members.filter((member) => member.status === "active").map((member) => member.userEmail))); } catch (error) { return rpcError(payload.id, error instanceof Error ? error.message : "Invalid scenario assignments"); }
+        const nameValue = args.name === undefined ? scenario.name : text(args.name).slice(0, 100);
+        if (!nameValue) return rpcError(payload.id, "Scenario name is required");
+        const [updated] = await db.update(shiftAssignmentScenarios).set({ name: nameValue, description: args.description === undefined ? scenario.description : text(args.description).slice(0, 500), assignmentsJson: JSON.stringify(assignments), updatedAt: new Date().toISOString() }).where(eq(shiftAssignmentScenarios.id, scenarioId)).returning();
+        return completeManagedExecution({ ok: true, scenario: { ...updated, assignments } });
+      }
+      if (name === "delete_shift_assignment_scenario") {
+        if (args.confirm !== true) return rpcError(payload.id, mutating);
+        await db.delete(shiftAssignmentScenarios).where(eq(shiftAssignmentScenarios.id, scenarioId));
+        return completeManagedExecution({ ok: true, planId, scenarioId });
+      }
+      if (name === "apply_shift_assignment_scenario") {
+        if (args.confirm !== true) return rpcError(payload.id, mutating);
+        if (found.plan.status !== "draft") return rpcError(payload.id, "Only draft plans can accept an assignment scenario");
+        const expectedVersion = Number(args.expectedVersion);
+        if (!Number.isInteger(expectedVersion) || expectedVersion !== found.plan.version) return rpcError(payload.id, "Shift plan version conflict. Reload the plan and retry with its latest version.");
+        const [locked] = await db.update(shiftPlans).set({ version: expectedVersion + 1 }).where(and(eq(shiftPlans.id, planId), eq(shiftPlans.version, expectedVersion))).returning({ version: shiftPlans.version });
+        if (!locked) return rpcError(payload.id, "Shift plan version conflict. Reload the plan and retry with its latest version.");
+        const rows = context.slots.flatMap((slot) => (scenarioAssignments[slot.id] ?? []).map((userEmail) => ({ id: crypto.randomUUID(), slotId: slot.id, userEmail })));
+        const statements = [...chunk(context.slots.map((slot) => slot.id), 50).map((ids) => db.delete(shiftAssignments).where(inArray(shiftAssignments.slotId, ids))), ...chunk(rows, 8).map((items) => db.insert(shiftAssignments).values(items))];
+        await db.batch(statements);
+        await recordAudit({ groupId: found.plan.groupId, userEmail: identity.email, action: "shift.scenario.apply", entityType: "shiftAssignmentScenario", entityId: scenarioId, summary: `MCPで割当案を適用: ${scenario.name}`, details: { source: "mcp", planId, reason: text(args.reason) } });
+        return completeManagedExecution({ ok: true, planId, scenarioId, status: "draft", assigned: rows.length, version: expectedVersion + 1, validation: validateCandidate(context, scenarioAssignments) });
+      }
+      if (name === "clear_draft_assignments") {
+        if (args.confirm !== true) return rpcError(payload.id, mutating);
+        if (found.plan.status !== "draft") return rpcError(payload.id, "Only draft plans can be cleared");
+        if (!text(args.reason)) return rpcError(payload.id, "reason is required");
+        const expectedVersion = Number(args.expectedVersion);
+        if (!Number.isInteger(expectedVersion) || expectedVersion !== found.plan.version) return rpcError(payload.id, "Shift plan version conflict. Reload the plan and retry with its latest version.");
+        const [locked] = await db.update(shiftPlans).set({ version: expectedVersion + 1 }).where(and(eq(shiftPlans.id, planId), eq(shiftPlans.version, expectedVersion))).returning({ version: shiftPlans.version });
+        if (!locked) return rpcError(payload.id, "Shift plan version conflict. Reload the plan and retry with its latest version.");
+        await db.batch(chunk(context.slots.map((slot) => slot.id), 50).map((ids) => db.delete(shiftAssignments).where(inArray(shiftAssignments.slotId, ids))));
+        await recordAudit({ groupId: found.plan.groupId, userEmail: identity.email, action: "shift.assignments.clear", entityType: "shiftPlan", entityId: planId, summary: "MCPで下書き割当を全消去", details: { source: "mcp", reason: text(args.reason) } });
+        return completeManagedExecution({ ok: true, planId, removed: context.assignments.length, version: expectedVersion + 1 });
+      }
     }
     if (name === "update_slot_counts") {
       if (args.confirm !== true) return rpcError(payload.id, mutating);
