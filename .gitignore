@@ -60,3 +60,4 @@ next-env.d.ts
 /kinban-manager-agent/.env
 /kinban-manager-agent/workspace/*
 !/kinban-manager-agent/workspace/README.md
+qa/shift-evaluation/runs/
