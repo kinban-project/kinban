@@ -196,7 +196,7 @@ export default function ShiftAdjustment({
   function defaultScenarioName() {
     const priority = scenarioPriority === "labor" ? "労務優先" : scenarioPriority === "fairness" ? "公平性優先" : scenarioPriority === "minimal" ? "変更最小" : "希望優先";
     const labor = scenarioLaborMode === "allow" ? "注意許容" : "注意回避";
-    const unavailable = scenarioUnavailableMode === "prefer_exclude" ? "不可原則除外" : "不可除外";
+    const unavailable = scenarioUnavailableMode === "prefer_exclude" ? "不可許容" : "不可除外";
     const scope = scenarioAllocationScope === "all" ? "全枠再計算" : scenarioAllocationScope === "problems" ? "問題枠再配置" : "不足補充";
     return `${priority}/${labor}/${unavailable}/${scope}`;
   }
@@ -907,7 +907,7 @@ export default function ShiftAdjustment({
               <input value={scenarioSeed} onChange={(event) => setScenarioSeed(event.target.value)} placeholder="乱数シード（同じ条件なら再現）" />
               <select value={scenarioPriority} onChange={(event) => setScenarioPriority(event.target.value)}><option value="labor">労務優先</option><option value="preference">希望優先</option><option value="fairness">公平性優先</option><option value="minimal">変更最小</option></select>
               <select value={scenarioLaborMode} onChange={(event) => setScenarioLaborMode(event.target.value)}><option value="avoid">労務注意：原則避ける</option><option value="allow">労務注意：許容</option></select>
-              <select value={scenarioUnavailableMode} onChange={(event) => setScenarioUnavailableMode(event.target.value)}><option value="exclude">勤務不可：絶対除外</option><option value="prefer_exclude">勤務不可：原則除外</option></select>
+              <select value={scenarioUnavailableMode} onChange={(event) => setScenarioUnavailableMode(event.target.value)}><option value="exclude">勤務不可：絶対除外</option><option value="prefer_exclude">勤務不可：許容（原則除外）</option></select>
               <select value={scenarioAllocationScope} onChange={(event) => setScenarioAllocationScope(event.target.value as AllocationScope)}><option value="unfilled">不足枠だけ補充</option><option value="problems">問題のある枠を再配置</option><option value="all">全枠を再計算</option></select>
               <button type="button" className="ghost-button" onClick={() => void createScenario("manual")} disabled={busy}>現在の割当を案として保存</button>
               <button type="button" className="primary-button" onClick={() => void createScenario("auto")} disabled={busy}>条件付きで作成・保存</button>

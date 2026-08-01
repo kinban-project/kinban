@@ -180,10 +180,13 @@ async function generateAssignments(db: ReturnType<typeof getDb>, planId: string,
     }
     const memberAvailability = availability.filter((row) => row.userEmail === email && row.dayOfWeek === new Date(`${slot.date}T00:00:00Z`).getUTCDay());
     const match = memberAvailability.find((row) => !row.startTime || (shiftTimeToMinutes(row.startTime) <= shiftTimeToMinutes(slot.startTime) && shiftTimeToMinutes(row.endTime) >= shiftTimeToMinutes(slot.endTime)));
-    const status = preferenceStatus(match?.status);
+    const status = preferenceStatus(match?.status ?? (memberAvailability.length ? "unavailable" : undefined));
     const weekend = [0, 6].includes(new Date(`${slot.date}T00:00:00Z`).getUTCDay());
     const weekendRestricted = weekend && basicPreference.get(email)?.weekendPolicy === "prefer_off";
-    return { status, allowed: status !== "unavailable" && (settings.unavailableMode === "exclude" ? status !== "off" : true) && !weekendRestricted };
+    const allowed = settings.unavailableMode === "exclude"
+      ? status !== "unavailable" && status !== "off"
+      : true;
+    return { status, allowed: allowed && !weekendRestricted };
   };
   const orderedSlots = [...slots].sort((a, b) => {
     const aCandidates = members.filter((member) => canWork(member.userEmail, a).allowed).length;

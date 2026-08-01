@@ -22,6 +22,9 @@ test("assignment scenario API supports deterministic generation and manager-only
   assert.match(scenariosRoute, /shiftRequestPeriods/);
   assert.match(scenariosRoute, /shiftRequests/);
   assert.match(scenariosRoute, /preferenceStatus/);
+  assert.match(scenariosRoute, /memberAvailability\.length \? "unavailable"/);
+  assert.match(scenariosRoute, /settings\.unavailableMode === "exclude"/);
+  assert.match(scenariosRoute, /status !== "unavailable" && status !== "off"/);
   assert.match(scenariosRoute, /chunk\(slots\.map\(\(slot\) => slot\.id\), 50\)/);
   assert.match(scenarioRoute, /export async function PATCH/);
   assert.match(scenarioRoute, /export async function DELETE/);
