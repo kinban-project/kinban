@@ -1861,7 +1861,11 @@ export async function POST(request: Request) {
           target,
         },
       });
-      (args as { confirm?: boolean }).confirm = true;
+      // Direct manager-key operations are already authorized by the key owner,
+      // but destructive assignment clearing still requires its explicit
+      // confirmation flag. Do not turn a caller's confirm:false into true.
+      if (name !== "clear_draft_assignments")
+        (args as { confirm?: boolean }).confirm = true;
     }
     if (name === "set_shift_assignments") {
       const [targetPlan] = await db
