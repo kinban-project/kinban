@@ -35,4 +35,8 @@ test("assignment scenario application and clearing require draft/version/confirm
   assert.match(source, /expectedVersion !== found\.plan\.version/);
   assert.match(source, /args\.confirm !== true/);
   assert.match(source, /reason is required/);
+  const clearBranch = source.indexOf('if (name === "clear_draft_assignments")');
+  const scenarioLookup = source.indexOf('const scenarioId = text(args.scenarioId)');
+  assert.ok(clearBranch >= 0 && scenarioLookup >= 0 && clearBranch < scenarioLookup, "clear must not require a scenarioId");
+  assert.match(source, /scenario\.baseVersion !== expectedVersion/);
 });

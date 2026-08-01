@@ -3351,6 +3351,19 @@ export async function POST(request: Request) {
       const found = await planFor(db, planId, identity.email);
       if ("error" in found || !editorRoles.has(found.member.role)) return rpcError(payload.id, "Editor membership required");
       const context = await readPlanningContext(db, found.plan);
+      if (name === "clear_draft_assignments") {
+        if (args.confirm !== true) return rpcError(payload.id, mutating);
+        if (found.plan.status !== "draft") return rpcError(payload.id, "Only draft plans can be cleared");
+        if (!text(args.reason)) return rpcError(payload.id, "reason is required");
+        const expectedVersion = Number(args.expectedVersion);
+        if (!Number.isInteger(expectedVersion) || expectedVersion !== found.plan.version) return rpcError(payload.id, "Shift plan version conflict. Reload the plan and retry with its latest version.");
+        const [locked] = await db.update(shiftPlans).set({ version: expectedVersion + 1 }).where(and(eq(shiftPlans.id, planId), eq(shiftPlans.version, expectedVersion))).returning({ version: shiftPlans.version });
+        if (!locked) return rpcError(payload.id, "Shift plan version conflict. Reload the plan and retry with its latest version.");
+        const statements = chunk(context.slots.map((slot) => slot.id), 50).map((ids) => db.delete(shiftAssignments).where(inArray(shiftAssignments.slotId, ids)));
+        if (statements.length) await db.batch(statements);
+        await recordAudit({ groupId: found.plan.groupId, userEmail: identity.email, action: "shift.assignments.clear", entityType: "shiftPlan", entityId: planId, summary: "MCPで下書き割当を全消去", details: { source: "mcp", reason: text(args.reason) } });
+        return completeManagedExecution({ ok: true, planId, removed: context.assignments.length, version: expectedVersion + 1 });
+      }
       if (name === "list_shift_assignment_scenarios") {
         const scenarios = await db.select().from(shiftAssignmentScenarios).where(eq(shiftAssignmentScenarios.planId, planId)).orderBy(desc(shiftAssignmentScenarios.updatedAt));
         return rpc(payload.id, { planId, currentVersion: found.plan.version, scenarios: scenarios.map((scenario) => ({ ...scenario, settings: JSON.parse(scenario.settingsJson || "{}"), assignments: JSON.parse(scenario.assignmentsJson || "{}") })) });
@@ -3398,6 +3411,7 @@ export async function POST(request: Request) {
         if (found.plan.status !== "draft") return rpcError(payload.id, "Only draft plans can accept an assignment scenario");
         const expectedVersion = Number(args.expectedVersion);
         if (!Number.isInteger(expectedVersion) || expectedVersion !== found.plan.version) return rpcError(payload.id, "Shift plan version conflict. Reload the plan and retry with its latest version.");
+        if (scenario.baseVersion !== expectedVersion) return rpcError(payload.id, "Scenario is based on an older plan version. Compare or recreate it before applying.");
         const [locked] = await db.update(shiftPlans).set({ version: expectedVersion + 1 }).where(and(eq(shiftPlans.id, planId), eq(shiftPlans.version, expectedVersion))).returning({ version: shiftPlans.version });
         if (!locked) return rpcError(payload.id, "Shift plan version conflict. Reload the plan and retry with its latest version.");
         const rows = context.slots.flatMap((slot) => (scenarioAssignments[slot.id] ?? []).map((userEmail) => ({ id: crypto.randomUUID(), slotId: slot.id, userEmail })));
