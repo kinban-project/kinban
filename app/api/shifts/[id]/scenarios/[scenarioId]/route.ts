@@ -25,7 +25,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (!scenario || scenario.planId !== id) return Response.json({ error: "割当案が見つかりません" }, { status: 404 });
   let body: Record<string, unknown>;
   try { body = await request.json() as Record<string, unknown>; } catch { return Response.json({ error: "JSONを読み取れません" }, { status: 400 }); }
-  const assignments = body.assignments && typeof body.assignments === "object" ? body.assignments : JSON.parse(scenario.assignmentsJson);
+  let assignments: unknown = body.assignments && typeof body.assignments === "object" ? body.assignments : {};
+  if (!body.assignments) {
+    try { assignments = JSON.parse(scenario.assignmentsJson); } catch { assignments = {}; }
+  }
   const name = typeof body.name === "string" ? body.name.trim() : scenario.name;
   if (!name) return Response.json({ error: "案名を入力してください" }, { status: 400 });
   const [updated] = await result.db.update(shiftAssignmentScenarios).set({ name, description: typeof body.description === "string" ? body.description.trim() : scenario.description, assignmentsJson: JSON.stringify(assignments), updatedAt: new Date().toISOString() }).where(eq(shiftAssignmentScenarios.id, scenarioId)).returning();

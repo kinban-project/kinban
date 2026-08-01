@@ -179,6 +179,9 @@ export default function ShiftAdjustment({
   const [scenarioDescription, setScenarioDescription] = useState("");
   const [scenarioSeed, setScenarioSeed] = useState("");
   const [scenarioPriority, setScenarioPriority] = useState("preference");
+  const [scenarioLaborMode, setScenarioLaborMode] = useState("avoid");
+  const [scenarioUnavailableMode, setScenarioUnavailableMode] = useState("exclude");
+  const [scenarioExistingMode, setScenarioExistingMode] = useState("keep");
   const [scenarioTarget, setScenarioTarget] = useState("unfilled");
   const [scenarioOpen, setScenarioOpen] = useState(false);
   const [showScenarioCompare, setShowScenarioCompare] = useState(false);
@@ -548,6 +551,11 @@ export default function ShiftAdjustment({
     setScenarioName(scenario.name);
     setScenarioDescription(scenario.description);
     setScenarioSeed(scenario.seed);
+    setScenarioPriority(typeof scenario.settings.priority === "string" ? scenario.settings.priority : "preference");
+    setScenarioLaborMode(typeof scenario.settings.laborMode === "string" ? scenario.settings.laborMode : "avoid");
+    setScenarioUnavailableMode(typeof scenario.settings.unavailableMode === "string" ? scenario.settings.unavailableMode : "exclude");
+    setScenarioExistingMode(typeof scenario.settings.existingMode === "string" ? scenario.settings.existingMode : "keep");
+    setScenarioTarget(typeof scenario.settings.target === "string" ? scenario.settings.target : "unfilled");
     setDetail((current) => current ? {
       ...current,
       assignments: Object.entries(scenario.assignments).flatMap(([slotId, users]) => users.map((userEmail) => ({ slotId, userEmail }))),
@@ -567,7 +575,7 @@ export default function ShiftAdjustment({
         name: scenarioName.trim(),
         description: scenarioDescription.trim(),
         seed: scenarioSeed.trim() || crypto.randomUUID(),
-        settings: { priority: scenarioPriority, target: scenarioTarget, unavailableMode: "exclude", existingMode: "keep" },
+        settings: { priority: scenarioPriority, laborMode: scenarioLaborMode, target: scenarioTarget, unavailableMode: scenarioUnavailableMode, existingMode: scenarioExistingMode },
         assignments: assignments,
       }),
     });
@@ -580,6 +588,11 @@ export default function ShiftAdjustment({
     setScenarios((current) => [data.scenario!, ...current]);
     setSelectedScenarioId(data.scenario.id);
     setScenarioSeed(data.scenario.seed);
+    setScenarioPriority(typeof data.scenario.settings.priority === "string" ? data.scenario.settings.priority : "preference");
+    setScenarioLaborMode(typeof data.scenario.settings.laborMode === "string" ? data.scenario.settings.laborMode : "avoid");
+    setScenarioUnavailableMode(typeof data.scenario.settings.unavailableMode === "string" ? data.scenario.settings.unavailableMode : "exclude");
+    setScenarioExistingMode(typeof data.scenario.settings.existingMode === "string" ? data.scenario.settings.existingMode : "keep");
+    setScenarioTarget(typeof data.scenario.settings.target === "string" ? data.scenario.settings.target : "unfilled");
     if (action === "auto") setDetail((current) => current ? { ...current, assignments: Object.entries(data.scenario!.assignments).flatMap(([slotId, users]) => users.map((userEmail) => ({ slotId, userEmail }))) } : current);
     setScenarioOpen(false);
     setNotice("割当案を保存しました。本体割当はまだ変更されていません。");
@@ -603,9 +616,12 @@ export default function ShiftAdjustment({
     if (!scenario) return;
     setScenarioName(`${scenario.name} コピー`);
     setScenarioDescription(scenario.description);
-    setScenarioSeed(`${scenario.seed}-copy`);
-    setScenarioPriority(typeof scenario.settings.priority === "string" ? scenario.settings.priority : "preference");
-    setScenarioTarget(typeof scenario.settings.target === "string" ? scenario.settings.target : "unfilled");
+      setScenarioSeed(`${scenario.seed}-copy`);
+      setScenarioPriority(typeof scenario.settings.priority === "string" ? scenario.settings.priority : "preference");
+    setScenarioLaborMode(typeof scenario.settings.laborMode === "string" ? scenario.settings.laborMode : "avoid");
+    setScenarioUnavailableMode(typeof scenario.settings.unavailableMode === "string" ? scenario.settings.unavailableMode : "exclude");
+    setScenarioExistingMode(typeof scenario.settings.existingMode === "string" ? scenario.settings.existingMode : "keep");
+      setScenarioTarget(typeof scenario.settings.target === "string" ? scenario.settings.target : "unfilled");
     setScenarioOpen(true);
   }
   function scenarioAssignedCount(scenario: AssignmentScenario) {
@@ -613,6 +629,46 @@ export default function ShiftAdjustment({
   }
   function scenarioUnfilledCount(scenario: AssignmentScenario) {
     return detail?.slots.filter((slot) => (scenario.assignments[slot.id]?.length ?? 0) < slot.requiredCount).length ?? 0;
+  }
+  function scenarioLaborCount(scenario: AssignmentScenario) {
+    if (!detail) return 0;
+    return buildLaborWarnings({
+      slots: detail.slots,
+      assignments: Object.entries(scenario.assignments).flatMap(([slotId, users]) => users.map((userEmail) => ({ slotId, userEmail }))),
+      members: detail.members,
+      autoBreakSuggestion: detail.autoBreakSuggestion,
+      rules: detail.laborRules,
+      planStartDate: detail.plan.startDate,
+      planEndDate: detail.plan.endDate,
+    }).length;
+  }
+  function scenarioPreferenceOutOfRangeCount(scenario: AssignmentScenario) {
+    if (!detail) return 0;
+    return detail.members.filter((member) => {
+      const assignedSlots = detail.slots.filter((slot) => (scenario.assignments[slot.id] ?? []).includes(member.userEmail));
+      const days = new Set(assignedSlots.map((slot) => slot.date)).size;
+      const totalHours = assignedSlots.reduce((total, slot) => total + hours(slot.startTime, slot.endTime), 0);
+      const preference = detail.memberPreferences?.find((item) => item.userEmail === member.userEmail);
+      return Boolean(preference && (days < preference.minDays || days > preference.maxDays || totalHours < preference.minHours || totalHours > preference.maxHours));
+    }).length;
+  }
+  function scenarioDifferenceCount(scenario: AssignmentScenario) {
+    if (!detail) return 0;
+    return detail.slots.reduce((total, slot) => {
+      const current = new Set(assignments[slot.id] ?? []);
+      const candidate = new Set(scenario.assignments[slot.id] ?? []);
+      return total + [...new Set([...current, ...candidate])].filter((email) => current.has(email) !== candidate.has(email)).length;
+    }, 0);
+  }
+  function currentPreferenceOutOfRangeCount() {
+    if (!detail) return 0;
+    return detail.members.filter((member) => {
+      const assignedSlots = detail.slots.filter((slot) => (assignments[slot.id] ?? []).includes(member.userEmail));
+      const days = new Set(assignedSlots.map((slot) => slot.date)).size;
+      const totalHours = assignedSlots.reduce((total, slot) => total + hours(slot.startTime, slot.endTime), 0);
+      const preference = detail.memberPreferences?.find((item) => item.userEmail === member.userEmail);
+      return Boolean(preference && (days < preference.minDays || days > preference.maxDays || totalHours < preference.minHours || totalHours > preference.maxHours));
+    }).length;
   }
   async function deleteSelectedScenario() {
     if (!detail || !selectedScenarioId || !window.confirm("この割当案を削除しますか？")) return;
@@ -623,7 +679,7 @@ export default function ShiftAdjustment({
       setSelectedScenarioId("");
       setScenarioName("");
       setScenarioDescription("");
-      setDetail((current) => current ? { ...current, assignments: [] } : current);
+      await openPlan(detail.plan.id);
     }
     setNotice(response.ok ? "割当案を削除しました" : "割当案を削除できませんでした");
     setBusy(false);
@@ -747,20 +803,21 @@ export default function ShiftAdjustment({
                 <option value="">現行下書き（本体割当）</option>
                 {scenarios.map((scenario) => <option key={scenario.id} value={scenario.id}>{scenario.name}{scenario.baseVersion !== detail.plan.version ? "（再計算が必要）" : ""}</option>)}
               </select>
-              <button type="button" className="ghost-button" onClick={() => { setScenarioName(""); setScenarioDescription(""); setScenarioSeed(""); setScenarioOpen(true); }}>＋割当案を作成</button>
+              <button type="button" className="ghost-button" onClick={() => { setScenarioName(""); setScenarioDescription(""); setScenarioSeed(""); setScenarioPriority("preference"); setScenarioLaborMode("avoid"); setScenarioUnavailableMode("exclude"); setScenarioExistingMode("keep"); setScenarioTarget("unfilled"); setScenarioOpen(true); }}>＋割当案を作成</button>
               {selectedScenarioId && <>
                 <button type="button" className="ghost-button" onClick={duplicateSelectedScenario} disabled={busy}>複製</button>
                 <button type="button" className="ghost-button" onClick={() => setShowScenarioCompare((value) => !value)}>{showScenarioCompare ? "比較を閉じる" : "比較"}</button>
                 <button type="button" className="ghost-button" onClick={() => void saveSelectedScenario()} disabled={busy}>案を保存</button>
                 <button type="button" className="ghost-button danger-button" onClick={() => void deleteSelectedScenario()} disabled={busy}>案を削除</button>
-                <button type="button" className="primary-button" onClick={() => { if (window.confirm("この案を現行下書きへ採用しますか？保存済みの他の案は残ります。")) void save("draft"); }} disabled={busy}>現行下書きに採用</button>
+                <button type="button" className="primary-button" onClick={() => { const selected = scenarios.find((item) => item.id === selectedScenarioId); if (selected && selected.baseVersion !== detail.plan.version) { setNotice("この割当案は古いため採用できません。最新の条件で再作成してください。"); return; } if (window.confirm("この案を現行下書きへ採用しますか？保存済みの他の案は残ります。")) void save("draft"); }} disabled={busy || scenarios.find((item) => item.id === selectedScenarioId)?.baseVersion !== detail.plan.version}>現行下書きに採用</button>
               </>}
             </div>
             {selectedScenarioId && <p className="assignment-scenario-meta">{scenarioDescription || "説明なし"} ／ seed: {scenarioSeed || scenarios.find((item) => item.id === selectedScenarioId)?.seed || "-"}</p>}
             {showScenarioCompare && <div className="assignment-scenario-compare">
               <strong>割当案の比較</strong>
               <div className="assignment-scenario-compare-list">
-                {scenarios.map((scenario) => <span key={scenario.id}>{scenario.name}：{scenarioAssignedCount(scenario)}人枠／未充足 {scenarioUnfilledCount(scenario)}枠</span>)}
+                <span>現行下書き：{detail.assignments.length}人枠／未充足 {assignmentIssues.filter((issue) => issue.kind === "shortage").length}枠／労務注意 {warningSummary.labor}件／希望範囲外 {currentPreferenceOutOfRangeCount()}人／差分 -</span>
+                {scenarios.map((scenario) => <span key={scenario.id}>{scenario.name}：{scenarioAssignedCount(scenario)}人枠／未充足 {scenarioUnfilledCount(scenario)}枠／労務注意 {scenarioLaborCount(scenario)}件／希望範囲外 {scenarioPreferenceOutOfRangeCount(scenario)}人／現行との差分 {scenarioDifferenceCount(scenario)}件</span>)}
               </div>
             </div>}
             {scenarioOpen && <div className="assignment-scenario-form">
@@ -768,6 +825,9 @@ export default function ShiftAdjustment({
               <input value={scenarioDescription} onChange={(event) => setScenarioDescription(event.target.value)} placeholder="説明・店長メモ" />
               <input value={scenarioSeed} onChange={(event) => setScenarioSeed(event.target.value)} placeholder="乱数シード（同じ条件なら再現）" />
               <select value={scenarioPriority} onChange={(event) => setScenarioPriority(event.target.value)}><option value="labor">労務優先</option><option value="preference">希望優先</option><option value="fairness">公平性優先</option><option value="minimal">変更最小</option></select>
+              <select value={scenarioLaborMode} onChange={(event) => setScenarioLaborMode(event.target.value)}><option value="avoid">労務注意：原則避ける</option><option value="allow">労務注意：許容</option></select>
+              <select value={scenarioUnavailableMode} onChange={(event) => setScenarioUnavailableMode(event.target.value)}><option value="exclude">勤務不可：絶対除外</option><option value="prefer_exclude">勤務不可：原則除外</option></select>
+              <select value={scenarioExistingMode} onChange={(event) => setScenarioExistingMode(event.target.value)}><option value="fixed">既存割当：固定</option><option value="keep">既存割当：なるべく維持</option><option value="recalculate">既存割当：再調整</option></select>
               <select value={scenarioTarget} onChange={(event) => setScenarioTarget(event.target.value)}><option value="unfilled">未充足枠のみ</option><option value="all">全枠を再計算</option></select>
               <button type="button" className="ghost-button" onClick={() => void createScenario("manual")} disabled={busy}>現在の割当を案として保存</button>
               <button type="button" className="primary-button" onClick={() => void createScenario("auto")} disabled={busy}>条件付きで作成・保存</button>

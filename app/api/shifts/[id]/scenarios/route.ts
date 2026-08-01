@@ -4,15 +4,22 @@ import { getDb } from "../../../../../db";
 import { getMembership } from "../../../groups/group-access";
 import { buildLaborWarnings } from "../../../../shift-labor-warnings";
 import { shiftTimeToMinutes } from "../../../../shift-time";
-import { groupMembers, shiftAssignmentScenarios, shiftAssignments, shiftPlans, shiftSlots, shiftAvailability, groupPreferences, shiftRequestPeriods, shiftRequests } from "../../../../../db/schema";
+import { groupMembers, shiftAssignmentScenarios, shiftAssignments, shiftPlans, shiftSlots, shiftAvailability, groupPreferences, shiftRequestPeriods, shiftRequests, groups } from "../../../../../db/schema";
 
 export const dynamic = "force-dynamic";
 
 type ScenarioSettings = {
   priority?: "labor" | "preference" | "fairness" | "minimal";
+  laborMode?: "avoid" | "allow";
   unavailableMode?: "exclude" | "prefer_exclude";
   existingMode?: "fixed" | "keep" | "recalculate";
   target?: "unfilled" | "all";
+};
+
+const chunk = <T,>(items: T[], size: number) => {
+  const result: T[][] = [];
+  for (let index = 0; index < items.length; index += size) result.push(items.slice(index, index + size));
+  return result;
 };
 
 function text(value: unknown, fallback = "") {
@@ -46,6 +53,7 @@ function settingsFor(value: unknown): ScenarioSettings {
   const input = value && typeof value === "object" ? value as Record<string, unknown> : {};
   return {
     priority: ["labor", "preference", "fairness", "minimal"].includes(text(input.priority)) ? input.priority as ScenarioSettings["priority"] : "preference",
+    laborMode: input.laborMode === "allow" ? "allow" : "avoid",
     unavailableMode: input.unavailableMode === "prefer_exclude" ? "prefer_exclude" : "exclude",
     existingMode: ["fixed", "keep", "recalculate"].includes(text(input.existingMode)) ? input.existingMode as ScenarioSettings["existingMode"] : "keep",
     target: input.target === "all" ? "all" : "unfilled",
@@ -78,18 +86,48 @@ async function generateAssignments(db: ReturnType<typeof getDb>, planId: string,
   const members = await db.select().from(groupMembers).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.status, "active")));
   const availability = await db.select().from(shiftAvailability).where(eq(shiftAvailability.groupId, groupId));
   const preferences = await db.select().from(groupPreferences).where(eq(groupPreferences.groupId, groupId));
+  const [group] = await db.select().from(groups).where(eq(groups.id, groupId)).limit(1);
   const [period] = await db.select().from(shiftRequestPeriods).where(eq(shiftRequestPeriods.planId, planId)).limit(1);
   const requests = period ? await db.select().from(shiftRequests).where(eq(shiftRequests.periodId, period.id)) : [];
   const basicPreference = new Map(preferences.map((row) => [row.userEmail, row]));
   const existingBySlot = new Map<string, string[]>();
-  const allExistingRows = slots.length ? await db.select().from(shiftAssignments).where(inArray(shiftAssignments.slotId, slots.map((slot) => slot.id))) : [];
+  const existingChunks = await Promise.all(chunk(slots.map((slot) => slot.id), 50).map((slotIds) =>
+    slotIds.length ? db.select().from(shiftAssignments).where(inArray(shiftAssignments.slotId, slotIds)) : Promise.resolve([]),
+  ));
+  const allExistingRows = existingChunks.flat();
   for (const row of allExistingRows) existingBySlot.set(row.slotId, [...(existingBySlot.get(row.slotId) ?? []), row.userEmail]);
   const assignments: Record<string, string[]> = {};
   for (const slot of slots) {
-    const keep = settings.existingMode === "recalculate" || settings.target === "all" ? [] : [...new Set(existingBySlot.get(slot.id) ?? [])];
+    const keep = settings.existingMode === "recalculate" && settings.target === "all" ? [] : [...new Set(existingBySlot.get(slot.id) ?? [])];
     assignments[slot.id] = keep;
   }
   const assignedFor = (email: string) => slots.filter((slot) => (assignments[slot.id] ?? []).includes(email));
+  const laborCost = (email: string, slot: typeof slots[number]) => {
+    if (settings.laborMode === "allow") return 0;
+    const candidateRows = slots.flatMap((item) => (assignments[item.id] ?? []).includes(email) || item.id === slot.id
+      ? [{ slotId: item.id, userEmail: email }]
+      : []);
+    return buildLaborWarnings({
+      slots,
+      assignments: candidateRows,
+      members,
+      rules: group ? {
+        dailyHoursWarning: group.laborDailyHoursWarning,
+        weeklyHoursWarning: group.laborWeeklyHoursWarning,
+        restIntervalWarning: group.laborRestIntervalWarning,
+        consecutiveDaysWarning: group.laborConsecutiveDaysWarning,
+        weeklyRestWarning: group.laborWeeklyRestWarning,
+        dailyHoursLimitMinutes: group.laborDailyHoursLimitMinutes,
+        weeklyHoursLimitMinutes: group.laborWeeklyHoursLimitMinutes,
+        restIntervalMinutes: group.laborRestIntervalMinutes,
+        consecutiveDaysLimit: group.laborConsecutiveDaysLimit,
+        weeklyRestDaysRequired: group.laborWeeklyRestDaysRequired,
+        fourWeekRestDaysRequired: group.laborFourWeekRestDaysRequired,
+      } : undefined,
+      planStartDate: plan?.startDate ?? slot.date,
+      planEndDate: plan?.endDate ?? slot.date,
+    }).filter((warning) => warning.memberEmail === email).length;
+  };
   const canWork = (email: string, slot: typeof slots[number]) => {
     const request = requests.find((row) => row.userEmail === email && row.date === slot.date && row.startTime === slot.startTime && row.endTime === slot.endTime);
     if (request) {
@@ -101,7 +139,7 @@ async function generateAssignments(db: ReturnType<typeof getDb>, planId: string,
     const status = preferenceStatus(match?.status);
     const weekend = [0, 6].includes(new Date(`${slot.date}T00:00:00Z`).getUTCDay());
     const weekendRestricted = weekend && basicPreference.get(email)?.weekendPolicy === "prefer_off";
-    return { status, allowed: status !== "unavailable" && (settings.unavailableMode === "prefer_exclude" || status !== "off") && !weekendRestricted };
+    return { status, allowed: status !== "unavailable" && (settings.unavailableMode === "exclude" ? status !== "off" : true) && !weekendRestricted };
   };
   const orderedSlots = [...slots].sort((a, b) => {
     const aCandidates = members.filter((member) => canWork(member.userEmail, a).allowed).length;
@@ -124,7 +162,8 @@ async function generateAssignments(db: ReturnType<typeof getDb>, planId: string,
       const preferenceOrder = settings.priority === "preference" ? prefScore(bv) - prefScore(av) : 0;
       const fairnessOrder = settings.priority === "fairness" ? aCount - bCount : 0;
       const minimalOrder = settings.priority === "minimal" ? bCount - aCount : 0;
-      return preferenceOrder || fairnessOrder || minimalOrder || seededScore(seed, `${slot.id}|${a.userEmail}`) - seededScore(seed, `${slot.id}|${b.userEmail}`);
+      const laborOrder = settings.priority === "labor" ? laborCost(a.userEmail, slot) - laborCost(b.userEmail, slot) : 0;
+      return laborOrder || preferenceOrder || fairnessOrder || minimalOrder || seededScore(seed, `${slot.id}|${a.userEmail}`) - seededScore(seed, `${slot.id}|${b.userEmail}`);
     });
     for (const candidate of candidates) {
       if ((assignments[slot.id] ?? []).length >= slot.requiredCount) break;
