@@ -123,7 +123,11 @@ INSERT INTO account_profiles (user_email, nickname) VALUES
   ('member06@local.test', 'フリーターA'),
   ('member07@local.test', 'フリーターB'),
   ('member08@local.test', 'パートA'),
-  ('member09@local.test', 'パートB');
+  ('member09@local.test', 'パートB'),
+  ('reserve-manager@local.test', '予備管理者'),
+  ('reserve-member-1@local.test', '予備メンバー1'),
+  ('reserve-member-2@local.test', '予備メンバー2'),
+  ('reserve-member-3@local.test', '予備メンバー3');
 
 INSERT INTO site_users (id, user_email, display_name, status, is_site_admin, can_create_groups) VALUES
   ('seed-site-owner', 'tanaka@local.test', '店長', 'active', 1, 1),
@@ -136,6 +140,10 @@ INSERT INTO site_users (id, user_email, display_name, status, is_site_admin, can
   ('seed-site-member-07', 'member07@local.test', 'フリーターB', 'active', 0, 0),
   ('seed-site-member-08', 'member08@local.test', 'パートA', 'active', 0, 0),
   ('seed-site-member-09', 'member09@local.test', 'パートB', 'active', 0, 0),
+  ('seed-site-reserve-manager', 'reserve-manager@local.test', '予備管理者', 'active', 0, 0),
+  ('seed-site-reserve-member-1', 'reserve-member-1@local.test', '予備メンバー1', 'active', 0, 0),
+  ('seed-site-reserve-member-2', 'reserve-member-2@local.test', '予備メンバー2', 'active', 0, 0),
+  ('seed-site-reserve-member-3', 'reserve-member-3@local.test', '予備メンバー3', 'active', 0, 0),
   ('seed-site-night-manager', 'night-manager@local.test', '店長（ナイトクラブ）', 'active', 0, 1),
   ('seed-site-night-staff-a', 'night-staff-a@local.test', 'スタッフA', 'active', 0, 0),
   ('seed-site-night-staff-b', 'night-staff-b@local.test', 'スタッフB', 'active', 0, 0),
@@ -170,7 +178,11 @@ INSERT INTO group_members (id, group_id, user_email, display_name, admin_note, r
   ('seed-member-06', 'seed-group-store', 'member06@local.test', 'フリーターA', '夕方以降を中心に希望。', 'member', 'active', 1),
   ('seed-member-07', 'seed-group-store', 'member07@local.test', 'フリーターB', '深夜帯も対応可能。', 'member', 'active', 1),
   ('seed-member-08', 'seed-group-store', 'member08@local.test', 'パートA', '週3日程度。', 'member', 'active', 1),
-  ('seed-member-09', 'seed-group-store', 'member09@local.test', 'パートB', '曜日相談可。', 'member', 'active', 1);
+  ('seed-member-09', 'seed-group-store', 'member09@local.test', 'パートB', '曜日相談可。', 'member', 'active', 1),
+  ('seed-member-reserve-manager', 'seed-group-store', 'reserve-manager@local.test', '予備管理者', '初期状態は利用停止。解除後は管理者候補として全時間帯・週7日まで勤務可能。', 'editor', 'inactive', 1),
+  ('seed-member-reserve-1', 'seed-group-store', 'reserve-member-1@local.test', '予備メンバー1', '初期状態は利用停止。解除後は全時間帯・週7日まで勤務可能。', 'member', 'inactive', 1),
+  ('seed-member-reserve-2', 'seed-group-store', 'reserve-member-2@local.test', '予備メンバー2', '初期状態は利用停止。解除後は全時間帯・週7日まで勤務可能。', 'member', 'inactive', 1),
+  ('seed-member-reserve-3', 'seed-group-store', 'reserve-member-3@local.test', '予備メンバー3', '初期状態は利用停止。解除後は全時間帯・週7日まで勤務可能。', 'member', 'inactive', 1);
 
 -- 管理者メモ: 同じシフトに入れると会話が長くなりやすいため、主婦A・主婦Bは可能なら別日に配置する。
 UPDATE group_members
@@ -202,12 +214,17 @@ INSERT INTO group_preferences (id, group_id, user_email, min_days, max_days, min
   ('seed-pref-06', 'seed-group-store', 'member06@local.test', 4, 5, 24, 36, 'any', '夕方以降を中心に希望。'),
   ('seed-pref-07', 'seed-group-store', 'member07@local.test', 4, 5, 24, 36, 'any', '深夜帯も対応可能。'),
   ('seed-pref-08', 'seed-group-store', 'member08@local.test', 3, 4, 16, 28, 'any', '週3日程度。曜日相談可。'),
-  ('seed-pref-09', 'seed-group-store', 'member09@local.test', 3, 5, 20, 36, 'any', '曜日は柔軟に相談可能。');
+  ('seed-pref-09', 'seed-group-store', 'member09@local.test', 3, 5, 20, 36, 'any', '曜日は柔軟に相談可能。'),
+  ('seed-pref-reserve-manager', 'seed-group-store', 'reserve-manager@local.test', 7, 7, 80, 80, 'any', '予備管理者。全時間帯・週7日勤務可能。初期状態は利用停止。'),
+  ('seed-pref-reserve-1', 'seed-group-store', 'reserve-member-1@local.test', 7, 7, 80, 80, 'any', '予備メンバー1。全時間帯・週7日勤務可能。初期状態は利用停止。'),
+  ('seed-pref-reserve-2', 'seed-group-store', 'reserve-member-2@local.test', 7, 7, 80, 80, 'any', '予備メンバー2。全時間帯・週7日勤務可能。初期状態は利用停止。'),
+  ('seed-pref-reserve-3', 'seed-group-store', 'reserve-member-3@local.test', 7, 7, 80, 80, 'any', '予備メンバー3。全時間帯・週7日勤務可能。初期状態は利用停止。');
 
 WITH users(user_email) AS (VALUES
   ('tanaka@local.test'), ('member01@local.test'), ('member02@local.test'), ('member03@local.test'),
   ('member04@local.test'), ('member05@local.test'), ('member06@local.test'), ('member07@local.test'),
-  ('member08@local.test'), ('member09@local.test')),
+  ('member08@local.test'), ('member09@local.test'), ('reserve-manager@local.test'),
+  ('reserve-member-1@local.test'), ('reserve-member-2@local.test'), ('reserve-member-3@local.test')),
 days(day_of_week) AS (VALUES (0), (1), (2), (3), (4), (5), (6))
 INSERT INTO shift_availability (id, group_id, user_email, day_of_week, status, start_time, end_time, note)
 SELECT lower(hex(randomblob(16))), 'seed-group-store', users.user_email, days.day_of_week,
@@ -217,18 +234,21 @@ SELECT lower(hex(randomblob(16))), 'seed-group-store', users.user_email, days.da
     WHEN users.user_email IN ('member02@local.test', 'member03@local.test') THEN 'possible'
     WHEN users.user_email IN ('member04@local.test', 'member05@local.test') AND days.day_of_week BETWEEN 1 AND 5 THEN 'want'
     WHEN users.user_email IN ('member06@local.test', 'member07@local.test', 'member08@local.test', 'member09@local.test') THEN 'possible'
+    WHEN users.user_email IN ('reserve-manager@local.test', 'reserve-member-1@local.test', 'reserve-member-2@local.test', 'reserve-member-3@local.test') THEN 'possible'
     ELSE 'unavailable'
   END,
   CASE
     WHEN users.user_email IN ('tanaka@local.test', 'member01@local.test') THEN '09:30'
     WHEN users.user_email IN ('member02@local.test', 'member03@local.test') THEN '17:00'
     WHEN users.user_email IN ('member04@local.test', 'member05@local.test') THEN '09:30'
+    WHEN users.user_email IN ('reserve-manager@local.test', 'reserve-member-1@local.test', 'reserve-member-2@local.test', 'reserve-member-3@local.test') THEN '00:00'
     ELSE '17:00'
   END,
   CASE
     WHEN users.user_email IN ('tanaka@local.test', 'member01@local.test') THEN '30:00'
     WHEN users.user_email IN ('member02@local.test', 'member03@local.test') THEN '22:00'
     WHEN users.user_email IN ('member04@local.test', 'member05@local.test') THEN '17:00'
+    WHEN users.user_email IN ('reserve-manager@local.test', 'reserve-member-1@local.test', 'reserve-member-2@local.test', 'reserve-member-3@local.test') THEN '30:00'
     ELSE '30:00'
   END,
   CASE
