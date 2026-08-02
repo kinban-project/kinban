@@ -187,6 +187,8 @@ export default function ShiftAdjustment({
   const [scenarioOpen, setScenarioOpen] = useState(false);
   const [showScenarioCompare, setShowScenarioCompare] = useState(false);
   const selectedGroupName = groups.find((group) => group.id === groupId)?.name;
+  const selectedScenario = scenarios.find((scenario) => scenario.id === selectedScenarioId);
+  const scenarioIsStale = Boolean(selectedScenario && detail && selectedScenario.baseVersion !== detail.plan.version);
   function allocationScopeFor(settings: Record<string, unknown> | undefined): AllocationScope {
     if (settings?.allocationScope === "all" || settings?.allocationScope === "problems" || settings?.allocationScope === "unfilled") return settings.allocationScope;
     if (settings?.existingMode === "recalculate" && settings?.target === "all") return "all";
@@ -624,12 +626,26 @@ export default function ShiftAdjustment({
       assignments: Object.entries(scenario.assignments).flatMap(([slotId, users]) => users.map((userEmail) => ({ slotId, userEmail }))),
     } : current);
   }
-  async function createScenario(action: "manual" | "auto") {
+  async function createScenario(action: "manual" | "auto", overrides?: {
+    name?: string;
+    description?: string;
+    seed?: string;
+    priority?: string;
+    laborMode?: string;
+    unavailableMode?: string;
+    allocationScope?: AllocationScope;
+  }) {
     if (!detail) {
       setNotice("シフトを読み込んでください");
       return;
     }
-    const resolvedName = uniqueScenarioName(scenarioName.trim() || defaultScenarioName());
+    const priority = overrides?.priority ?? scenarioPriority;
+    const laborMode = overrides?.laborMode ?? scenarioLaborMode;
+    const unavailableMode = overrides?.unavailableMode ?? scenarioUnavailableMode;
+    const allocationScope = overrides?.allocationScope ?? scenarioAllocationScope;
+    const resolvedName = uniqueScenarioName(overrides?.name?.trim() || scenarioName.trim() || defaultScenarioName());
+    const resolvedDescription = overrides?.description ?? scenarioDescription.trim();
+    const resolvedSeed = overrides?.seed?.trim() || scenarioSeed.trim() || crypto.randomUUID();
     setBusy(true);
     const response = await localApiFetch(`/api/shifts/${detail.plan.id}/scenarios`, {
       method: "POST",
@@ -637,9 +653,9 @@ export default function ShiftAdjustment({
       body: JSON.stringify({
         action: action === "auto" ? "auto" : undefined,
         name: resolvedName,
-        description: scenarioDescription.trim(),
-        seed: scenarioSeed.trim() || crypto.randomUUID(),
-        settings: { priority: scenarioPriority, laborMode: scenarioLaborMode, allocationScope: scenarioAllocationScope, unavailableMode: scenarioUnavailableMode },
+        description: resolvedDescription,
+        seed: resolvedSeed,
+        settings: { priority, laborMode, allocationScope, unavailableMode },
         assignments: assignments,
       }),
     });
@@ -653,14 +669,27 @@ export default function ShiftAdjustment({
     setSelectedScenarioId(data.scenario.id);
     setScenarioName(resolvedName);
     setScenarioSeed(data.scenario.seed);
+    setScenarioDescription(data.scenario.description);
     setScenarioPriority(typeof data.scenario.settings.priority === "string" ? data.scenario.settings.priority : "preference");
     setScenarioLaborMode(typeof data.scenario.settings.laborMode === "string" ? data.scenario.settings.laborMode : "avoid");
     setScenarioUnavailableMode(typeof data.scenario.settings.unavailableMode === "string" ? data.scenario.settings.unavailableMode : "exclude");
     setScenarioAllocationScope(allocationScopeFor(data.scenario.settings));
     if (action === "auto") setDetail((current) => current ? { ...current, assignments: Object.entries(data.scenario!.assignments).flatMap(([slotId, users]) => users.map((userEmail) => ({ slotId, userEmail }))) } : current);
     setScenarioOpen(false);
-    setNotice("割当案を保存しました。本体割当はまだ変更されていません。");
+    setNotice("割当案を作成し、案一覧に保存しました。現在の下書きは変更していません。");
     setBusy(false);
+  }
+  async function recalculateSelectedScenario() {
+    if (!selectedScenario) return;
+    await createScenario("auto", {
+      name: `${selectedScenario.name} 再計算`,
+      description: selectedScenario.description,
+      seed: selectedScenario.seed,
+      priority: typeof selectedScenario.settings.priority === "string" ? selectedScenario.settings.priority : "preference",
+      laborMode: typeof selectedScenario.settings.laborMode === "string" ? selectedScenario.settings.laborMode : "avoid",
+      unavailableMode: typeof selectedScenario.settings.unavailableMode === "string" ? selectedScenario.settings.unavailableMode : "exclude",
+      allocationScope: allocationScopeFor(selectedScenario.settings),
+    });
   }
   async function saveSelectedScenario() {
     if (!detail || !selectedScenarioId) return;
@@ -866,13 +895,13 @@ export default function ShiftAdjustment({
       {detail && (
         <>
           <div className="shift-actions shift-actions-top">
-            <button
+            {!selectedScenarioId && <button
               className="ghost-button"
               onClick={() => void save("draft")}
               disabled={busy}
             >
-              保存
-            </button>
+              下書きの変更を保存
+            </button>}
           </div>
           <div className="assignment-scenarios">
             <div className="assignment-scenarios-head">
@@ -882,7 +911,7 @@ export default function ShiftAdjustment({
             <div className="assignment-scenarios-controls">
               <select value={selectedScenarioId} onChange={(event) => selectScenario(event.target.value)}>
                 <option value="">現行下書き（本体割当）</option>
-                {scenarios.map((scenario) => <option key={scenario.id} value={scenario.id}>{scenario.name}{scenario.baseVersion !== detail.plan.version ? "（再計算が必要）" : ""}</option>)}
+                {scenarios.map((scenario) => <option key={scenario.id} value={scenario.id}>{scenario.name}</option>)}
               </select>
               <button type="button" className="ghost-button" onClick={() => { setScenarioName(""); setScenarioDescription(""); setScenarioSeed(""); setScenarioPriority("preference"); setScenarioLaborMode("avoid"); setScenarioUnavailableMode("exclude"); setScenarioAllocationScope("problems"); setScenarioOpen(true); }}>＋割当案を作成</button>
               {selectedScenarioId && <>
@@ -890,10 +919,17 @@ export default function ShiftAdjustment({
                 <button type="button" className="ghost-button" onClick={() => setShowScenarioCompare((value) => !value)}>{showScenarioCompare ? "比較を閉じる" : "比較"}</button>
                 <button type="button" className="ghost-button" onClick={() => void saveSelectedScenario()} disabled={busy}>案を保存</button>
                 <button type="button" className="ghost-button danger-button" onClick={() => void deleteSelectedScenario()} disabled={busy}>案を削除</button>
-                <button type="button" className="primary-button" onClick={() => { const selected = scenarios.find((item) => item.id === selectedScenarioId); if (selected && selected.baseVersion !== detail.plan.version) { setNotice("この割当案は古いため採用できません。最新の条件で再作成してください。"); return; } if (window.confirm("この案を現行下書きへ採用しますか？保存済みの他の案は残ります。")) void save("draft"); }} disabled={busy || scenarios.find((item) => item.id === selectedScenarioId)?.baseVersion !== detail.plan.version}>現行下書きに採用</button>
+                <button type="button" className="primary-button" onClick={() => { if (scenarioIsStale) { setNotice("この案は古いため、先に同じ条件で再計算してください。"); return; } if (window.confirm("この案を現在の下書きへ反映しますか？下書きの割当が置き換わりますが、公開はしません。")) void save("draft"); }} disabled={busy || scenarioIsStale}>この案を下書きに反映</button>
               </>}
             </div>
-            {selectedScenarioId && <p className="assignment-scenario-meta">{scenarioDescription || "説明なし"} ／ seed: {scenarioSeed || scenarios.find((item) => item.id === selectedScenarioId)?.seed || "-"}</p>}
+            <p className="assignment-scenario-meta">表示中：{selectedScenario ? `${selectedScenario.name}（未反映）` : "現在の下書き"}{detail && ` ／ version ${detail.plan.version}`}</p>
+            {selectedScenario && scenarioIsStale && <div className="assignment-scenario-stale" role="status">
+              <strong>この案は古くなっています</strong>
+              <span>下書き version {selectedScenario.baseVersion} をもとに作成されています。現在の下書きは version {detail.plan.version} です。</span>
+              <button type="button" className="ghost-button" onClick={() => setShowScenarioCompare(true)}>差分を確認</button>
+              <button type="button" className="ghost-button" onClick={() => void recalculateSelectedScenario()} disabled={busy}>同じ条件で再計算して新しい案を作る</button>
+            </div>}
+            {selectedScenarioId && <p className="assignment-scenario-meta">{scenarioDescription || "説明なし"} ／ seed: {scenarioSeed || selectedScenario?.seed || "-"}</p>}
             {showScenarioCompare && <div className="assignment-scenario-compare">
               <strong>割当案の比較</strong>
               <div className="assignment-scenario-compare-list">
@@ -910,7 +946,8 @@ export default function ShiftAdjustment({
               <select value={scenarioUnavailableMode} onChange={(event) => setScenarioUnavailableMode(event.target.value)}><option value="exclude">勤務不可：絶対除外</option><option value="prefer_exclude">勤務不可：許容（原則除外）</option></select>
               <select value={scenarioAllocationScope} onChange={(event) => setScenarioAllocationScope(event.target.value as AllocationScope)}><option value="unfilled">不足枠だけ補充</option><option value="problems">問題のある枠を再配置</option><option value="all">全枠を再計算</option></select>
               <button type="button" className="ghost-button" onClick={() => void createScenario("manual")} disabled={busy}>現在の割当を案として保存</button>
-              <button type="button" className="primary-button" onClick={() => void createScenario("auto")} disabled={busy}>条件付きで作成・保存</button>
+              <button type="button" className="primary-button" onClick={() => void createScenario("auto")} disabled={busy}>条件で案を作成</button>
+              <span className="assignment-scenario-form-help">案一覧に保存します。現在の下書きは変更しません。</span>
               <button type="button" className="ghost-button" onClick={() => setScenarioOpen(false)}>キャンセル</button>
             </div>}
           </div>
@@ -1110,20 +1147,22 @@ export default function ShiftAdjustment({
             ))}
           </div>
           <div className="shift-actions">
-            <button
-              className="ghost-button"
-              onClick={() => void save("draft")}
-              disabled={busy}
-            >
-              保存
-            </button>
-            <button
-              className="primary-button"
-              onClick={() => void save("published")}
-              disabled={busy}
-            >
-              チェックして公開
-            </button>
+            {!selectedScenarioId && <>
+              <button
+                className="ghost-button"
+                onClick={() => void save("draft")}
+                disabled={busy}
+              >
+                下書きの変更を保存
+              </button>
+              <button
+                className="primary-button"
+                onClick={() => void save("published")}
+                disabled={busy}
+              >
+                チェックして公開
+              </button>
+            </>}
           </div>
         </>
       )}
