@@ -258,6 +258,12 @@ export default function Home() {
     }
   }, [groups]);
 
+  useEffect(() => {
+    if (!hydrated || !siteAccess.isSiteAdmin) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("open") === "site-admin") setSiteAdminOpen(true);
+  }, [hydrated, siteAccess.isSiteAdmin]);
+
   async function loadCalendar() {
     const response = await localApiFetch("/api/calendar");
     if (!response.ok) {
