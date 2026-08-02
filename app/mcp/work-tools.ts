@@ -35,7 +35,14 @@ export async function getMcpWorkRecords(db: Db, groupId: string, email: string, 
   const filters = [eq(workRecords.groupId, groupId), requestedEmail ? eq(workRecords.userEmail, requestedEmail) : undefined, from ? gte(workRecords.scheduledDate, from) : undefined, to ? lte(workRecords.scheduledDate, to) : undefined, status ? eq(workRecords.status, status) : undefined];
   const records = await db.select().from(workRecords).where(and(...filters)).limit(200);
   const ids = records.map((record) => record.id);
-  const breaks = ids.length ? await db.select().from(workBreaks).where(inArray(workBreaks.workRecordId, ids)) : [];
+  // D1/SQLite limits the number of bound variables in one statement. A busy
+  // month can contain more records than that limit, so fetch related breaks
+  // in bounded batches instead of making one oversized IN (...) query.
+  const breaks: typeof workBreaks.$inferSelect[] = [];
+  for (let index = 0; index < ids.length; index += 80) {
+    const batch = ids.slice(index, index + 80);
+    breaks.push(...(await db.select().from(workBreaks).where(inArray(workBreaks.workRecordId, batch))));
+  }
   return { ok: true, demoTime: await getDemoTimeContext(groupId), records, breaks, filters: { userEmail: requestedEmail || null, from, to, status } };
 }
 
