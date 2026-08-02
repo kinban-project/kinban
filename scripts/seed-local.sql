@@ -215,10 +215,10 @@ INSERT INTO group_preferences (id, group_id, user_email, min_days, max_days, min
   ('seed-pref-07', 'seed-group-store', 'member07@local.test', 4, 5, 24, 36, 'any', '深夜帯も対応可能。'),
   ('seed-pref-08', 'seed-group-store', 'member08@local.test', 3, 4, 16, 28, 'any', '週3日程度。曜日相談可。'),
   ('seed-pref-09', 'seed-group-store', 'member09@local.test', 3, 5, 20, 36, 'any', '曜日は柔軟に相談可能。'),
-  ('seed-pref-reserve-manager', 'seed-group-store', 'reserve-manager@local.test', 7, 7, 80, 80, 'any', '予備管理者。全時間帯・週7日勤務可能。初期状態は利用停止。'),
-  ('seed-pref-reserve-1', 'seed-group-store', 'reserve-member-1@local.test', 7, 7, 80, 80, 'any', '予備メンバー1。全時間帯・週7日勤務可能。初期状態は利用停止。'),
-  ('seed-pref-reserve-2', 'seed-group-store', 'reserve-member-2@local.test', 7, 7, 80, 80, 'any', '予備メンバー2。全時間帯・週7日勤務可能。初期状態は利用停止。'),
-  ('seed-pref-reserve-3', 'seed-group-store', 'reserve-member-3@local.test', 7, 7, 80, 80, 'any', '予備メンバー3。全時間帯・週7日勤務可能。初期状態は利用停止。');
+  ('seed-pref-reserve-manager', 'seed-group-store', 'reserve-manager@local.test', 0, 7, 0, 80, 'any', '予備管理者。全時間帯勤務可能。希望日数・時間は柔軟に調整。初期状態は利用停止。'),
+  ('seed-pref-reserve-1', 'seed-group-store', 'reserve-member-1@local.test', 0, 7, 0, 80, 'any', '予備メンバー1。全時間帯勤務可能。希望日数・時間は柔軟に調整。初期状態は利用停止。'),
+  ('seed-pref-reserve-2', 'seed-group-store', 'reserve-member-2@local.test', 0, 7, 0, 80, 'any', '予備メンバー2。全時間帯勤務可能。希望日数・時間は柔軟に調整。初期状態は利用停止。'),
+  ('seed-pref-reserve-3', 'seed-group-store', 'reserve-member-3@local.test', 0, 7, 0, 80, 'any', '予備メンバー3。全時間帯勤務可能。希望日数・時間は柔軟に調整。初期状態は利用停止。');
 
 WITH users(user_email) AS (VALUES
   ('tanaka@local.test'), ('member01@local.test'), ('member02@local.test'), ('member03@local.test'),
