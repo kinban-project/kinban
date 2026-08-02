@@ -295,6 +295,50 @@ function normalizeAssignmentObject(value: unknown, slotIds: Set<string>, memberE
   return result;
 }
 
+type McpScenarioSettings = {
+  priority: "labor" | "preference" | "fairness" | "minimal";
+  laborMode: "avoid" | "allow";
+  unavailableMode: "exclude" | "prefer_exclude";
+  existingMode: "fixed" | "keep" | "recalculate";
+  target: "unfilled" | "all";
+  allocationScope: "unfilled" | "problems" | "all";
+};
+
+function scenarioSettingsFor(value: unknown): McpScenarioSettings {
+  const input = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const legacyScope = input.existingMode === "recalculate" && input.target === "all"
+    ? "all"
+    : input.existingMode === "recalculate" ? "problems" : "unfilled";
+  const priority = text(input.priority);
+  const allocationScope = text(input.allocationScope);
+  return {
+    priority: ["labor", "preference", "fairness", "minimal"].includes(priority)
+      ? priority as McpScenarioSettings["priority"] : "preference",
+    laborMode: input.laborMode === "allow" ? "allow" : "avoid",
+    unavailableMode: input.unavailableMode === "prefer_exclude" ? "prefer_exclude" : "exclude",
+    existingMode: ["fixed", "keep", "recalculate"].includes(text(input.existingMode))
+      ? text(input.existingMode) as McpScenarioSettings["existingMode"] : "keep",
+    target: input.target === "all" ? "all" : "unfilled",
+    allocationScope: ["unfilled", "problems", "all"].includes(allocationScope)
+      ? allocationScope as McpScenarioSettings["allocationScope"] : legacyScope,
+  };
+}
+
+function seededScore(seed: string, value: string) {
+  let hash = 2166136261;
+  for (const char of `${seed}|${value}`) {
+    hash ^= char.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) / 4294967296;
+}
+
+function slotsOverlap(left: { date: string; startTime: string; endTime: string }, right: { date: string; startTime: string; endTime: string }) {
+  return left.date === right.date &&
+    shiftTimeToMinutes(left.startTime) < shiftTimeToMinutes(right.endTime) &&
+    shiftTimeToMinutes(right.startTime) < shiftTimeToMinutes(left.endTime);
+}
+
 function validateCandidate(context: PlanningContext, candidate: Record<string, string[]>) {
   const saved = assignmentObjectFromRows(context.assignments);
   const slotById = new Map(context.slots.map((slot) => [slot.id, slot]));
@@ -339,33 +383,113 @@ function validateCandidate(context: PlanningContext, candidate: Record<string, s
   return { ok: errors.length === 0, canPublish: errors.length === 0, summary: { slotCount: context.slots.length, assignmentCount: assignedRows.length, errorCount: errors.length, warningCount: warnings.length, changedSlotCount: changed.length }, errors, warnings, changed };
 }
 
-function generateCandidate(context: PlanningContext, seed = "") {
-  const candidate = assignmentObjectFromRows(context.assignments);
-  const assigned = (email: string) => context.slots.filter((slot) => (candidate[slot.id] ?? []).includes(email));
-  const overlaps = (left: typeof context.slots[number], right: typeof context.slots[number]) => {
-    const start = (slot: typeof context.slots[number]) => Date.parse(`${slot.date}T00:00:00Z`) / 60000 + shiftTimeToMinutes(slot.startTime);
-    const end = (slot: typeof context.slots[number]) => Date.parse(`${slot.date}T00:00:00Z`) / 60000 + shiftTimeToMinutes(slot.endTime);
-    return start(left) < end(right) && start(right) < end(left);
-  };
-  const allowed = (email: string, slot: typeof context.slots[number]) => {
-    const exact = context.requests.find((request) => request.userEmail === email && request.date === slot.date && request.startTime === slot.startTime && request.endTime === slot.endTime);
-    if (exact) return exact.preference !== "off" && exact.preference !== "unavailable";
-    const weekday = new Date(`${slot.date}T00:00:00Z`).getUTCDay();
-    const rows = context.availability.filter((entry) => entry.userEmail === email && entry.dayOfWeek === weekday);
-    if (!rows.length) return true;
-    const start = shiftTimeToMinutes(slot.startTime), end = shiftTimeToMinutes(slot.endTime);
-    const match = rows.find((entry) => (!entry.startTime && !entry.endTime) || (shiftTimeToMinutes(entry.startTime) <= start && shiftTimeToMinutes(entry.endTime) >= end));
-    return match ? match.status !== "off" && match.status !== "unavailable" : false;
-  };
-  for (const slot of context.slots) {
-    candidate[slot.id] ??= [];
-    const candidates = context.members.filter((member) => member.status === "active" && allowed(member.userEmail, slot) && !candidate[slot.id].includes(member.userEmail) && !assigned(member.userEmail).some((other) => overlaps(slot, other)));
-    let index = 0;
-    while (candidate[slot.id].length < slot.requiredCount && candidates.length) {
-      candidate[slot.id].push(candidates[(index++ + seed.length) % candidates.length].userEmail);
+function generateCandidate(context: PlanningContext, seed = "", rawSettings?: unknown) {
+  const settings = scenarioSettingsFor(rawSettings);
+  const existing = assignmentObjectFromRows(context.assignments);
+  const assignedFor = (candidate: Record<string, string[]>, email: string) =>
+    context.slots.filter((slot) => (candidate[slot.id] ?? []).includes(email));
+  const problemSlotIds = new Set<string>();
+  if (settings.allocationScope === "problems") {
+    for (const slot of context.slots) {
+      if ((existing[slot.id] ?? []).length !== slot.requiredCount) problemSlotIds.add(slot.id);
+    }
+    const existingRows = context.slots.flatMap((slot) => (existing[slot.id] ?? []).map((userEmail) => ({ slotId: slot.id, userEmail })));
+    const existingWarnings = buildLaborWarnings({
+      slots: context.slots,
+      assignments: existingRows,
+      members: context.members,
+      rules: context.laborRules,
+      planStartDate: context.plan.startDate,
+      planEndDate: context.plan.endDate,
+    });
+    for (const warning of existingWarnings) for (const slotId of warning.slotIds) problemSlotIds.add(slotId);
+    for (let index = 0; index < context.slots.length; index += 1) {
+      for (let nextIndex = index + 1; nextIndex < context.slots.length; nextIndex += 1) {
+        const left = context.slots[index], right = context.slots[nextIndex];
+        if (!slotsOverlap(left, right)) continue;
+        const shared = (existing[left.id] ?? []).some((email) => (existing[right.id] ?? []).includes(email));
+        if (shared) { problemSlotIds.add(left.id); problemSlotIds.add(right.id); }
+      }
     }
   }
-  return candidate;
+  const candidate: Record<string, string[]> = {};
+  for (const slot of context.slots) {
+    candidate[slot.id] = settings.allocationScope === "all" || (settings.allocationScope === "problems" && problemSlotIds.has(slot.id))
+      ? [] : [...(existing[slot.id] ?? [])];
+  }
+  const laborCost = (email: string, slot: typeof context.slots[number]) => {
+    if (settings.laborMode === "allow") return 0;
+    const rows = context.slots.flatMap((item) =>
+      (candidate[item.id] ?? []).includes(email) || item.id === slot.id ? [{ slotId: item.id, userEmail: email }] : []);
+    return buildLaborWarnings({
+      slots: context.slots,
+      assignments: rows,
+      members: context.members,
+      rules: context.laborRules,
+      planStartDate: context.plan.startDate,
+      planEndDate: context.plan.endDate,
+    }).filter((warning) => warning.memberEmail === email).length;
+  };
+  const canWork = (email: string, slot: typeof context.slots[number]) => {
+    const request = context.requests.find((row) => row.userEmail === email && row.date === slot.date && row.startTime === slot.startTime && row.endTime === slot.endTime);
+    if (request) {
+      const status = isPreferenceStatus(request.preference) ? request.preference : "possible";
+      return { status, allowed: status !== "unavailable" && status !== "off" };
+    }
+    const weekday = new Date(`${slot.date}T00:00:00Z`).getUTCDay();
+    const rows = context.availability.filter((entry) => entry.userEmail === email && entry.dayOfWeek === weekday);
+    const match = rows.find((entry) => !entry.startTime ||
+      (shiftTimeToMinutes(entry.startTime) <= shiftTimeToMinutes(slot.startTime) && shiftTimeToMinutes(entry.endTime) >= shiftTimeToMinutes(slot.endTime)));
+    const status = match?.status && isPreferenceStatus(match.status) ? match.status : rows.length ? "unavailable" : "possible";
+    const weekend = [0, 6].includes(weekday);
+    const basic = context.preferences.find((preference) => preference.userEmail === email);
+    const weekendRestricted = weekend && basic?.weekendPolicy === "prefer_off";
+    const allowed = settings.unavailableMode === "exclude" ? status !== "unavailable" && status !== "off" : true;
+    return { status, allowed: allowed && !weekendRestricted };
+  };
+  const orderedSlots = [...context.slots].sort((a, b) => {
+    const aCandidates = context.members.filter((member) => member.status === "active" && canWork(member.userEmail, a).allowed).length;
+    const bCandidates = context.members.filter((member) => member.status === "active" && canWork(member.userEmail, b).allowed).length;
+    return aCandidates - bCandidates || a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime);
+  });
+  for (const slot of orderedSlots) {
+    const current = candidate[slot.id] ?? [];
+    const members = context.members.filter((member) => member.status === "active");
+    const candidates = members.filter((member) => {
+      if (current.includes(member.userEmail)) return false;
+      if (!canWork(member.userEmail, slot).allowed) return false;
+      return !assignedFor(candidate, member.userEmail).some((other) => slotsOverlap(slot, other));
+    }).sort((left, right) => {
+      const leftStatus = canWork(left.userEmail, slot).status;
+      const rightStatus = canWork(right.userEmail, slot).status;
+      const prefScore = (value: string) => value === "want" ? 30 : value === "possible" ? 10 : 0;
+      const leftCount = assignedFor(candidate, left.userEmail).length;
+      const rightCount = assignedFor(candidate, right.userEmail).length;
+      const preferenceOrder = settings.priority === "preference" ? prefScore(rightStatus) - prefScore(leftStatus) : 0;
+      const fairnessOrder = settings.priority === "fairness" ? leftCount - rightCount : 0;
+      const minimalOrder = settings.priority === "minimal" ? rightCount - leftCount : 0;
+      const laborOrder = settings.priority === "labor" ? laborCost(left.userEmail, slot) - laborCost(right.userEmail, slot) : 0;
+      return laborOrder || preferenceOrder || fairnessOrder || minimalOrder || seededScore(seed, `${slot.id}|${left.userEmail}`) - seededScore(seed, `${slot.id}|${right.userEmail}`);
+    });
+    for (const member of candidates) {
+      if (candidate[slot.id].length >= slot.requiredCount) break;
+      candidate[slot.id].push(member.userEmail);
+    }
+  }
+  const laborWarnings = buildLaborWarnings({
+    slots: context.slots,
+    assignments: context.slots.flatMap((slot) => (candidate[slot.id] ?? []).map((userEmail) => ({ slotId: slot.id, userEmail }))),
+    members: context.members,
+    rules: context.laborRules,
+    planStartDate: context.plan.startDate,
+    planEndDate: context.plan.endDate,
+  });
+  return {
+    assignments: candidate,
+    settings,
+    warnings: laborWarnings.map((warning) => warning.message),
+    unfilled: context.slots.filter((slot) => (candidate[slot.id] ?? []).length < slot.requiredCount).length,
+  };
 }
 
 function hasScope(
@@ -2818,7 +2942,7 @@ export async function POST(request: Request) {
       if (identity.tokenType === "personal" && found.plan.status !== "published") return rpcError(payload.id, "Personal member keys can only read published shifts.");
       const context = await readPlanningContext(db, found.plan);
       const visibleAssignments = identity.tokenType === "personal" ? context.assignments.filter((row) => row.userEmail === identity.email) : context.assignments;
-      return rpc(payload.id, { demoTime: await getDemoTimeContext(found.plan.groupId), plan: context.plan, slots: context.slots, assignments: visibleAssignments, members: context.members.filter((member) => member.status === "active").map((member) => ({ userEmail: member.userEmail, displayName: member.displayName, role: member.role })), preferences: context.preferences, availability: context.availability, requestPeriod: context.period, requests: context.requests, submissions: context.submissions, laborRules: context.laborRules });
+      return rpc(payload.id, { demoTime: await getDemoTimeContext(found.plan.groupId), plan: context.plan, slots: context.slots, assignments: visibleAssignments, members: context.members.filter((member) => member.status === "active").map((member) => ({ userEmail: member.userEmail, displayName: member.displayName, role: member.role, status: member.status })), preferences: context.preferences, availability: context.availability, requestPeriod: context.period, requests: context.requests, submissions: context.submissions, laborRules: context.laborRules });
     }
     if (name === "validate_shift_assignment_candidate") {
       const found = await planFor(db, text(args.planId), identity.email);
@@ -3381,13 +3505,32 @@ export async function POST(request: Request) {
         let nameValue = baseName, suffix = 2;
         while (used.has(nameValue)) nameValue = `${baseName} ${suffix++}`;
         let assignments: Record<string, string[]>;
-        try { assignments = args.action === "auto" ? generateCandidate(context, text(args.seed)) : normalizeAssignmentObject(args.assignments ?? {}, new Set(context.slots.map((slot) => slot.id)), new Set(context.members.filter((member) => member.status === "active").map((member) => member.userEmail))); }
+        let generatedSettings: McpScenarioSettings | null = null;
+        let generatedCandidate: ReturnType<typeof generateCandidate> | null = null;
+        try {
+          if (args.action === "auto") {
+            generatedCandidate = generateCandidate(context, text(args.seed), args.settings);
+            assignments = generatedCandidate.assignments;
+            generatedSettings = generatedCandidate.settings;
+          } else {
+            assignments = normalizeAssignmentObject(args.assignments ?? {}, new Set(context.slots.map((slot) => slot.id)), new Set(context.members.filter((member) => member.status === "active").map((member) => member.userEmail)));
+          }
+        }
         catch (error) { return rpcError(payload.id, error instanceof Error ? error.message : "Invalid scenario assignments"); }
         const id = crypto.randomUUID();
-        const settings = args.settings && typeof args.settings === "object" ? args.settings : {};
+        const settings = generatedSettings ?? scenarioSettingsFor(args.settings);
         const [scenario] = await db.insert(shiftAssignmentScenarios).values({ id, planId, name: nameValue, description: text(args.description).slice(0, 500), createdBy: identity.email, seed: text(args.seed), settingsJson: JSON.stringify(settings), baseVersion: found.plan.version, assignmentsJson: JSON.stringify(assignments) }).returning();
         await recordAudit({ groupId: found.plan.groupId, userEmail: identity.email, action: "shift.scenario.create", entityType: "shiftAssignmentScenario", entityId: id, summary: `MCPで割当案を保存: ${nameValue}`, details: { source: "mcp", planId, action: args.action === "auto" ? "auto" : "manual" } });
-        return completeManagedExecution({ ok: true, scenario: { ...scenario, settings, assignments }, validation: validateCandidate(context, assignments) });
+        return completeManagedExecution({
+          ok: true,
+          scenario: { ...scenario, settings, assignments },
+          generation: generatedCandidate ? {
+            warningCount: generatedCandidate.warnings.length,
+            warnings: generatedCandidate.warnings,
+            unfilled: generatedCandidate.unfilled,
+          } : null,
+          validation: validateCandidate(context, assignments),
+        });
       }
       const scenarioId = text(args.scenarioId);
       const [scenario] = await db.select().from(shiftAssignmentScenarios).where(and(eq(shiftAssignmentScenarios.id, scenarioId), eq(shiftAssignmentScenarios.planId, planId))).limit(1);

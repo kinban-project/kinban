@@ -40,3 +40,10 @@ test("assignment scenario application and clearing require draft/version/confirm
   assert.ok(clearBranch >= 0 && scenarioLookup >= 0 && clearBranch < scenarioLookup, "clear must not require a scenarioId");
   assert.match(source, /scenario\.baseVersion !== expectedVersion/);
 });
+
+test("MCP auto scenarios apply screen-compatible settings and expose labor generation results", () => {
+  assert.match(source, /generateCandidate\(context, text\(args\.seed\), args\.settings\)/);
+  assert.match(source, /allocationScope === "problems"/);
+  assert.match(source, /generatedCandidate\.warnings\.length/);
+  assert.match(source, /context\.laborRules/);
+});
