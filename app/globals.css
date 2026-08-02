@@ -75,6 +75,9 @@ button { cursor: pointer; }
 .site-user-row > label input[type="checkbox"] { width: 15px; height: 15px; margin: 0; accent-color: var(--teal); }
 .site-user-row > select { min-width: 0; }
 .small-action.danger { color: #b4584d; }
+.site-demo-reset-panel { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 24px; padding: 14px; border: 1px solid #ead28a; border-radius: 12px; background: #fff9e9; }
+.site-demo-reset-panel strong, .site-demo-reset-panel small { display: block; }
+.site-demo-reset-panel small { margin-top: 4px; color: #80671d; font-size: 11px; }
 .group-list { margin-top: 14px; }
 .group-item, .member-row { display: flex; justify-content: space-between; align-items: center; gap: 14px; border-top: 1px solid var(--line); padding: 13px 0; }
 .group-item strong, .member-row span { display: block; font-size: 13px; }
@@ -191,6 +194,7 @@ button { cursor: pointer; }
 .group-menu { margin: 12px 0 18px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,.82); overflow: visible; }
 .demo-page { min-height: 100vh; }
 .demo-topbar { margin-bottom: 28px; }
+.demo-topbar-actions { display: flex; align-items: center; gap: 8px; }
 .demo-brand { text-decoration: none; }
 .demo-hero { max-width: 760px; margin: 30px auto 24px; text-align: center; }
 .demo-hero h1 { margin: 8px 0 12px; font-size: clamp(28px, 5vw, 46px); font-weight: 500; letter-spacing: -.04em; }

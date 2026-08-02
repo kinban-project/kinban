@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { localApiFetch } from "./local-api";
+import { isDemoModeClient } from "./client-demo-mode";
 
 type SiteUser = { id: string; userEmail: string; displayName: string; status: "invited" | "active" | "suspended"; isSiteAdmin: boolean; canCreateGroups: boolean };
 type Invitation = { id: string; email: string; invitedBy: string; status: "pending" | "accepted" | "revoked" | "expired"; expiresAt: string; acceptedAt?: string | null; createdAt: string };
@@ -18,6 +19,7 @@ export default function SiteAdminPanel() {
   const [lastUrl, setLastUrl] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [resetBusy, setResetBusy] = useState(false);
 
   async function load() {
     const response = await localApiFetch("/api/site/users");
@@ -60,6 +62,19 @@ export default function SiteAdminPanel() {
     if (response.ok) await load();
   }
 
+  async function resetDemoData() {
+    if (!window.confirm("公開デモの登録データを初期シードへ戻します。登録した勤怠、メッセージ、割当、業務メモなどは削除されます。続けますか？")) return;
+    const confirmation = window.prompt("実行する場合は『デモデータを初期化』と入力してください");
+    if (confirmation !== "デモデータを初期化") return;
+    setResetBusy(true); setNotice(null);
+    try {
+      const response = await localApiFetch("/api/demo/reset", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirmation }) });
+      const data = await response.json().catch(() => ({})) as { error?: string };
+      setNotice(response.ok ? "デモデータを初期シードへ戻しました。画面を再読み込みしてください。" : (data.error ?? "デモデータを初期化できませんでした"));
+      if (response.ok) await load();
+    } finally { setResetBusy(false); }
+  }
+
   return <section className="site-admin-panel">
     <div className="modal-head"><div><p className="eyebrow">SITE ADMIN</p><h2>サイト利用者管理</h2><p>利用者、招待URL、サイト管理者、グループ作成権限を管理します。</p></div></div>
     <form className="group-invitation-form" onSubmit={(event) => { event.preventDefault(); void createInvite(); }}>
@@ -76,6 +91,10 @@ export default function SiteAdminPanel() {
       {invitation.status === "pending" && <><button className="small-action" type="button" onClick={() => void createInvite(invitation.email)}>再発行</button><button className="small-action danger" type="button" onClick={() => void revoke(invitation)}>取消</button></>}
     </article>)}</div>
 
+    {isDemoModeClient() && <div className="site-demo-reset-panel">
+      <div><strong>デモ用データの初期化</strong><small>公開デモの登録データを初期シードへ戻します。サイト管理者だけが実行できます。</small></div>
+      <button className="small-action danger" type="button" disabled={resetBusy} onClick={() => void resetDemoData()}>{resetBusy ? "初期化中…" : "デモデータを初期化"}</button>
+    </div>}
     <h3 className="site-admin-subheading">サイト利用者</h3>
     <div className="site-user-list">{users.map((user) => <article className="site-user-row" key={user.id}>
       <div><strong>{user.displayName || user.userEmail}</strong><small>{user.userEmail}</small></div>

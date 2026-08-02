@@ -39,7 +39,10 @@ export default function DemoPage() {
           <img className="brand-mark" src="/kinban-mark.png" alt="" />
           <span>KINBAN <small className="brand-latin">DEMO</small></span>
         </a>
-        <a className="ghost-button" href="/">ホームへ戻る</a>
+        <div className="demo-topbar-actions">
+          <a className="ghost-button" href="/?user=tanaka">サイト管理へ（管理者）</a>
+          <a className="ghost-button" href="/">ホームへ戻る</a>
+        </div>
       </header>
       <section className="demo-hero">
         <p className="eyebrow">DEMO MODE</p>
