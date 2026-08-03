@@ -5,6 +5,7 @@ import { getMembership } from "../../../groups/group-access";
 import { buildLaborWarnings } from "../../../../shift-labor-warnings";
 import { shiftTimeToMinutes } from "../../../../shift-time";
 import { groupMembers, shiftAssignmentScenarios, shiftAssignments, shiftPlans, shiftSlots, shiftAvailability, groupPreferences, shiftRequestPeriods, shiftRequests, groups } from "../../../../../db/schema";
+import { proposalMeta, proposalSettings, proposalSlotSignature } from "../../../../shift-assignment-proposals";
 
 export const dynamic = "force-dynamic";
 
@@ -85,7 +86,10 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const result = await access(id);
   if ("error" in result) return result.error;
   const scenarios = await result.db.select().from(shiftAssignmentScenarios).where(eq(shiftAssignmentScenarios.planId, id)).orderBy(desc(shiftAssignmentScenarios.updatedAt));
-  return Response.json({ scenarios: scenarios.map((row) => ({ ...row, settings: parseJson(row.settingsJson, {}), assignments: parseJson(row.assignmentsJson, {}) })) });
+  return Response.json({ scenarios: scenarios.map((row) => {
+    const settings = parseJson(row.settingsJson, {});
+    return { ...row, settings, ...proposalMeta(settings), assignments: parseJson(row.assignmentsJson, {}) };
+  }) });
 }
 
 async function generateAssignments(db: ReturnType<typeof getDb>, planId: string, groupId: string, seed: string, rawSettings: unknown) {
@@ -233,6 +237,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const generated = body.action === "auto" ? await generateAssignments(result.db, id, result.plan.groupId, seed, body.settings) : null;
   const assignments = generated?.assignments ?? (body.assignments && typeof body.assignments === "object" ? body.assignments : {});
   const settings = generated?.settings ?? settingsFor(body.settings);
-  const [row] = await result.db.insert(shiftAssignmentScenarios).values({ id: crypto.randomUUID(), planId: id, name, description: text(body.description), createdBy: result.user.email, seed, settingsJson: JSON.stringify(settings), baseVersion: result.plan.version, assignmentsJson: JSON.stringify(assignments) }).returning();
-  return Response.json({ scenario: { ...row, settings, assignments }, generated }, { status: 201 });
+  const baseSlots = await result.db.select().from(shiftSlots).where(eq(shiftSlots.planId, id));
+  const storedSettings = proposalSettings(settings, { proposalStatus: "candidate", baseSlotIds: baseSlots.map((slot) => slot.id), baseSlotSignature: proposalSlotSignature(baseSlots) });
+  const [row] = await result.db.insert(shiftAssignmentScenarios).values({ id: crypto.randomUUID(), planId: id, name, description: text(body.description), createdBy: result.user.email, seed, settingsJson: JSON.stringify(storedSettings), baseVersion: result.plan.version, assignmentsJson: JSON.stringify(assignments) }).returning();
+  return Response.json({ scenario: { ...row, settings: storedSettings, ...proposalMeta(storedSettings), assignments }, generated }, { status: 201 });
 }

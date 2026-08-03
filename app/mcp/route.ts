@@ -72,6 +72,7 @@ import {
   createSystemMessagesAndPush,
   sendBusinessPush,
 } from "../notification-events";
+import { proposalMatchesSlots, proposalMeta, proposalSettings, proposalSlotSignature } from "../shift-assignment-proposals";
 
 export const dynamic = "force-dynamic";
 
@@ -169,7 +170,7 @@ const assistantTools = new Set([
   "create_shift_assignment_scenario",
   "update_shift_assignment_scenario",
   "delete_shift_assignment_scenario",
-  "apply_shift_assignment_scenario",
+  "publish_shift_assignment_scenario",
   "list_shift_assignment_scenarios",
   "compare_shift_assignment_scenario",
   "submit_work_record",
@@ -553,7 +554,7 @@ const assistantManagementTools = new Set([
   "create_shift_assignment_scenario",
   "update_shift_assignment_scenario",
   "delete_shift_assignment_scenario",
-  "apply_shift_assignment_scenario",
+  "publish_shift_assignment_scenario",
   "confirm_shift_swap",
   "submit_work_record",
   "review_monthly_work",
@@ -1371,9 +1372,9 @@ const tools = [
     },
   },
   {
-    name: "apply_shift_assignment_scenario",
+    name: "publish_shift_assignment_scenario",
     description:
-      "Apply a saved scenario to a draft plan after an expectedVersion check. This changes assignments only; it never publishes. Use validate_shift_assignment_candidate first.",
+      "Publish one saved assignment scenario as the current public shift. The previous public scenario is kept as history. This is a manager operation and requires confirm:true plus the latest expectedVersion.",
     inputSchema: {
       type: "object",
       required: ["planId", "scenarioId", "expectedVersion", "confirm"],
@@ -1827,7 +1828,7 @@ export async function POST(request: Request) {
           "create_shift_assignment_scenario",
           "update_shift_assignment_scenario",
           "delete_shift_assignment_scenario",
-          "apply_shift_assignment_scenario",
+          "publish_shift_assignment_scenario",
         ].includes(name)
       ) {
         const [plan] = await db
@@ -1838,8 +1839,8 @@ export async function POST(request: Request) {
         if (!plan) return rpcError(payload.id, "Shift plan not found");
         groupId = plan.groupId;
         permission =
-          ["set_shift_assignments", "apply_shift_assignment_scenario"].includes(name) &&
-          (plan.status === "published" || args.status === "published")
+          name === "publish_shift_assignment_scenario" ||
+          (["set_shift_assignments"].includes(name) && (plan.status === "published" || args.status === "published"))
             ? "canPublishShifts"
             : "canCreateShifts";
       } else if (name === "submit_work_record") {
@@ -3474,7 +3475,7 @@ export async function POST(request: Request) {
       });
       return completeManagedExecution({ ok: true, planId: found.plan.id });
     }
-    if (["list_shift_assignment_scenarios", "create_shift_assignment_scenario", "update_shift_assignment_scenario", "delete_shift_assignment_scenario", "compare_shift_assignment_scenario", "apply_shift_assignment_scenario", "clear_draft_assignments"].includes(name)) {
+    if (["list_shift_assignment_scenarios", "create_shift_assignment_scenario", "update_shift_assignment_scenario", "delete_shift_assignment_scenario", "compare_shift_assignment_scenario", "publish_shift_assignment_scenario", "clear_draft_assignments"].includes(name)) {
       const planId = text(args.planId);
       const found = await planFor(db, planId, identity.email);
       if ("error" in found || !editorRoles.has(found.member.role)) return rpcError(payload.id, "Editor membership required");
@@ -3494,7 +3495,7 @@ export async function POST(request: Request) {
       }
       if (name === "list_shift_assignment_scenarios") {
         const scenarios = await db.select().from(shiftAssignmentScenarios).where(eq(shiftAssignmentScenarios.planId, planId)).orderBy(desc(shiftAssignmentScenarios.updatedAt));
-        return rpc(payload.id, { planId, currentVersion: found.plan.version, scenarios: scenarios.map((scenario) => ({ ...scenario, settings: JSON.parse(scenario.settingsJson || "{}"), assignments: JSON.parse(scenario.assignmentsJson || "{}") })) });
+        return rpc(payload.id, { planId, currentVersion: found.plan.version, scenarios: scenarios.map((scenario) => { const settings = JSON.parse(scenario.settingsJson || "{}"); return { ...scenario, settings, ...proposalMeta(settings), assignments: JSON.parse(scenario.assignmentsJson || "{}") }; }) });
       }
       if (name === "create_shift_assignment_scenario") {
         if (args.confirm !== true) return rpcError(payload.id, mutating);
@@ -3518,12 +3519,12 @@ export async function POST(request: Request) {
         }
         catch (error) { return rpcError(payload.id, error instanceof Error ? error.message : "Invalid scenario assignments"); }
         const id = crypto.randomUUID();
-        const settings = generatedSettings ?? scenarioSettingsFor(args.settings);
+        const settings = proposalSettings(generatedSettings ?? scenarioSettingsFor(args.settings), { proposalStatus: "candidate", baseSlotIds: context.slots.map((slot) => slot.id), baseSlotSignature: proposalSlotSignature(context.slots) });
         const [scenario] = await db.insert(shiftAssignmentScenarios).values({ id, planId, name: nameValue, description: text(args.description).slice(0, 500), createdBy: identity.email, seed: text(args.seed), settingsJson: JSON.stringify(settings), baseVersion: found.plan.version, assignmentsJson: JSON.stringify(assignments) }).returning();
         await recordAudit({ groupId: found.plan.groupId, userEmail: identity.email, action: "shift.scenario.create", entityType: "shiftAssignmentScenario", entityId: id, summary: `MCPで割当案を保存: ${nameValue}`, details: { source: "mcp", planId, action: args.action === "auto" ? "auto" : "manual" } });
         return completeManagedExecution({
           ok: true,
-          scenario: { ...scenario, settings, assignments },
+          scenario: { ...scenario, settings, ...proposalMeta(settings), assignments },
           generation: generatedCandidate ? {
             warningCount: generatedCandidate.warnings.length,
             warnings: generatedCandidate.warnings,
@@ -3541,6 +3542,7 @@ export async function POST(request: Request) {
       if (name === "compare_shift_assignment_scenario") return rpc(payload.id, { planId, scenarioId, scenario: { name: scenario.name, description: scenario.description, baseVersion: scenario.baseVersion }, ...validateCandidate(context, scenarioAssignments) });
       if (name === "update_shift_assignment_scenario") {
         if (args.confirm !== true) return rpcError(payload.id, mutating);
+        if (proposalMeta(JSON.parse(scenario.settingsJson || "{}")).proposalStatus === "published") return rpcError(payload.id, "公開済みの割当案は変更できません。複製して新しい案を作成してください。");
         let assignments = scenarioAssignments;
         if (args.assignments !== undefined) try { assignments = normalizeAssignmentObject(args.assignments, new Set(context.slots.map((slot) => slot.id)), new Set(context.members.filter((member) => member.status === "active").map((member) => member.userEmail))); } catch (error) { return rpcError(payload.id, error instanceof Error ? error.message : "Invalid scenario assignments"); }
         const nameValue = args.name === undefined ? scenario.name : text(args.name).slice(0, 100);
@@ -3550,22 +3552,48 @@ export async function POST(request: Request) {
       }
       if (name === "delete_shift_assignment_scenario") {
         if (args.confirm !== true) return rpcError(payload.id, mutating);
+        if (proposalMeta(JSON.parse(scenario.settingsJson || "{}")).proposalStatus === "published") return rpcError(payload.id, "公開済みの割当案は削除できません。履歴として保持されます。");
         await db.delete(shiftAssignmentScenarios).where(eq(shiftAssignmentScenarios.id, scenarioId));
         return completeManagedExecution({ ok: true, planId, scenarioId });
       }
-      if (name === "apply_shift_assignment_scenario") {
+      if (name === "publish_shift_assignment_scenario") {
         if (args.confirm !== true) return rpcError(payload.id, mutating);
-        if (found.plan.status !== "draft") return rpcError(payload.id, "Only draft plans can accept an assignment scenario");
         const expectedVersion = Number(args.expectedVersion);
         if (!Number.isInteger(expectedVersion) || expectedVersion !== found.plan.version) return rpcError(payload.id, "Shift plan version conflict. Reload the plan and retry with its latest version.");
-        if (scenario.baseVersion !== expectedVersion) return rpcError(payload.id, "Scenario is based on an older plan version. Compare or recreate it before applying.");
-        const [locked] = await db.update(shiftPlans).set({ version: expectedVersion + 1 }).where(and(eq(shiftPlans.id, planId), eq(shiftPlans.version, expectedVersion))).returning({ version: shiftPlans.version });
+        const meta = proposalMeta(JSON.parse(scenario.settingsJson || "{}"));
+        if (meta.proposalStatus === "published") return completeManagedExecution({ ok: true, planId, scenarioId, status: "published", alreadyPublished: true });
+        if (!proposalMatchesSlots(meta, context.slots)) return rpcError(payload.id, "勤務枠（時刻・必要人数・担当）が変更された後に作成された割当案です。現在の勤務枠で再作成してください。");
+        const [locked] = await db.update(shiftPlans).set({ status: "published", version: expectedVersion + 1 }).where(and(eq(shiftPlans.id, planId), eq(shiftPlans.version, expectedVersion))).returning({ version: shiftPlans.version });
         if (!locked) return rpcError(payload.id, "Shift plan version conflict. Reload the plan and retry with its latest version.");
+        const now = new Date().toISOString();
+        const statements = [...chunk(context.slots.map((slot) => slot.id), 50).map((ids) => db.delete(shiftAssignments).where(inArray(shiftAssignments.slotId, ids)))];
         const rows = context.slots.flatMap((slot) => (scenarioAssignments[slot.id] ?? []).map((userEmail) => ({ id: crypto.randomUUID(), slotId: slot.id, userEmail })));
-        const statements = [...chunk(context.slots.map((slot) => slot.id), 50).map((ids) => db.delete(shiftAssignments).where(inArray(shiftAssignments.slotId, ids))), ...chunk(rows, 8).map((items) => db.insert(shiftAssignments).values(items))];
+        for (const items of chunk(rows, 8)) statements.push(db.insert(shiftAssignments).values(items));
+        statements.push(db.delete(events).where(eq(events.shiftPlanId, planId)));
+        const memberEmails = [...new Set(rows.map((row) => row.userEmail))];
+        const profiles = memberEmails.length ? await db.select().from(accountProfiles).where(inArray(accountProfiles.userEmail, memberEmails)) : [];
+        const [group] = await db.select().from(groups).where(eq(groups.id, found.plan.groupId)).limit(1);
+        const names = new Map(context.members.map((member) => [member.userEmail, member.displayName?.trim() || profiles.find((profile) => profile.userEmail === member.userEmail)?.nickname?.trim() || member.userEmail.split("@")[0]]));
+        const publishedEvents = context.slots.flatMap((slot) => {
+          const assigned = rows.filter((row) => row.slotId === slot.id).map((row) => names.get(row.userEmail) ?? row.userEmail);
+          if (!assigned.length) return [];
+          const start = shiftDateTime(slot.date, slot.startTime);
+          const end = shiftDateTime(slot.date, slot.endTime);
+          return [{ id: crypto.randomUUID(), ownerEmail: found.plan.createdBy, groupId: found.plan.groupId, shiftPlanId: planId, title: slot.role?.trim() || group?.name || "勤務", date: start.date, endDate: end.date, startTime: start.time, endTime: end.time, category: "シフト", notes: `担当: ${assigned.join(", ")}`, completed: false }];
+        });
+        for (const items of chunk(publishedEvents, 8)) statements.push(db.insert(events).values(items));
+        const allScenarios = await db.select().from(shiftAssignmentScenarios).where(eq(shiftAssignmentScenarios.planId, planId));
+        for (const item of allScenarios) {
+          if (item.id === scenarioId) continue;
+          let itemSettings: unknown = {};
+          try { itemSettings = JSON.parse(item.settingsJson || "{}"); } catch { /* retain legacy metadata */ }
+          if (proposalMeta(itemSettings).proposalStatus === "published") statements.push(db.update(shiftAssignmentScenarios).set({ settingsJson: JSON.stringify(proposalSettings(itemSettings, { proposalStatus: "superseded" })), updatedAt: now }).where(eq(shiftAssignmentScenarios.id, item.id)));
+        }
+        statements.push(db.update(shiftAssignmentScenarios).set({ settingsJson: JSON.stringify(proposalSettings(JSON.parse(scenario.settingsJson || "{}"), { proposalStatus: "published", publishedAt: now, publishedBy: identity.email })), updatedAt: now }).where(eq(shiftAssignmentScenarios.id, scenarioId)));
         await db.batch(statements);
-        await recordAudit({ groupId: found.plan.groupId, userEmail: identity.email, action: "shift.scenario.apply", entityType: "shiftAssignmentScenario", entityId: scenarioId, summary: `MCPで割当案を適用: ${scenario.name}`, details: { source: "mcp", planId, reason: text(args.reason) } });
-        return completeManagedExecution({ ok: true, planId, scenarioId, status: "draft", assigned: rows.length, version: expectedVersion + 1, validation: validateCandidate(context, scenarioAssignments) });
+        await recordAudit({ groupId: found.plan.groupId, userEmail: identity.email, action: "shift.proposal.publish", entityType: "shiftAssignmentScenario", entityId: scenarioId, summary: `MCPで割当案を公開: ${scenario.name}`, details: { source: "mcp", planId, reason: text(args.reason) } });
+        await createSystemMessagesAndPush(db, { groupId: found.plan.groupId, recipients: memberEmails, eventId: `shift-proposal-publish:${planId}:${expectedVersion + 1}`, eventType: "published_shift_changed", body: "公開シフトが更新されました。シフト一覧を確認してください。", pushTitle: "KINBAN", pushBody: "公開シフトが更新されました", url: `/?group=${encodeURIComponent(found.plan.groupId)}&view=roster` });
+        return completeManagedExecution({ ok: true, planId, scenarioId, status: "published", assigned: rows.length, version: expectedVersion + 1, validation: validateCandidate(context, scenarioAssignments) });
       }
       if (name === "clear_draft_assignments") {
         if (args.confirm !== true) return rpcError(payload.id, mutating);

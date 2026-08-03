@@ -19,7 +19,7 @@
 
 ### シフト・割当・希望
 
-`create_shift_plan`, `delete_draft_shift_plan`, `update_slot_counts`, `set_shift_assignments`, `clear_draft_assignments`, `create_shift_assignment_scenario`, `update_shift_assignment_scenario`, `delete_shift_assignment_scenario`, `apply_shift_assignment_scenario`
+`create_shift_plan`, `delete_draft_shift_plan`, `update_slot_counts`, `set_shift_assignments`, `clear_draft_assignments`, `create_shift_assignment_scenario`, `update_shift_assignment_scenario`, `delete_shift_assignment_scenario`, `publish_shift_assignment_scenario`
 
 ### 勤怠・メッセージ・通知
 

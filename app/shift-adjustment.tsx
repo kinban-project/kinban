@@ -5,6 +5,7 @@ import { localApiFetch } from "./local-api";
 import { getShiftDisplayLabel, getShiftDisplayStatus } from "./shift-status";
 import { displayShiftTime, shiftTimeToMinutes } from "./shift-time";
 import { buildLaborWarnings, type LaborRules, type LaborWarning } from "./shift-labor-warnings";
+import { proposalMatchesSlots, proposalMeta, type AssignmentProposalSlot } from "./shift-assignment-proposals";
 
 type Group = { id: string; name: string; membership: { role: string } };
 type Plan = {
@@ -68,6 +69,9 @@ type AssignmentScenario = {
   assignments: Record<string, string[]>;
   createdAt: string;
   updatedAt: string;
+  proposalStatus?: "candidate" | "published" | "superseded";
+  publishedAt?: string;
+  publishedBy?: string;
 };
 type AllocationScope = "unfilled" | "problems" | "all";
 type Preference = {
@@ -188,7 +192,7 @@ export default function ShiftAdjustment({
   const [showScenarioCompare, setShowScenarioCompare] = useState(false);
   const selectedGroupName = groups.find((group) => group.id === groupId)?.name;
   const selectedScenario = scenarios.find((scenario) => scenario.id === selectedScenarioId);
-  const scenarioIsStale = Boolean(selectedScenario && detail && selectedScenario.baseVersion !== detail.plan.version);
+  const scenarioIsStale = Boolean(selectedScenario && detail && !proposalMatchesSlots(proposalMeta(selectedScenario.settings), detail.slots as AssignmentProposalSlot[]));
   function allocationScopeFor(settings: Record<string, unknown> | undefined): AllocationScope {
     if (settings?.allocationScope === "all" || settings?.allocationScope === "problems" || settings?.allocationScope === "unfilled") return settings.allocationScope;
     if (settings?.existingMode === "recalculate" && settings?.target === "all") return "all";
@@ -704,6 +708,28 @@ export default function ShiftAdjustment({
     setNotice(response.ok ? "割当案を更新しました。本体割当はまだ変更されていません。" : (data.error ?? "割当案を更新できませんでした"));
     setBusy(false);
   }
+  async function publishSelectedScenario() {
+    if (!detail || !selectedScenarioId || !selectedScenario) return;
+    if (selectedScenario.proposalStatus === "published") return;
+    if (scenarioIsStale) {
+      setNotice("この割当案は勤務枠の変更前に作成されています。現在の勤務枠で再計算してください。");
+      return;
+    }
+    if (!window.confirm(`「${selectedScenario.name}」を公開版にしますか？現在の公開版がある場合は履歴として残ります。`)) return;
+    setBusy(true);
+    const response = await localApiFetch(`/api/shifts/${detail.plan.id}/scenarios/${selectedScenarioId}/publish`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirm: true, expectedVersion: detail.plan.version }),
+    });
+    const data = await response.json().catch(() => ({})) as { error?: string };
+    setNotice(response.ok ? "割当案を公開版にしました。" : (data.error ?? "割当案を公開できませんでした。"));
+    setBusy(false);
+    if (response.ok) {
+      await openPlan(detail.plan.id);
+      await loadScenarios(detail.plan.id);
+    }
+  }
   function duplicateSelectedScenario() {
     const scenario = scenarios.find((item) => item.id === selectedScenarioId);
     if (!scenario) return;
@@ -915,17 +941,17 @@ export default function ShiftAdjustment({
               </select>
               <button type="button" className="ghost-button" onClick={() => { setScenarioName(""); setScenarioDescription(""); setScenarioSeed(""); setScenarioPriority("preference"); setScenarioLaborMode("avoid"); setScenarioUnavailableMode("exclude"); setScenarioAllocationScope("problems"); setScenarioOpen(true); }}>＋割当案を作成</button>
               {selectedScenarioId && <>
+                <button type="button" className="primary-button" onClick={() => void publishSelectedScenario()} disabled={busy || scenarioIsStale || selectedScenario?.proposalStatus === "published"}>公開版にする</button>
                 <button type="button" className="ghost-button" onClick={duplicateSelectedScenario} disabled={busy}>複製</button>
                 <button type="button" className="ghost-button" onClick={() => setShowScenarioCompare((value) => !value)}>{showScenarioCompare ? "比較を閉じる" : "比較"}</button>
-                <button type="button" className="ghost-button" onClick={() => void saveSelectedScenario()} disabled={busy}>案を保存</button>
-                <button type="button" className="ghost-button danger-button" onClick={() => void deleteSelectedScenario()} disabled={busy}>案を削除</button>
-                <button type="button" className="primary-button" onClick={() => { if (scenarioIsStale) { setNotice("この案は古いため、先に同じ条件で再計算してください。"); return; } if (window.confirm("この案を現在の下書きへ反映しますか？下書きの割当が置き換わりますが、公開はしません。")) void save("draft"); }} disabled={busy || scenarioIsStale}>この案を下書きに反映</button>
+                <button type="button" className="ghost-button" onClick={() => void saveSelectedScenario()} disabled={busy || selectedScenario?.proposalStatus === "published"}>案を保存</button>
+                <button type="button" className="ghost-button danger-button" onClick={() => void deleteSelectedScenario()} disabled={busy || selectedScenario?.proposalStatus === "published"}>案を削除</button>
               </>}
             </div>
-            <p className="assignment-scenario-meta">表示中：{selectedScenario ? `${selectedScenario.name}（未反映）` : "現在の下書き"}{detail && ` ／ version ${detail.plan.version}`}</p>
+            <p className="assignment-scenario-meta">表示中：{selectedScenario ? `${selectedScenario.name}（${selectedScenario.proposalStatus === "published" ? "公開版" : selectedScenario.proposalStatus === "superseded" ? "旧公開版" : "候補"}）` : "現在の下書き"}{detail && ` ／ version ${detail.plan.version}`}</p>
             {selectedScenario && scenarioIsStale && <div className="assignment-scenario-stale" role="status">
-              <strong>この案は古くなっています</strong>
-              <span>下書き version {selectedScenario.baseVersion} をもとに作成されています。現在の下書きは version {detail.plan.version} です。</span>
+              <strong>この案は勤務枠の変更前に作成されています</strong>
+              <span>現在の勤務枠と案作成時の勤務枠が異なるため、公開できません。</span>
               <button type="button" className="ghost-button" onClick={() => setShowScenarioCompare(true)}>差分を確認</button>
               <button type="button" className="ghost-button" onClick={() => void recalculateSelectedScenario()} disabled={busy}>同じ条件で再計算して新しい案を作る</button>
             </div>}

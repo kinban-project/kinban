@@ -13,12 +13,13 @@ test("MCP planning tools expose the unsaved-candidate and scenario workflow", ()
     "update_shift_assignment_scenario",
     "delete_shift_assignment_scenario",
     "compare_shift_assignment_scenario",
-    "apply_shift_assignment_scenario",
+    "publish_shift_assignment_scenario",
     "clear_draft_assignments",
   ]) {
     assert.match(source, new RegExp(`name: \\"${name}\\"`), `${name} must be declared as an MCP tool`);
     assert.match(source, new RegExp(`name === \\"${name}\\"|includes\\(name\\)`), `${name} must have a server-side handler`);
   }
+  assert.match(source, /baseSlotSignature/);
 });
 
 test("MCP custom slot creation is bounded, chunked, and returns validation errors", () => {
@@ -30,7 +31,7 @@ test("MCP custom slot creation is bounded, chunked, and returns validation error
   assert.match(source, /chunk\(slotIds, 50\)/);
 });
 
-test("assignment scenario application and clearing require draft/version/confirmation guards", () => {
+test("assignment scenario publishing and clearing require version/confirmation guards", () => {
   assert.match(source, /found\.plan\.status !== "draft"/);
   assert.match(source, /expectedVersion !== found\.plan\.version/);
   assert.match(source, /args\.confirm !== true/);
@@ -38,7 +39,8 @@ test("assignment scenario application and clearing require draft/version/confirm
   const clearBranch = source.indexOf('if (name === "clear_draft_assignments")');
   const scenarioLookup = source.indexOf('const scenarioId = text(args.scenarioId)');
   assert.ok(clearBranch >= 0 && scenarioLookup >= 0 && clearBranch < scenarioLookup, "clear must not require a scenarioId");
-  assert.match(source, /scenario\.baseVersion !== expectedVersion/);
+  assert.match(source, /proposalStatus === "published"/);
+  assert.match(source, /baseSlotSignature/);
 });
 
 test("MCP auto scenarios apply screen-compatible settings and expose labor generation results", () => {

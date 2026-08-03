@@ -3,6 +3,7 @@ import { getChatGPTUser } from "../../../../../chatgpt-auth";
 import { getDb } from "../../../../../../db";
 import { getMembership } from "../../../../groups/group-access";
 import { shiftAssignmentScenarios, shiftPlans } from "../../../../../../db/schema";
+import { proposalMeta, proposalSettings } from "../../../../../shift-assignment-proposals";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if ("error" in result) return result.error;
   const [scenario] = await result.db.select().from(shiftAssignmentScenarios).where(eq(shiftAssignmentScenarios.id, scenarioId)).limit(1);
   if (!scenario || scenario.planId !== id) return Response.json({ error: "割当案が見つかりません" }, { status: 404 });
+  const currentSettings = (() => { try { return JSON.parse(scenario.settingsJson || "{}"); } catch { return {}; } })();
+  if (proposalMeta(currentSettings).proposalStatus === "published") return Response.json({ error: "公開中の割当案は直接編集できません。複製して修正してください" }, { status: 409 });
   let body: Record<string, unknown>;
   try { body = await request.json() as Record<string, unknown>; } catch { return Response.json({ error: "JSONを読み取れません" }, { status: 400 }); }
   let assignments: unknown = body.assignments && typeof body.assignments === "object" ? body.assignments : {};
@@ -31,8 +34,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   }
   const name = typeof body.name === "string" ? body.name.trim() : scenario.name;
   if (!name) return Response.json({ error: "案名を入力してください" }, { status: 400 });
-  const [updated] = await result.db.update(shiftAssignmentScenarios).set({ name, description: typeof body.description === "string" ? body.description.trim() : scenario.description, assignmentsJson: JSON.stringify(assignments), updatedAt: new Date().toISOString() }).where(eq(shiftAssignmentScenarios.id, scenarioId)).returning();
-  return Response.json({ scenario: { ...updated, assignments } });
+  const storedSettings = proposalSettings(currentSettings, { proposalStatus: "candidate" });
+  const [updated] = await result.db.update(shiftAssignmentScenarios).set({ name, description: typeof body.description === "string" ? body.description.trim() : scenario.description, settingsJson: JSON.stringify(storedSettings), assignmentsJson: JSON.stringify(assignments), updatedAt: new Date().toISOString() }).where(eq(shiftAssignmentScenarios.id, scenarioId)).returning();
+  return Response.json({ scenario: { ...updated, settings: storedSettings, ...proposalMeta(storedSettings), assignments } });
 }
 
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string; scenarioId: string }> }) {
@@ -41,6 +45,9 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
   if ("error" in result) return result.error;
   const [scenario] = await result.db.select().from(shiftAssignmentScenarios).where(eq(shiftAssignmentScenarios.id, scenarioId)).limit(1);
   if (!scenario || scenario.planId !== id) return Response.json({ error: "割当案が見つかりません" }, { status: 404 });
+  let settings: unknown = {};
+  try { settings = JSON.parse(scenario.settingsJson || "{}"); } catch { /* legacy rows */ }
+  if (proposalMeta(settings).proposalStatus === "published") return Response.json({ error: "公開中の割当案は削除できません" }, { status: 409 });
   await result.db.delete(shiftAssignmentScenarios).where(eq(shiftAssignmentScenarios.id, scenarioId));
   return Response.json({ ok: true });
 }
