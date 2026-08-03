@@ -5,16 +5,11 @@ import { apiTokens, groupAssistants, groupMembers, groups } from "../../../../..
 import { recordAudit } from "../../../../../audit-log";
 import { hashApiToken } from "../../../../api-auth";
 import { buildZip } from "../../../../../zip";
+import { assistantBusinessSet, buildAssistantBusinessSetFiles } from "../../../../../assistant-business-set";
 
 export const dynamic = "force-dynamic";
 
-const assistantScopes = [
-  "assistant:read",
-  "assistant:reply",
-  "shift:read",
-  "work:read",
-  "announcement:read",
-];
+const assistantScopes = ["assistant:read", "assistant:reply", "shift:read", "work:read", "announcement:read"];
 
 function unauthorized() {
   return Response.json({ error: "ChatGPT sign-in is required." }, { status: 401 });
@@ -35,7 +30,11 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const { id: groupId } = await context.params;
   if (!await manager(groupId, user.email)) return Response.json({ error: "Editor permission required." }, { status: 403 });
   const rows = await getDb().select({ id: apiTokens.id, name: apiTokens.name, tokenPrefix: apiTokens.tokenPrefix, scopes: apiTokens.scopes, lastUsedAt: apiTokens.lastUsedAt, createdAt: apiTokens.createdAt }).from(apiTokens).where(and(eq(apiTokens.groupId, groupId), eq(apiTokens.tokenType, "assistant")));
-  return Response.json({ keys: rows, scopes: assistantScopes });
+  return Response.json({
+    keys: rows,
+    scopes: assistantScopes,
+    businessSet: { packageVersion: assistantBusinessSet.packageVersion, releasedAt: assistantBusinessSet.releasedAt, summary: assistantBusinessSet.summary },
+  });
 }
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -44,6 +43,14 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const { id: groupId } = await context.params;
   if (!await manager(groupId, user.email)) return Response.json({ error: "Editor permission required." }, { status: 403 });
   const payload = await request.json().catch(() => ({})) as { name?: string; action?: string };
+
+  if (payload.action === "downloadBusinessSet") {
+    const files = buildAssistantBusinessSetFiles();
+    const archive = buildZip(files);
+    await recordAudit({ groupId, userEmail: user.email, action: "assistant.business_set.download", entityType: "assistantBusinessSet", entityId: assistantBusinessSet.packageVersion, summary: "運営支援AI業務関連セットをダウンロードしました", details: { packageVersion: assistantBusinessSet.packageVersion, fileCount: Object.keys(files).length } });
+    return new Response(archive, { status: 200, headers: { "Content-Type": "application/zip", "Content-Disposition": 'attachment; filename="kinban-operations-business-set.zip"', "Cache-Control": "no-store" } });
+  }
+
   const raw = newToken();
   const row = {
     id: crypto.randomUUID(),
@@ -57,25 +64,22 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   };
   const db = getDb();
   await db.insert(apiTokens).values(row);
+
   if (payload.action === "downloadPack") {
     const [group] = await db.select({ name: groups.name }).from(groups).where(eq(groups.id, groupId)).limit(1);
-    const [assistant] = await db
-      .select({
-        canCreateShifts: groupAssistants.canCreateShifts,
-        canPublishShifts: groupAssistants.canPublishShifts,
-        canReviewDailyWork: groupAssistants.canReviewDailyWork,
-        canReviewMonthlyWork: groupAssistants.canReviewMonthlyWork,
-        canCreateAnnouncements: groupAssistants.canCreateAnnouncements,
-      })
-      .from(groupAssistants)
-      .where(eq(groupAssistants.groupId, groupId))
-      .limit(1);
+    const [assistant] = await db.select({
+      canCreateShifts: groupAssistants.canCreateShifts,
+      canPublishShifts: groupAssistants.canPublishShifts,
+      canReviewDailyWork: groupAssistants.canReviewDailyWork,
+      canReviewMonthlyWork: groupAssistants.canReviewMonthlyWork,
+      canCreateAnnouncements: groupAssistants.canCreateAnnouncements,
+    }).from(groupAssistants).where(eq(groupAssistants.groupId, groupId)).limit(1);
     const mcpUrl = new URL("/api/mcp", request.url).toString();
     const operations = [
       ["シフト作成（割当下書きを含む）", assistant?.canCreateShifts ?? true],
       ["シフト公開", assistant?.canPublishShifts ?? true],
-      ["勤怠承認／差戻し（日次）", assistant?.canReviewDailyWork ?? true],
-      ["勤怠承認／差戻し（月次）", assistant?.canReviewMonthlyWork ?? false],
+      ["勤怠承認・差戻し（日次）", assistant?.canReviewDailyWork ?? true],
+      ["勤怠承認・差戻し（月次）", assistant?.canReviewMonthlyWork ?? false],
       ["お知らせ配信", assistant?.canCreateAnnouncements ?? true],
     ] as const;
     const permissions = [
@@ -86,10 +90,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       ...operations.map(([label, enabled]) => `${label}: ${enabled ? "有効" : "無効"}`),
     ].join("\n");
     const files = {
-      "README.md": `# KINBAN Operations Assistant Connection Pack\n\nThis pack is for group ${groupId} (${group?.name ?? groupId}). It contains a group-bound MCP key.\n\nMCP URL: ${mcpUrl}\nGroup ID: ${groupId}\nAPI key: see connection.env\n\nSetup:\n1. Register the values in connection.env in your MCP client.\n2. Load skills/operations/SKILL.md into the operations agent.\n3. Verify tools/list and list_groups before any write operation.\n4. Confirm the target, scope, and result before changing saved data.\n\nTreat connection.env as a secret. Do not commit or share it publicly. Revoke this key from KINBAN when it is no longer needed. Revocation also disables this downloaded pack.\n`,
+      "README.md": `# KINBAN運営支援AI 接続パック\n\nこの接続パックは、${group?.name ?? groupId}（${groupId}）専用の秘密情報です。\n\nMCP URL: ${mcpUrl}\nグループID: ${groupId}\nAPIキー: connection.envを参照\n\n## 初期設定\n\n1. 別途ダウンロードした「運営支援AI 業務関連セット」を同じフォルダへ展開します。\n2. このパックのconnection.envを業務関連セットのフォルダへ配置します。\n3. AGENTS.mdと必要なSkillを読み、tools/listとlist_groupsで接続を確認します。\n4. 変更前に対象、期間、権限、警告を確認します。\n\nconnection.envは秘密情報です。Git、チャット、レポートへ保存・共有しないでください。キーを使わなくなったらグループ管理から無効化してください。\n`,
       "connection.env": `KINBAN_MCP_URL=${mcpUrl}\nKINBAN_GROUP_ID=${groupId}\nKINBAN_API_KEY=${raw}\n`,
       "permissions.txt": `${permissions}\n`,
-      "skills/operations/SKILL.md": `# KINBAN Operations Assistant\n\n## Rules\n- Use group ${groupId} only. Never switch to another group ID.\n- Read the current state before writing.\n- Confirm target, dates, members, and changes before writing.\n- Report warnings and the result after shift or attendance operations.\n- Send all text as UTF-8.\n\n## Granted scopes\n${permissions}\n`,
     };
     const archive = buildZip(files);
     await recordAudit({ groupId, userEmail: user.email, action: "assistant.connection_pack.download", entityType: "apiToken", entityId: row.id, summary: "運営支援AI接続パックをダウンロードしました", details: { tokenPrefix: row.tokenPrefix, fileCount: Object.keys(files).length } });

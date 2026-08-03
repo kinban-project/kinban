@@ -9,7 +9,7 @@
     "dev": "vinext dev",
     "build": "vinext build",
     "start": "vinext start",
-    "test": "npm run build && node --test tests/rendered-html.test.mjs tests/documentation-contract.test.mjs tests/manager-agent-template-contract.test.mjs tests/shift-evaluation-contract.test.mjs tests/mcp-planning-contract.test.mjs",
+    "test": "npm run build && node --test tests/rendered-html.test.mjs tests/documentation-contract.test.mjs tests/manager-agent-template-contract.test.mjs tests/assistant-business-set-contract.test.mjs tests/shift-evaluation-contract.test.mjs tests/mcp-planning-contract.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
     "db:seed:local": "wrangler d1 execute DB --local --file=scripts/seed-local.sql",
