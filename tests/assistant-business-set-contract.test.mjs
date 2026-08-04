@@ -29,5 +29,7 @@ test("operations assistant connection packs include generated business guidance 
   assert.match(connectionPackBlock, /permissions\.txt/);
   assert.match(connectionPackBlock, /manifest\.json/);
   assert.match(connectionPackBlock, /sourceFingerprint/);
+  assert.match(connectionPackBlock, /connection\.envとAPIキーは秘密情報です/);
+  assert.doesNotMatch(connectionPackBlock, /baseReadme/);
   assert.doesNotMatch(connectionPackBlock, /別途ダウンロードした/);
 });

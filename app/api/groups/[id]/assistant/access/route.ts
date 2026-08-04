@@ -83,8 +83,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       ...operations.map(([label, enabled]) => `${label}: ${enabled ? "有効" : "無効"}`),
     ].join("\n");
     const files = buildAssistantBusinessSetFiles();
-    const baseReadme = files["README.md"] ?? "";
-    files["README.md"] = `# KINBAN運営支援AI 接続パック\n\nこのZIPは、${group?.name ?? groupId}（${groupId}）専用の接続情報と業務関連資料をまとめた全部入りパックです。\n\n## 接続情報\n\n- MCP URL: ${mcpUrl}\n- グループID: ${groupId}\n- APIキー: connection.envを参照\n- パッケージ版: ${assistantBusinessSet.packageVersion}\n\n## 初期設定\n\n1. このZIPを1つの作業フォルダへ展開します。\n2. ローカルCodexでは、このフォルダをプロジェクトとして開きます。\n3. CodexのクラウドProjectやChatGPT Workでは、展開済みの内容をProjectへ渡します。\n4. AGENTS.mdを読んでから、tools/listとlist_groupsで対象グループへの接続を確認します。\n5. 変更前に対象、期間、権限、警告を確認します。\n\nこのZIPにはconnection.env、権限一覧、AGENTS.md、Skill、runbook、jobs、安全資料が含まれます。connection.envとAPIキーは秘密情報です。Git、チャット、レポートへ保存・共有しないでください。キーを使わなくなったらグループ管理から無効化してください。\n\n---\n\n${baseReadme}`;
+    // 全部入りパックのREADMEは接続パック専用の説明にする。生成元READMEを連結すると、
+    // 旧「秘密情報を含まない」説明とconnection.envを含む内容が矛盾するため。
+    files["README.md"] = `# KINBAN運営支援AI 接続パック\n\nこのZIPは、${group?.name ?? groupId}（${groupId}）専用の接続情報と業務関連資料をまとめた全部入りパックです。\n\n## 接続情報\n\n- MCP URL: ${mcpUrl}\n- グループID: ${groupId}\n- APIキー: connection.envを参照\n- パッケージ版: ${assistantBusinessSet.packageVersion}\n\n## 初期設定\n\n1. このZIPを1つの作業フォルダへ展開します。\n2. ローカルCodexでは、このフォルダをプロジェクトとして開きます。\n3. CodexのクラウドProjectやChatGPT Workでは、展開済みの内容をProjectへ渡します。\n4. AGENTS.mdを読んでから、tools/listとlist_groupsで対象グループへの接続を確認します。\n5. 変更前に対象、期間、権限、警告を確認します。\n\nこのZIPにはconnection.env、権限一覧、AGENTS.md、Skill、runbook、jobs、安全資料が含まれます。connection.envとAPIキーは秘密情報です。Git、チャット、レポートへ保存・共有しないでください。キーを使わなくなったらグループ管理から無効化してください。\n`;
     files["connection.env"] = `KINBAN_MCP_URL=${mcpUrl}\nKINBAN_GROUP_ID=${groupId}\nKINBAN_API_KEY=${raw}\n`;
     files["permissions.txt"] = `${permissions}\n`;
     files["manifest.json"] = JSON.stringify({
