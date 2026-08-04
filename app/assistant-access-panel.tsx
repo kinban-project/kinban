@@ -53,23 +53,9 @@ export default function AssistantAccessPanel({ groupId }: { groupId: string }) {
       setBusy(false);
       return;
     }
-    downloadBlob(await response.blob(), "kinban-operations-assistant.zip");
-    setNotice("接続パックをダウンロードしました。キーは秘密情報として扱ってください。");
+    downloadBlob(await response.blob(), `kinban-operations-assistant-${businessSet?.packageVersion ?? "latest"}.zip`);
+    setNotice("全部入り接続パックをダウンロードしました。キーは秘密情報として扱ってください。");
     await load();
-    setBusy(false);
-  }
-
-  async function downloadBusinessSet() {
-    setBusy(true); setNotice("");
-    const response = await localApiFetch(`/api/groups/${groupId}/assistant/access`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "downloadBusinessSet" }) });
-    if (!response.ok) {
-      const result = await response.json().catch(() => ({})) as { error?: string };
-      setNotice(result.error ?? "業務関連セットを作成できませんでした。");
-      setBusy(false);
-      return;
-    }
-    downloadBlob(await response.blob(), "kinban-operations-business-set.zip");
-    setNotice(`業務関連セット ${businessSet?.packageVersion ?? ""} をダウンロードしました。`);
     setBusy(false);
   }
 
@@ -85,12 +71,7 @@ export default function AssistantAccessPanel({ groupId }: { groupId: string }) {
       <button className="small-action" type="button" onClick={() => void issue()} disabled={busy}>{busy ? "発行中…" : "キーを発行"}</button>
       <button className="small-action" type="button" onClick={() => void downloadConnectionPack()} disabled={busy}>接続パック</button>
     </div></div>
-    <p>接続パックには、このグループ専用のMCP URL・キー・権限一覧・初期設定READMEだけが含まれます。業務手順は別の業務関連セットで管理します。</p>
-    <div className="assistant-business-set">
-      <div><strong>運営支援AI 業務関連セット</strong><small>{businessSet ? `現在版 ${businessSet.packageVersion}（${businessSet.releasedAt}）` : "最新版を確認中…"}</small></div>
-      <button className="small-action" type="button" onClick={() => void downloadBusinessSet()} disabled={busy}>業務関連セットをダウンロード</button>
-    </div>
-    <p className="muted">キーを含まない共通セットです。更新時は再ダウンロードして差し替え、新しいAIタスクで利用してください。</p>
+    <p>接続パックには、このグループ専用のMCP URL・キー・権限一覧に加えて、AGENTS.md、Skill、runbook、jobs、安全資料などの業務関連資料も含まれます。現在版: {businessSet?.packageVersion ?? "確認中…"}。秘密情報を含むため、共有やGitへの保存は避けてください。</p>
     {newKey && <div className="assistant-new-key" role="alert"><code>{newKey}</code><button type="button" onClick={() => void navigator.clipboard?.writeText(newKey)}>コピー</button></div>}
     {notice && <small>{notice}</small>}
     {keys.map((key) => <div className="assistant-key-row" key={key.id}><span>{key.name}（{key.tokenPrefix}…）</span><button className="small-action danger" type="button" onClick={() => void revoke(key.id)}>無効化</button></div>)}

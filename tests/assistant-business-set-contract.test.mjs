@@ -2,13 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
-test("operations assistant packages keep secrets separate from business guidance", () => {
+test("operations assistant connection packs include generated business guidance and secrets", () => {
   const route = fs.readFileSync("app/api/groups/[id]/assistant/access/route.ts", "utf8");
   const businessSet = fs.readFileSync("app/assistant-business-set.ts", "utf8");
 
-  assert.match(route, /downloadBusinessSet/);
-  assert.match(route, /assistant\.business_set\.download/);
-  assert.match(route, /Content-Disposition.*kinban-operations-business-set\.zip/);
+  assert.doesNotMatch(route, /downloadBusinessSet/);
+  assert.match(route, /buildAssistantBusinessSetFiles/);
+  assert.match(route, /Content-Disposition.*kinban-operations-assistant-\$\{assistantBusinessSet\.packageVersion\}\.zip/);
   assert.match(businessSet, /manifest\.json/);
   assert.match(businessSet, /packageVersion/);
   assert.match(businessSet, /GENERATED FILE/);
@@ -22,9 +22,12 @@ test("operations assistant packages keep secrets separate from business guidance
   assert.match(businessSet, /runbooks\/ui-only-operations\.md/);
   assert.doesNotMatch(businessSet, /KINBAN_API_KEY\s*=/);
 
-  const connectionPackStart = route.lastIndexOf('const files = {');
+  const connectionPackStart = route.lastIndexOf('const files = buildAssistantBusinessSetFiles();');
   const connectionPackEnd = route.lastIndexOf('const archive = buildZip(files);');
   const connectionPackBlock = route.slice(connectionPackStart, connectionPackEnd);
   assert.match(connectionPackBlock, /connection\.env/);
-  assert.doesNotMatch(connectionPackBlock, /skills\/operations\/SKILL\.md/);
+  assert.match(connectionPackBlock, /permissions\.txt/);
+  assert.match(connectionPackBlock, /manifest\.json/);
+  assert.match(connectionPackBlock, /sourceFingerprint/);
+  assert.doesNotMatch(connectionPackBlock, /別途ダウンロードした/);
 });

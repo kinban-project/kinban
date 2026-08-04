@@ -44,13 +44,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   if (!await manager(groupId, user.email)) return Response.json({ error: "Editor permission required." }, { status: 403 });
   const payload = await request.json().catch(() => ({})) as { name?: string; action?: string };
 
-  if (payload.action === "downloadBusinessSet") {
-    const files = buildAssistantBusinessSetFiles();
-    const archive = buildZip(files);
-    await recordAudit({ groupId, userEmail: user.email, action: "assistant.business_set.download", entityType: "assistantBusinessSet", entityId: assistantBusinessSet.packageVersion, summary: "運営支援AI業務関連セットをダウンロードしました", details: { packageVersion: assistantBusinessSet.packageVersion, fileCount: Object.keys(files).length } });
-    return new Response(archive, { status: 200, headers: { "Content-Type": "application/zip", "Content-Disposition": 'attachment; filename="kinban-operations-business-set.zip"', "Cache-Control": "no-store" } });
-  }
-
   const raw = newToken();
   const row = {
     id: crypto.randomUUID(),
@@ -89,14 +82,23 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       "## Group operation permissions",
       ...operations.map(([label, enabled]) => `${label}: ${enabled ? "有効" : "無効"}`),
     ].join("\n");
-    const files = {
-      "README.md": `# KINBAN運営支援AI 接続パック\n\nこの接続パックは、${group?.name ?? groupId}（${groupId}）専用の秘密情報です。\n\nMCP URL: ${mcpUrl}\nグループID: ${groupId}\nAPIキー: connection.envを参照\n\n## 初期設定\n\n1. 別途ダウンロードした「運営支援AI 業務関連セット」を同じフォルダへ展開します。\n2. このパックのconnection.envを業務関連セットのフォルダへ配置します。\n3. AGENTS.mdと必要なSkillを読み、tools/listとlist_groupsで接続を確認します。\n4. 変更前に対象、期間、権限、警告を確認します。\n\nconnection.envは秘密情報です。Git、チャット、レポートへ保存・共有しないでください。キーを使わなくなったらグループ管理から無効化してください。\n`,
-      "connection.env": `KINBAN_MCP_URL=${mcpUrl}\nKINBAN_GROUP_ID=${groupId}\nKINBAN_API_KEY=${raw}\n`,
-      "permissions.txt": `${permissions}\n`,
-    };
+    const files = buildAssistantBusinessSetFiles();
+    const baseReadme = files["README.md"] ?? "";
+    files["README.md"] = `# KINBAN運営支援AI 接続パック\n\nこのZIPは、${group?.name ?? groupId}（${groupId}）専用の接続情報と業務関連資料をまとめた全部入りパックです。\n\n## 接続情報\n\n- MCP URL: ${mcpUrl}\n- グループID: ${groupId}\n- APIキー: connection.envを参照\n- パッケージ版: ${assistantBusinessSet.packageVersion}\n\n## 初期設定\n\n1. このZIPを1つの作業フォルダへ展開します。\n2. ローカルCodexでは、このフォルダをプロジェクトとして開きます。\n3. CodexのクラウドProjectやChatGPT Workでは、展開済みの内容をProjectへ渡します。\n4. AGENTS.mdを読んでから、tools/listとlist_groupsで対象グループへの接続を確認します。\n5. 変更前に対象、期間、権限、警告を確認します。\n\nこのZIPにはconnection.env、権限一覧、AGENTS.md、Skill、runbook、jobs、安全資料が含まれます。connection.envとAPIキーは秘密情報です。Git、チャット、レポートへ保存・共有しないでください。キーを使わなくなったらグループ管理から無効化してください。\n\n---\n\n${baseReadme}`;
+    files["connection.env"] = `KINBAN_MCP_URL=${mcpUrl}\nKINBAN_GROUP_ID=${groupId}\nKINBAN_API_KEY=${raw}\n`;
+    files["permissions.txt"] = `${permissions}\n`;
+    files["manifest.json"] = JSON.stringify({
+      packageVersion: assistantBusinessSet.packageVersion,
+      releasedAt: assistantBusinessSet.releasedAt,
+      summary: "KINBAN運営支援AIの接続情報・運用方針・Skill・runbookをまとめた全部入りパックです。",
+      minimumKinbanVersion: assistantBusinessSet.minimumKinbanVersion,
+      source: assistantBusinessSet.source,
+      sourceFingerprint: assistantBusinessSet.sourceFingerprint,
+      files: Object.keys(files),
+    }, null, 2) + "\n";
     const archive = buildZip(files);
-    await recordAudit({ groupId, userEmail: user.email, action: "assistant.connection_pack.download", entityType: "apiToken", entityId: row.id, summary: "運営支援AI接続パックをダウンロードしました", details: { tokenPrefix: row.tokenPrefix, fileCount: Object.keys(files).length } });
-    return new Response(archive, { status: 201, headers: { "Content-Type": "application/zip", "Content-Disposition": 'attachment; filename="kinban-operations-assistant.zip"', "Cache-Control": "no-store" } });
+    await recordAudit({ groupId, userEmail: user.email, action: "assistant.connection_pack.download", entityType: "apiToken", entityId: row.id, summary: "運営支援AI全部入り接続パックをダウンロードしました", details: { tokenPrefix: row.tokenPrefix, packageVersion: assistantBusinessSet.packageVersion, fileCount: Object.keys(files).length } });
+    return new Response(archive, { status: 201, headers: { "Content-Type": "application/zip", "Content-Disposition": `attachment; filename="kinban-operations-assistant-${assistantBusinessSet.packageVersion}.zip"`, "Cache-Control": "no-store" } });
   }
   return Response.json({ key: raw, id: row.id, name: row.name, tokenPrefix: row.tokenPrefix, scopes: assistantScopes }, { status: 201 });
 }
