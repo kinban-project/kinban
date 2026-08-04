@@ -438,7 +438,7 @@ export default function ShiftAdjustment({
       );
       const weeklyDays = days / periodWeeks;
       const weeklyHours = totalHours / periodWeeks;
-      const warnings =
+      const preferenceOutOfRange =
         pref &&
         (weeklyDays < pref.minDays ||
           weeklyDays > pref.maxDays ||
@@ -472,7 +472,8 @@ export default function ShiftAdjustment({
         weeklyDays,
         weeklyHours,
         pref,
-        warnings: Boolean(warnings || laborWarnings.some((warning) => warning.memberEmail === member.userEmail)),
+        preferenceOutOfRange: Boolean(preferenceOutOfRange),
+        warnings: Boolean(preferenceOutOfRange || laborWarnings.some((warning) => warning.memberEmail === member.userEmail)),
         laborWarningCount: laborWarnings.filter((warning) => warning.memberEmail === member.userEmail).length,
         dayDifference,
         hourDifference,
@@ -1155,14 +1156,14 @@ export default function ShiftAdjustment({
                 <span>{row.pref ? `週${row.pref.minHours}〜${row.pref.maxHours}時間` : "未設定"}</span>
                 <span>{row.days}日 / {row.totalHours.toFixed(1)}時間</span>
                 <span>{row.weeklyDays.toFixed(1)}日 / {row.weeklyHours.toFixed(1)}時間</span>
-                <span className={row.warnings ? "summary-warning" : "summary-ok"}>
+                <span className={row.preferenceOutOfRange ? "summary-warning" : "summary-ok"}>
                   {row.pref
-                    ? row.warnings
+                    ? row.preferenceOutOfRange
                       ? `範囲外（差分 ${row.dayDifference >= 0 ? "+" : ""}${row.dayDifference.toFixed(1)}日 / ${row.hourDifference >= 0 ? "+" : ""}${row.hourDifference.toFixed(1)}時間）`
                       : "範囲内"
                     : "希望未設定"}
+                  {row.laborWarningCount > 0 && <small className="summary-warning summary-labor-warning">労務注意 {row.laborWarningCount}件</small>}
                 </span>
-                {row.laborWarningCount > 0 && <small className="summary-warning">労務注意 {row.laborWarningCount}件</small>}
                 <span className={row.updatedAt ? "" : "not-registered"}>
                   希望更新：{formatSubmissionTime(row.updatedAt)}
                 </span>
