@@ -24,6 +24,14 @@ function normalize(contents) {
   return contents.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
 }
 
+function readSafeMarkdown(absolute, displayName) {
+  const contents = normalize(fs.readFileSync(absolute, "utf8"));
+  if (/(?:^|\W)(?:mcp|sk)-[A-Za-z0-9_-]{24,}(?:$|\W)|Bearer\s+[A-Za-z0-9._-]{32,}/i.test(contents)) {
+    throw new Error(`Potential secret or local credential found in business guidance: ${displayName}`);
+  }
+  return contents;
+}
+
 if (!fs.existsSync(sourceRoot)) {
   throw new Error(`Canonical manager-agent directory not found: ${sourceRoot}`);
 }
@@ -33,13 +41,16 @@ if (relativeFiles.length === 0) {
   throw new Error("No Markdown files found in the canonical manager-agent directory");
 }
 
-const files = Object.fromEntries(relativeFiles.map((relativeFile) => {
-  const contents = normalize(fs.readFileSync(path.join(sourceRoot, relativeFile), "utf8"));
-  if (/(?:^|\W)(?:mcp|sk)-[A-Za-z0-9_-]{24,}(?:$|\W)|Bearer\s+[A-Za-z0-9._-]{32,}/i.test(contents)) {
-    throw new Error(`Potential secret or local credential found in business guidance: ${relativeFile}`);
-  }
-  return [relativeFile.split(path.sep).join("/"), contents];
-}));
+const files = Object.fromEntries(relativeFiles.map((relativeFile) => [
+  relativeFile.split(path.sep).join("/"),
+  readSafeMarkdown(path.join(sourceRoot, relativeFile), relativeFile),
+]));
+const repositoryGuide = "docs/運営支援AI実行環境分離.md";
+const repositoryGuidePath = path.join(root, repositoryGuide);
+if (!fs.existsSync(repositoryGuidePath)) {
+  throw new Error(`Repository guidance not found: ${repositoryGuidePath}`);
+}
+files[repositoryGuide] = readSafeMarkdown(repositoryGuidePath, repositoryGuide);
 
 const sourceFingerprint = crypto.createHash("sha256")
   .update(JSON.stringify(files))
@@ -84,5 +95,5 @@ if (process.argv.includes("--check")) {
   }
 } else {
   fs.writeFileSync(outputPath, generated, "utf8");
-  console.log(`Generated ${path.relative(root, outputPath)} from ${relativeFiles.length} canonical Markdown files (${sourceFingerprint})`);
+  console.log(`Generated ${path.relative(root, outputPath)} from ${relativeFiles.length} manager-agent Markdown files plus ${repositoryGuide} (${sourceFingerprint})`);
 }

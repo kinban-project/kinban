@@ -17,6 +17,7 @@ test("operations assistant packages keep secrets separate from business guidance
   assert.match(businessSet, /SECURITY_BOUNDARY\.md/);
   assert.match(businessSet, /DIRECT_MANAGER_MODE\.md/);
   assert.match(businessSet, /AI運用ガイド\.md/);
+  assert.match(businessSet, /docs\/運営支援AI実行環境分離\.md/);
   assert.match(businessSet, /skills\/shift-planning\/SKILL\.md/);
   assert.match(businessSet, /runbooks\/ui-only-operations\.md/);
   assert.doesNotMatch(businessSet, /KINBAN_API_KEY\s*=/);
