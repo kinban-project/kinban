@@ -51,6 +51,8 @@ type GroupMembership = {
   role: string;
   showInPersonal: boolean;
   assistantDisplayName?: string;
+  memoEnabled?: boolean;
+  knowledgeEnabled?: boolean;
   unreadAnnouncements?: number;
   unreadAssistant?: boolean;
   managerAssistantUnread?: boolean;

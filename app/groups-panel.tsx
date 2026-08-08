@@ -9,6 +9,8 @@ type Group = {
   name: string;
   description: string;
   ownerEmail: string;
+  memoEnabled?: boolean;
+  knowledgeEnabled?: boolean;
   autoBreakSuggestion?: boolean;
   laborPlannedBreakWarning?: boolean;
   laborDailyHoursWarning?: boolean;
@@ -131,7 +133,7 @@ export default function GroupsPanel({ onChanged, initialGroupId }: { onChanged: 
       ...current,
       group: { ...current.group, ...(data.group ?? patch) },
     } : current);
-    setNotice("シフト・勤怠ルールを保存しました");
+    setNotice("グループ設定を保存しました");
   }
   async function changeStatus(member: Member) {
     const inactive = member.status !== "inactive";
@@ -222,6 +224,20 @@ export default function GroupsPanel({ onChanged, initialGroupId }: { onChanged: 
         {isAdmin && <div className="member-admin-actions"><button className="small-action" onClick={() => void changeAssistantStatus()}>{selected.assistant.status === "inactive" ? "再開" : "利用停止"}</button></div>}
       </article></>}
       {selected.assistant && isAdmin && <AssistantAccessPanel groupId={selected.group.id} />}
+      {isAdmin && <section className="group-rules-panel">
+        <h4>利用する機能</h4>
+        <p className="group-feature-caption">このグループのメニューに表示する機能を選びます。無効にしても、登録済みのデータやAPIは削除されません。</p>
+        <div className="group-feature-list">
+          <label className="group-setting-toggle">
+            <input type="checkbox" checked={selected.group.memoEnabled !== false} onChange={(event) => void updateGroupRules({ memoEnabled: event.target.checked })} />
+            <span><strong>メモを使う</strong><small>業務メモをグループのメニューに表示します。</small></span>
+          </label>
+          <label className="group-setting-toggle">
+            <input type="checkbox" checked={selected.group.knowledgeEnabled !== false} onChange={(event) => void updateGroupRules({ knowledgeEnabled: event.target.checked })} />
+            <span><strong>ガイドを使う</strong><small>業務ガイドをグループのメニューに表示します。</small></span>
+          </label>
+        </div>
+      </section>}
       {isAdmin && <section className="group-rules-panel">
         <h4>シフト・勤怠ルール</h4>
         <label className="group-setting-toggle">

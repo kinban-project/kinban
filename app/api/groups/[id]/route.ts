@@ -26,6 +26,7 @@ const laborRuleNumberKeys = [
 ] as const;
 const laborRuleKeys = [...laborRuleBooleanKeys, ...laborRuleNumberKeys] as const;
 type LaborRulePatch = Partial<Record<(typeof laborRuleKeys)[number], unknown>> & { autoBreakSuggestion?: unknown };
+type GroupSettingsPatch = LaborRulePatch & { memoEnabled?: unknown; knowledgeEnabled?: unknown };
 
 function normalizeLaborRulePatch(body: LaborRulePatch) {
   const patch: Record<string, boolean | number> = {};
@@ -71,7 +72,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       ? availability.filter((entry) => entry.userEmail === member.userEmail)
       : [],
   }));
-  return Response.json({ currentEmail: user.email, group: { ...group, autoBreakSuggestion: group.autoBreakSuggestion !== false }, membership: toPublicMember(membership, isAdmin), members: safeMembers, requests, invitations, assistant: assistant ?? null });
+  return Response.json({ currentEmail: user.email, group: { ...group, memoEnabled: group.memoEnabled !== false, knowledgeEnabled: group.knowledgeEnabled !== false, autoBreakSuggestion: group.autoBreakSuggestion !== false }, membership: toPublicMember(membership, isAdmin), members: safeMembers, requests, invitations, assistant: assistant ?? null });
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -83,7 +84,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const membership = await getMembership(id, user.email);
   if (!membership) return Response.json({ error: "このグループのメンバーではありません" }, { status: 403 });
   if (membership.role !== "owner" && membership.role !== "editor") return Response.json({ error: "管理者権限が必要です" }, { status: 403 });
-  const body = await request.json().catch(() => ({})) as LaborRulePatch;
+  const body = await request.json().catch(() => ({})) as GroupSettingsPatch;
   let laborPatch: Record<string, boolean | number>;
   try {
     laborPatch = normalizeLaborRulePatch(body);
@@ -91,10 +92,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return Response.json({ error: error instanceof Error ? error.message : "ルールの値が不正です" }, { status: 400 });
   }
   if (typeof body.autoBreakSuggestion === "boolean") laborPatch.autoBreakSuggestion = body.autoBreakSuggestion;
+  if (typeof body.memoEnabled === "boolean") laborPatch.memoEnabled = body.memoEnabled;
+  if (typeof body.knowledgeEnabled === "boolean") laborPatch.knowledgeEnabled = body.knowledgeEnabled;
   if (!Object.keys(laborPatch).length) return Response.json({ error: "変更するルールを指定してください" }, { status: 400 });
   const db = getDb();
   await db.update(groups).set(laborPatch).where(eq(groups.id, id));
-  await recordAudit({ groupId: id, userEmail: user.email, action: "group.settings", entityType: "group", entityId: id, summary: "シフト・勤怠ルールを更新しました", details: laborPatch });
+  const featureSettingsChanged = "memoEnabled" in laborPatch || "knowledgeEnabled" in laborPatch;
+  await recordAudit({ groupId: id, userEmail: user.email, action: "group.settings", entityType: "group", entityId: id, summary: featureSettingsChanged ? "グループ機能設定を更新しました" : "シフト・勤怠ルールを更新しました", details: laborPatch });
   const [updated] = await db.select().from(groups).where(eq(groups.id, id)).limit(1);
   return Response.json({ ok: true, group: updated, ...laborPatch });
 }

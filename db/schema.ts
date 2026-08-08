@@ -36,6 +36,12 @@ export const groups = sqliteTable("groups", {
   participationMode: text("participation_mode", { enum: ["invite_only", "request_to_join"] })
     .notNull()
     .default("invite_only"),
+  memoEnabled: integer("memo_enabled", { mode: "boolean" })
+    .notNull()
+    .default(true),
+  knowledgeEnabled: integer("knowledge_enabled", { mode: "boolean" })
+    .notNull()
+    .default(true),
   autoBreakSuggestion: integer("auto_break_suggestion", { mode: "boolean" })
     .notNull()
     .default(true),

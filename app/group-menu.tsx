@@ -7,6 +7,8 @@ type Group = {
   name?: string;
   role: string;
   assistantDisplayName?: string;
+  memoEnabled?: boolean;
+  knowledgeEnabled?: boolean;
   unreadAnnouncements?: number;
   unreadAssistant?: boolean;
   managerAssistantUnread?: boolean;
@@ -162,9 +164,9 @@ export default function GroupMenu({
                 連絡
                 {assistantUnread && <span className="assistant-unread-dot" title="未読があります" aria-label="未読があります" />}
               </button>}
-              <button className="group-menu-button" type="button" onClick={() => onMemos(group.groupId)}>
+              {group.memoEnabled !== false && <button className="group-menu-button" type="button" onClick={() => onMemos(group.groupId)}>
                 メモ
-              </button>
+              </button>}
               <button
                 className={`group-menu-button${unread > 0 ? " has-unread" : ""}`}
                 type="button"
@@ -181,7 +183,7 @@ export default function GroupMenu({
                 シフト
                 {group.shiftRequestNeedsSubmission && <span className="request-badge">未提出あり</span>}
               </button>
-              <button className="group-menu-button" type="button" onClick={() => onKnowledge(group.groupId)}>ガイド</button>
+              {group.knowledgeEnabled !== false && <button className="group-menu-button" type="button" onClick={() => onKnowledge(group.groupId)}>ガイド</button>}
               <button className="group-menu-button" type="button" onClick={() => onBasic(group.groupId)}>設定</button>
               {manager && (
                 <>
