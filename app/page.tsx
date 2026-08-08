@@ -182,8 +182,8 @@ export default function Home() {
   const [groupPreferencesOpen, setGroupPreferencesOpen] = useState(false);
   const [announcementsOpen, setAnnouncementsOpen] = useState(false);
   const [announcementsManager, setAnnouncementsManager] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const [managerContactOpen, setManagerContactOpen] = useState(false);
-  const [announcementsTab, setAnnouncementsTab] = useState<"announcements" | "assistant">("announcements");
   const [dashboardOpen, setDashboardOpen] = useState(false);
   const [auditLogsOpen, setAuditLogsOpen] = useState(false);
   const [workRecordsOpen, setWorkRecordsOpen] = useState(false);
@@ -236,7 +236,7 @@ export default function Home() {
       setShiftRosterOpen(true);
     }
     if (targetView === "announcements") {
-      setAnnouncementsTab("announcements");
+      setAnnouncementsManager(false);
       setAnnouncementsOpen(true);
     }
     if (targetView === "assistant") {
@@ -244,8 +244,8 @@ export default function Home() {
       if (targetGroup?.role === "owner" || targetGroup?.role === "editor") {
         setManagerContactOpen(true);
       } else {
-        setAnnouncementsTab("assistant");
-        setAnnouncementsOpen(true);
+        setGroups((current) => current.map((group) => group.groupId === targetGroupId ? { ...group, unreadAssistant: false } : group));
+        setAssistantOpen(true);
       }
     }
     if (targetView === "work-records") {
@@ -510,15 +510,16 @@ export default function Home() {
         onMembers={(groupId) => openGroupTarget(groupId, "members")}
         onAnnouncements={(groupId) => {
           setMenuGroupId(groupId);
+          setAssistantOpen(false);
           setAnnouncementsManager(false);
-          setAnnouncementsTab("announcements");
           setAnnouncementsOpen(true);
         }}
         onAssistant={(groupId) => {
           setMenuGroupId(groupId);
+          setAnnouncementsOpen(false);
           setAnnouncementsManager(false);
-          setAnnouncementsTab("assistant");
-          setAnnouncementsOpen(true);
+          setGroups((current) => current.map((group) => group.groupId === groupId ? { ...group, unreadAssistant: false } : group));
+          setAssistantOpen(true);
         }}
         onContactManage={(groupId) => {
           setMenuGroupId(groupId);
@@ -535,7 +536,6 @@ export default function Home() {
         onAnnouncementManage={(groupId) => {
           setMenuGroupId(groupId);
           setAnnouncementsManager(true);
-          setAnnouncementsTab("announcements");
           setAnnouncementsOpen(true);
         }}
         onDashboard={(groupId) => {
@@ -1008,13 +1008,14 @@ export default function Home() {
             <ModalClose onClose={() => setAnnouncementsOpen(false)} />
             <AnnouncementsPanel
               groupId={menuGroupId}
-              initialTab={announcementsTab}
-              assistantName={groups.find((group) => group.groupId === menuGroupId)?.assistantDisplayName}
-              assistantUnread={groups.find((group) => group.groupId === menuGroupId)?.unreadAssistant ?? false}
-              onAssistantRead={() => { if (!announcementsManager) setGroups((current) => current.map((group) => group.groupId === menuGroupId ? { ...group, unreadAssistant: false } : group)); }}
               manager={announcementsManager}
             />
           </div>
+        </div>
+      )}
+      {assistantOpen && menuGroupId && (
+        <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setAssistantOpen(false); }}>
+          <div className="modal groups-modal"><ModalClose onClose={() => setAssistantOpen(false)} /><AssistantChat groupId={menuGroupId} /></div>
         </div>
       )}
       {managerContactOpen && menuGroupId && (
