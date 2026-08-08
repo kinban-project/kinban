@@ -134,6 +134,8 @@ export default function GroupsPanel({ onChanged, initialGroupId }: { onChanged: 
       group: { ...current.group, ...(data.group ?? patch) },
     } : current);
     setNotice("グループ設定を保存しました");
+    await loadGroups();
+    onChanged();
   }
   async function changeStatus(member: Member) {
     const inactive = member.status !== "inactive";

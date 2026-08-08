@@ -100,6 +100,9 @@ export async function GET() {
       const nextRequestCloseDate = openPeriods.filter((period) => period.closesOn).map((period) => period.closesOn).sort()[0] ?? null;
       const shiftRequestNeedsSubmission = openPeriods.some((period) => !requestSubmissions.some((submission) => submission.periodId === period.id));
       return { ...toPublicMember(membership, false), name: groupTableRows.find((group) => group.id === membership.groupId)?.name ?? membership.groupId, assistantDisplayName: assistantRows.find((assistant) => assistant.groupId === membership.groupId)?.displayName?.trim() || "KINBANアシスタント", unreadAssistant: memberAssistantUnread, managerAssistantUnread, pendingMemberRequests: groupTableRows.find((group) => group.id === membership.groupId)?.ownerEmail === user.email ? pendingMemberRequests.filter((request) => request.groupId === membership.groupId && request.status === "pending").length : 0, nextRequestCloseDate, shiftRequestNeedsSubmission };
+    }).map((item) => {
+      const group = groupTableRows.find((candidate) => candidate.id === item.groupId);
+      return { ...item, memoEnabled: group?.memoEnabled !== false, knowledgeEnabled: group?.knowledgeEnabled !== false };
     }),
     events: rows.map((event) => {
       const membership = event.groupId ? memberships.find((item) => item.groupId === event.groupId) : null;
