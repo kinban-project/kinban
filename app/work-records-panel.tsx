@@ -930,6 +930,7 @@ export default function WorkRecordsPanel({
           onPageChange={setRecordPage}
           filters={managerFilters}
           onFiltersChange={handleManagerFiltersChange}
+          referenceDate={demoNow}
         />
       ) : (
         <>
@@ -1379,6 +1380,7 @@ function ManagerView({
   onPageChange,
   filters,
   onFiltersChange,
+  referenceDate,
 }: {
   records: RecordRow[];
   members: Member[];
@@ -1397,6 +1399,7 @@ function ManagerView({
   onPageChange: (page: number) => void;
   filters: ManagerFilters;
   onFiltersChange: (filters: ManagerFilters) => void;
+  referenceDate?: Date | null;
 }) {
   const names = new Map(
     members.map((member) => [
@@ -1482,6 +1485,11 @@ function ManagerView({
   const selectedPending = selected.filter((id) =>
     pendingFiltered.some((record) => record.id === id),
   );
+  const reference = referenceDate ?? new Date();
+  const approvalMonths = [
+    monthKey(reference),
+    monthKey(new Date(reference.getFullYear(), reference.getMonth() - 1, 1)),
+  ];
   useEffect(() => {
     setSelected(pendingFiltered.map((record) => record.id));
   }, [month, day, member, status, differenceFilter, records]);
@@ -1553,12 +1561,8 @@ function ManagerView({
           }}
         >
           <option value={month}>{monthLabelFor(month)}</option>
-          {Array.from(
-            new Set(records.map((record) => record.scheduledDate.slice(0, 7))),
-          )
+          {approvalMonths
             .filter((value) => value !== month)
-            .sort()
-            .reverse()
             .map((value) => (
               <option value={value} key={value}>
                 {monthLabelFor(value)}
