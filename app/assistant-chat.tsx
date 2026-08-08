@@ -124,7 +124,7 @@ export default function AssistantChat({ groupId, manager = false }: { groupId: s
     </section>}
     <div className="assistant-messages" aria-live="polite">
       {data.messages.length ? data.messages.map((item) => <div className={`assistant-message ${item.senderType}`} key={item.id}>
-        <strong>{item.senderType === "assistant" || item.senderType === "system" ? data.assistant?.displayName?.trim() || "KINBANアシスタント" : item.memberEmail === data.currentEmail && !manager ? "あなた" : item.senderDisplayName || item.memberEmail.split("@")[0]}</strong>
+        <strong>{item.senderType === "assistant" || item.senderType === "system" ? data.assistant?.displayName?.trim() || "KINBANアシスタント" : item.senderEmail === data.currentEmail ? "あなた" : item.senderDisplayName || item.memberEmail.split("@")[0]}</strong>
         <p>{item.body}</p>
         {manager && item.senderType === "member" && ["pending", "processing", "needs_review"].includes(item.status) && <button type="button" className="small-action" onClick={() => void acknowledgeMessage(item)}>対応済みにする</button>}
         <small>{formatDateTime(item.createdAt)}{item.senderType === "member" && item.status === "pending" ? "・確認待ち" : item.senderType === "member" && item.status === "processing" ? "・対応中" : item.senderType === "member" && item.status === "needs_review" ? "・管理者確認待ち" : ""}</small>
