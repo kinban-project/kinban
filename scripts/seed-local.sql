@@ -164,7 +164,7 @@ INSERT INTO group_assistants (group_id, display_name, role, status, can_create_s
   ('seed-group-store', 'KINBANアシスタント', 'editor', 'active', true, true, true, false, true);
 
 INSERT INTO api_tokens (id, owner_email, name, token_type, group_id, scopes, token_hash, token_prefix) VALUES
-  ('seed-token-assistant-local', 'tanaka@local.test', 'ローカルシード用 運営支援AIキー', 'assistant', 'seed-group-store',
+  ('seed-token-assistant-local', 'tanaka@local.test', 'ローカルシード用 運営支援APIキー', 'assistant', 'seed-group-store',
    '["assistant:read","assistant:reply","shift:read","work:read","announcement:read"]',
    '9a9bbd08d3ca4272e0cb36b76dab96b2484f7dc4b4e732795ee65bb9dcd81bc1', 'mcp_local_s');
 

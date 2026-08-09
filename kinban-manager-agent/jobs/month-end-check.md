@@ -3,7 +3,7 @@
 ## 入力
 
 - 対象月
-- グループ専用AIキー（読み取り）
+- グループ専用APIキー（読み取り）
 - `runbooks/defaults/attendance-review-policy.md` と `runbooks/local/`
 
 ## 実施内容

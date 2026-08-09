@@ -37,7 +37,7 @@ export default function ApiKeyPanel({ groupId }: { groupId?: string }) {
       setNewKey(data.key);
       await load();
     } else {
-      setMessage("個人用AIキーを発行できませんでした。");
+      setMessage("個人用APIキーを発行できませんでした。");
     }
     setBusy(false);
   }
@@ -68,22 +68,22 @@ export default function ApiKeyPanel({ groupId }: { groupId?: string }) {
   }
 
   async function revokeKey(id: string) {
-    if (!groupId || !window.confirm("このグループの個人用AIキーを無効にしますか？")) return;
+    if (!groupId || !window.confirm("このグループの個人用APIキーを無効にしますか？")) return;
     await localApiFetch("/api/api-key", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, groupId }),
     });
     await load();
-    setMessage("個人用AIキーを無効にしました。");
+    setMessage("個人用APIキーを無効にしました。");
   }
 
   if (!groupId) {
     return (
       <div className="api-key-box">
         <p className="eyebrow">PERSONAL AI ACCESS</p>
-        <h3>個人用AIキー</h3>
-        <p>個人用AIキーは、対象グループの基本設定からグループごとに発行します。</p>
+        <h3>個人用APIキー</h3>
+        <p>個人用APIキーは、対象グループの基本設定からグループごとに発行します。</p>
       </div>
     );
   }
@@ -93,13 +93,13 @@ export default function ApiKeyPanel({ groupId }: { groupId?: string }) {
       <div className="api-key-actions">
         <div>
           <p className="eyebrow">GROUP PERSONAL AI ACCESS</p>
-          <h3>このグループの個人用AIキー</h3>
+          <h3>このグループの個人用APIキー</h3>
           <p>自分の基本設定・シフト希望・シフト一覧・勤務申告などをAIから扱えます。</p>
           <p>管理者向けのシフト作成・公開・承認などは実行できません。</p>
         </div>
         <div className="api-key-buttons">
           <button className="primary-button" onClick={() => void createKey()} disabled={busy}>
-            {busy ? "処理中…" : "個人用AIキーを発行"}
+            {busy ? "処理中…" : "個人用APIキーを発行"}
           </button>
           <button className="secondary-button" onClick={() => void downloadPack()} disabled={busy}>
             接続パックをダウンロード

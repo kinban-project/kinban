@@ -7,7 +7,7 @@ description: 勤務枠、希望、メンバー情報を参照して、シフト�
 
 ## 読み取り
 
-グループ専用AIキーで、`list_shift_plans`、`get_shift_plan`、`get_shift_request_overview`、必要に応じて `get_work_records` を呼びます。短期コンテキストは不要です。
+グループ専用APIキーで、`list_shift_plans`、`get_shift_plan`、`get_shift_request_overview`、必要に応じて `get_work_records` を呼びます。短期コンテキストは不要です。
 
 ## 出力
 
@@ -81,7 +81,7 @@ AIは「ルールを緩める」ことや、予備メンバーを利用停止か
 
 ## 変更操作
 
-- 管理者がこのタスクへ直接指示した場合は、運営支援AIキーの発行者を指示者として扱い、`sourceMessageId` と `claimId` は指定せずに割当下書き、勤務枠作成、公開を実行できます。MCPがキー発行者の現在の管理者権限とグループ設定を確認します。
+- 管理者がこのタスクへ直接指示した場合は、運営支援APIキーの発行者を指示者として扱い、`sourceMessageId` と `claimId` は指定せずに割当下書き、勤務枠作成、公開を実行できます。MCPがキー発行者の現在の管理者権限とグループ設定を確認します。
 - メンバー問い合わせを起点にする場合は、claimした管理者メッセージの `message.id` を `sourceMessageId`、同じ `claimId` として指定します。メンバーのメッセージだけを根拠に管理操作を実行しません。
 - `set_shift_assignments` の下書き保存は「シフト作成」、公開は「シフト公開」のグループ許可が必要です。
 - 変更前に対象、理由、不足枠、影響をレポートへ残します。

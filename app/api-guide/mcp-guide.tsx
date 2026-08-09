@@ -30,9 +30,9 @@ export default function McpGuide() {
       <h3>利用できる操作</h3>
       <ul>
         <li>個人予定：一覧・登録・変更・削除</li>
-        <li>個人用AIキー：グループごとに発行し、プロフィール・基本希望・本人のシフト・勤務申告を操作</li>
-        <li>個人用AIキー：お知らせの確認・返信・管理者への連絡</li>
-        <li>運営支援AIキー：メンバー管理・勤務枠作成・割当・公開・承認・全体通知</li>
+        <li>個人用APIキー：グループごとに発行し、プロフィール・基本希望・本人のシフト・勤務申告を操作</li>
+        <li>個人用APIキー：お知らせの確認・返信・管理者への連絡</li>
+        <li>運営支援APIキー：メンバー管理・勤務枠作成・割当・公開・承認・全体通知</li>
       </ul>
       <h3>ツール呼び出し例</h3>
       <Code>{`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_shift_plans","arguments":{"groupId":"group-id"}}}`}</Code>
@@ -45,9 +45,9 @@ export default function McpGuide() {
         </p>
       </div>
       <div className="guide-warning">
-        <strong>個人用AIキーと運営支援AIキー</strong>
+        <strong>個人用APIキーと運営支援APIキー</strong>
         <p>
-          個人用AIキーはグループごとに発行され、発行対象のグループと本人の操作に限定されます。管理者アカウントの本人用キーであっても、シフト作成・公開・割当・承認などは実行できません。運営支援AIを接続する場合は、グループの管理者が発行する運営支援AIキーを使用してください。
+          個人用APIキーはグループごとに発行され、発行対象のグループと本人の操作に限定されます。管理者アカウントの本人用キーであっても、シフト作成・公開・割当・承認などは実行できません。運営支援AIを接続する場合は、グループの管理者が発行する運営支援APIキーを使用してください。
         </p>
       </div>
       <div className="guide-warning">
@@ -59,7 +59,7 @@ export default function McpGuide() {
       <div className="guide-warning">
         <strong>運営支援AIは専用キーを使用してください</strong>
         <p>
-          グループ管理者は <code>POST /api/groups/&lt;groupId&gt;/assistant/access</code> から、対象グループだけに制限された運営支援AIキーを発行できます。
+          グループ管理者は <code>POST /api/groups/&lt;groupId&gt;/assistant/access</code> から、対象グループだけに制限された運営支援APIキーを発行できます。
           このキーでは、対象グループのメンバー情報・シフト・勤務記録などを運営支援のために参照できます。管理者がこのタスクへ直接指示する場合は、キー発行者の管理者権限とグループごとの実行許可を確認するため、管理者メッセージの <code>sourceMessageId</code> は不要です。メンバー問い合わせの処理中だけ、claimした管理者メッセージの <code>sourceMessageId</code> と <code>claimId</code> を指定します。
         </p>
       </div>

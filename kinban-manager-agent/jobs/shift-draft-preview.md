@@ -3,7 +3,7 @@
 ## 入力
 
 - 希望締切後の対象シフト
-- グループ専用AIキー（読み取り）
+- グループ専用APIキー（読み取り）
 - `runbooks/defaults/shift-allocation-policy.md` と `runbooks/local/`
 
 ## 実施内容

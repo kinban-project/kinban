@@ -72,7 +72,7 @@ export async function POST(request: Request) {
   const token = {
     id: crypto.randomUUID(),
     ownerEmail: user.email,
-    name: payload.name?.trim() || "KINBAN個人用AIキー",
+    name: payload.name?.trim() || "KINBAN個人用APIキー",
     tokenType: "personal" as const,
     groupId,
     scopes: JSON.stringify(personalApiScopes),

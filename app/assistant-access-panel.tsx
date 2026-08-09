@@ -40,7 +40,7 @@ export default function AssistantAccessPanel({ groupId }: { groupId: string }) {
       setNewKey(result.key);
       setNotice("キーを発行しました。この画面を離れると再表示できません。");
       await load();
-    } else setNotice(result.error ?? "運営支援AIキーを発行できませんでした。");
+    } else setNotice(result.error ?? "運営支援APIキーを発行できませんでした。");
     setBusy(false);
   }
 
@@ -60,14 +60,14 @@ export default function AssistantAccessPanel({ groupId }: { groupId: string }) {
   }
 
   async function revoke(id: string) {
-    if (!window.confirm("この運営支援AIキーを無効化しますか？")) return;
+    if (!window.confirm("この運営支援APIキーを無効化しますか？")) return;
     await localApiFetch(`/api/groups/${groupId}/assistant/access`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
     await load(); setNotice("キーを無効化しました。");
   }
 
   return <div className="assistant-access-panel">
     <p>管理者からの指示と、確認済みのメンバーからの問い合わせを運営支援AIへ連携できます。</p>
-    <div className="assistant-access-head"><strong>運営支援AIキー</strong><div>
+    <div className="assistant-access-head"><strong>運営支援APIキー</strong><div>
       <button className="small-action" type="button" onClick={() => void issue()} disabled={busy}>{busy ? "発行中…" : "キーを発行"}</button>
       <button className="small-action" type="button" onClick={() => void downloadConnectionPack()} disabled={busy}>接続パック</button>
     </div></div>

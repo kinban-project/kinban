@@ -48,7 +48,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const row = {
     id: crypto.randomUUID(),
     ownerEmail: user.email,
-    name: payload.name?.trim() || "KINBAN運営支援AIキー",
+    name: payload.name?.trim() || "KINBAN運営支援APIキー",
     tokenType: "assistant" as const,
     groupId,
     scopes: JSON.stringify(assistantScopes),

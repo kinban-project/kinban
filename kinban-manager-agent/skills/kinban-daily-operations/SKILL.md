@@ -7,7 +7,7 @@ description: KINBANの日次運営確認とメッセージ処理を行う
 
 ## 基本手順
 
-1. `list_groups` で対象グループとAIキーの範囲を確認する。
+1. `list_groups` で対象グループとAPIキーの範囲を確認する。
 2. `get_demo_time` を呼び出し、対象グループの基準日時を取得する。
 3. デモモードでは、`currentAt`、`today`、`month`、`timezone` を業務上の唯一の日時コンテキストとして使う。「今日」「明日」「次の営業日」「締切」などを端末の実日時から推測しない。
 4. `group_dashboard`、`list_shift_plans`、`get_work_records`、`get_assistant_message_queue_summary` で対象期間の状態を確認する。
@@ -23,5 +23,5 @@ description: KINBANの日次運営確認とメッセージ処理を行う
 ## メッセージ処理
 
 - メンバーからの問い合わせは `claim_next_assistant_message` で取得し、必要な場合だけ `sourceMessageId` と `claimId` を指定して返信・更新する。
-- 管理者の直接指示は、グループAIキーの所有者権限と対象グループを確認して処理する。
+- 管理者の直接指示は、グループAPIキーの所有者権限と対象グループを確認して処理する。
 - 要確認に移った内容は勝手に公開・割当変更せず、理由と候補を報告する。
