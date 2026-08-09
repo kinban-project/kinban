@@ -169,7 +169,11 @@ export default function ShiftRequests({
     if (!response.ok) return;
     const next = (await response.json()) as Data;
     setData(next);
+    const requestedPeriod = nextPeriodId
+      ? next.periods.find((period) => period.id === nextPeriodId)
+      : null;
     const preferredPeriod =
+      requestedPeriod ??
       next.periods.find((period) => period.status === "open") ??
       next.period ??
       next.periods[0] ??
