@@ -506,6 +506,7 @@ export default function Home() {
           setMenuGroupId(groupId);
           setShiftTab("roster");
           setShiftRosterOpen(true);
+          void loadCalendar();
         }}
         onShiftBuilder={(groupId) => openGroupTarget(groupId, "shift")}
         onShiftAdjustment={(groupId) => openGroupTarget(groupId, "adjustment")}
@@ -522,10 +523,12 @@ export default function Home() {
           setAnnouncementsManager(false);
           setGroups((current) => current.map((group) => group.groupId === groupId ? { ...group, unreadAssistant: false } : group));
           setAssistantOpen(true);
+          void loadCalendar();
         }}
         onContactManage={(groupId) => {
           setMenuGroupId(groupId);
           setManagerContactOpen(true);
+          void loadCalendar();
         }}
         onMemos={(groupId) => {
           setMenuGroupId(groupId);
@@ -985,16 +988,16 @@ export default function Home() {
         <div
           className="modal-backdrop"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setShiftRosterOpen(false);
+            if (event.target === event.currentTarget) { setShiftRosterOpen(false); void loadCalendar(); }
           }}
         >
           <div className="modal shift-modal request-modal">
-            <ModalClose onClose={() => setShiftRosterOpen(false)} />
+            <ModalClose onClose={() => { setShiftRosterOpen(false); void loadCalendar(); }} />
             <div className="shift-entry-tabs" role="tablist" aria-label="シフト">
               <button className={shiftTab === "roster" ? "active" : ""} type="button" role="tab" aria-selected={shiftTab === "roster"} onClick={() => setShiftTab("roster")}>シフト一覧</button>
               <button className={shiftTab === "requests" ? "active" : ""} type="button" role="tab" aria-selected={shiftTab === "requests"} onClick={() => setShiftTab("requests")}>シフト希望{groups.find((group) => group.groupId === menuGroupId)?.shiftRequestNeedsSubmission && <span className="request-badge">未提出あり</span>}</button>
             </div>
-            {shiftTab === "roster" ? <ShiftRoster initialGroupId={menuGroupId} /> : <ShiftRequests initialGroupId={menuGroupId} />}
+            {shiftTab === "roster" ? <ShiftRoster initialGroupId={menuGroupId} /> : <ShiftRequests initialGroupId={menuGroupId} onChanged={() => void loadCalendar()} />}
           </div>
         </div>
       )}
@@ -1003,26 +1006,27 @@ export default function Home() {
           className="modal-backdrop"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget)
-              setAnnouncementsOpen(false);
+              setAnnouncementsOpen(false); void loadCalendar();
           }}
         >
           <div className="modal groups-modal">
-            <ModalClose onClose={() => setAnnouncementsOpen(false)} />
+            <ModalClose onClose={() => { setAnnouncementsOpen(false); void loadCalendar(); }} />
             <AnnouncementsPanel
               groupId={menuGroupId}
               manager={announcementsManager}
+              onChanged={() => void loadCalendar()}
             />
           </div>
         </div>
       )}
       {assistantOpen && menuGroupId && (
         <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setAssistantOpen(false); }}>
-          <div className="modal groups-modal"><ModalClose onClose={() => setAssistantOpen(false)} /><AssistantChat groupId={menuGroupId} /></div>
+          <div className="modal groups-modal"><ModalClose onClose={() => { setAssistantOpen(false); void loadCalendar(); }} /><AssistantChat groupId={menuGroupId} onChanged={() => void loadCalendar()} /></div>
         </div>
       )}
       {managerContactOpen && menuGroupId && (
         <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setManagerContactOpen(false); }}>
-          <div className="modal groups-modal"><ModalClose onClose={() => setManagerContactOpen(false)} /><AssistantChat groupId={menuGroupId} manager /></div>
+          <div className="modal groups-modal"><ModalClose onClose={() => { setManagerContactOpen(false); void loadCalendar(); }} /><AssistantChat groupId={menuGroupId} manager onChanged={() => void loadCalendar()} /></div>
         </div>
       )}
       {memosOpen && menuGroupId && (

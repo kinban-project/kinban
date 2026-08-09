@@ -81,8 +81,10 @@ function dayKey(slot: Slot) {
 
 export default function ShiftRequests({
   initialGroupId,
+  onChanged,
 }: {
   initialGroupId?: string;
+  onChanged?: () => void;
 }) {
   const [groups, setGroups] = useState<Group[]>([]);
   const [groupId, setGroupId] = useState("");
@@ -266,7 +268,7 @@ export default function ShiftRequests({
             .error ?? "勤務希望を保存できませんでした"),
     );
     setBusy(false);
-    if (response.ok) await loadData(activePeriod.id);
+    if (response.ok) { await loadData(activePeriod.id); onChanged?.(); }
   }
 
   return (

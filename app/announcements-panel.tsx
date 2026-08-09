@@ -8,9 +8,9 @@ type Announcement = { id: string; title: string; body: string; createdBy: string
 type Reply = { id: string; announcementId: string; userEmail: string; body: string; createdAt: string };
 type Member = { userEmail: string; displayName?: string | null };
 type ReadDetail = { announcementId: string; userEmail: string; readAt: string };
-type Props = { groupId: string; manager?: boolean };
+type Props = { groupId: string; manager?: boolean; onChanged?: () => void };
 
-export default function AnnouncementsPanel({ groupId, manager = false }: Props) {
+export default function AnnouncementsPanel({ groupId, manager = false, onChanged }: Props) {
   const [items, setItems] = useState<Announcement[]>([]);
   const [replies, setReplies] = useState<Reply[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
@@ -49,14 +49,14 @@ export default function AnnouncementsPanel({ groupId, manager = false }: Props) 
     if (!window.confirm(`「${item.title}」を削除しますか？\n返信と既読情報も削除されます。`)) return;
     const response = await localApiFetch(`/api/groups/${groupId}/announcements?announcementId=${encodeURIComponent(item.id)}`, { method: "DELETE" });
     setNotice(response.ok ? "お知らせを削除しました。" : "お知らせを削除できませんでした。");
-    if (response.ok) await load();
+    if (response.ok) { await load(); onChanged?.(); }
   }
 
   useEffect(() => { void load(); }, [groupId]);
   async function post(action: string, announcementId?: string, text?: string) {
     const response = await localApiFetch(`/api/groups/${groupId}/announcements`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, announcementId, title, body: text ?? body, notificationLevel }) });
     setNotice(response.ok ? "保存しました" : "保存できませんでした");
-    if (response.ok) { setTitle(""); setBody(""); if (announcementId) setReply((current) => ({ ...current, [announcementId]: "" })); await load(); }
+    if (response.ok) { setTitle(""); setBody(""); if (announcementId) setReply((current) => ({ ...current, [announcementId]: "" })); await load(); onChanged?.(); }
   }
 
   return <div className="announcements-panel">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { localApiFetch } from "./local-api";
 import { formatDateTime } from "./format-date";
 
@@ -16,13 +16,15 @@ function memberName(member: Member) {
   return member.displayName?.trim() || member.userEmail.split("@")[0];
 }
 
-export default function AssistantChat({ groupId, manager = false }: { groupId: string; manager?: boolean }) {
+export default function AssistantChat({ groupId, manager = false, onChanged }: { groupId: string; manager?: boolean; onChanged?: () => void }) {
   const [data, setData] = useState<ChatData | null>(null);
   const [selectedMember, setSelectedMember] = useState("");
   const [message, setMessage] = useState("");
   const [notice, setNotice] = useState("");
   const [sending, setSending] = useState(false);
   const [draftEdits, setDraftEdits] = useState<Record<string, { title: string; body: string; managerNote: string }>>({});
+  const onChangedRef = useRef(onChanged);
+  onChangedRef.current = onChanged;
 
   const load = useCallback(async (member?: string) => {
     const params = new URLSearchParams({ view: manager ? "manager" : "member" });
@@ -33,6 +35,7 @@ export default function AssistantChat({ groupId, manager = false }: { groupId: s
     const next = await response.json() as ChatData;
     setData(next);
     setSelectedMember(next.selectedMember);
+    onChangedRef.current?.();
   }, [groupId, manager]);
 
   useEffect(() => { const timer = window.setTimeout(() => void load(), 0); return () => window.clearTimeout(timer); }, [load]);
