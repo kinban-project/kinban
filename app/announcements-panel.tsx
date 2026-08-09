@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { localApiFetch } from "./local-api";
 import { formatDateTime } from "./format-date";
 
-type Announcement = { id: string; title: string; body: string; createdBy: string; createdAt: string; notificationLevel?: "normal" | "important" | "urgent"; category?: string };
+type Announcement = { id: string; title: string; body: string; createdBy: string; createdAt: string; notificationLevel?: "normal" | "urgent"; category?: string };
 type Reply = { id: string; announcementId: string; userEmail: string; body: string; createdAt: string };
 type Member = { userEmail: string; displayName?: string | null };
 type ReadDetail = { announcementId: string; userEmail: string; readAt: string };
@@ -21,7 +21,7 @@ export default function AnnouncementsPanel({ groupId, manager = false, onChanged
   const [expandedReads, setExpandedReads] = useState<Record<string, boolean>>({});
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [notificationLevel, setNotificationLevel] = useState<"normal" | "important" | "urgent">("normal");
+  const [notificationLevel, setNotificationLevel] = useState<"normal" | "urgent">("normal");
   const [reply, setReply] = useState<Record<string, string>>({});
   const [notice, setNotice] = useState("");
 
@@ -62,7 +62,7 @@ export default function AnnouncementsPanel({ groupId, manager = false, onChanged
   return <div className="announcements-panel">
     <div className="modal-head"><div><p className="eyebrow">MESSAGES</p><h2>お知らせ{selectedGroupName ? `（${selectedGroupName}）` : ""}</h2></div></div>
     <>
-    {manager && <form className="announcement-create" onSubmit={(event) => { event.preventDefault(); void post("create"); }}><input required value={title} onChange={(event) => setTitle(event.target.value)} placeholder="タイトル" /><textarea required rows={3} value={body} onChange={(event) => setBody(event.target.value)} placeholder="メンバーへのお知らせ" /><label>通知レベル<select value={notificationLevel} onChange={(event) => setNotificationLevel(event.target.value as "normal" | "important" | "urgent")}><option value="normal">通常（アプリ内のみ）</option><option value="important">重要（アプリ内のみ）</option><option value="urgent">緊急（Web Push）</option></select></label><button className="primary-button">お知らせを作成</button></form>}
+    {manager && <form className="announcement-create" onSubmit={(event) => { event.preventDefault(); void post("create"); }}><input required value={title} onChange={(event) => setTitle(event.target.value)} placeholder="タイトル" /><textarea required rows={3} value={body} onChange={(event) => setBody(event.target.value)} placeholder="メンバーへのお知らせ" /><label>通知レベル<select value={notificationLevel} onChange={(event) => setNotificationLevel(event.target.value as "normal" | "urgent")}><option value="normal">通常（アプリ内のみ）</option><option value="urgent">緊急（Web Push）</option></select></label><button className="primary-button">お知らせを作成</button></form>}
     <div className="announcement-list">
       {items.length ? items.map((item) => {
         const readCount = new Set(readDetails.filter((row) => row.announcementId === item.id).map((row) => row.userEmail)).size;

@@ -516,7 +516,7 @@ export const groupAnnouncements = sqliteTable("group_announcements", {
   createdBy: text("created_by").notNull(),
   title: text("title").notNull(),
   body: text("body").notNull(),
-  notificationLevel: text("notification_level", { enum: ["normal", "important", "urgent"] }).notNull().default("normal"),
+  notificationLevel: text("notification_level", { enum: ["normal", "urgent"] }).notNull().default("normal"),
   category: text("category").notNull().default(""),
   createdAt: text("created_at")
     .notNull()

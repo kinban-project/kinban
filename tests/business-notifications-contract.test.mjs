@@ -11,6 +11,7 @@ test("business notifications keep urgency, system events, and no-duplicate contr
   const shifts = read("app/api/shifts/[id]/route.ts");
 
   assert.match(schema, /notificationLevel/);
+  assert.doesNotMatch(schema, /"important"/);
   assert.match(schema, /category/);
   assert.match(schema, /senderType.*system/);
   assert.match(schema, /assistant_message_event_recipient_unique_idx/);
@@ -18,6 +19,7 @@ test("business notifications keep urgency, system events, and no-duplicate contr
   assert.match(helper, /onConflictDoNothing\(\)/);
   assert.match(helper, /sendBusinessPush/);
   assert.match(announcements, /notificationLevel === "urgent"/);
+  assert.match(announcements, /notificationLevel === "important" \? "normal"/);
   assert.match(announcements, /緊急のお知らせがあります/);
   assert.match(shifts, /published_shift_changed/);
 });
