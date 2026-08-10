@@ -28,12 +28,36 @@ async function activeMember(groupId: string, email: string) {
   return row?.status === "active" ? row : null;
 }
 
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+async function memberContextConfig(groupId: string) {
   const user = await getChatGPTUser();
-  if (!user) return Response.json({ error: "ChatGPT sign-in is required." }, { status: 401 });
-  const { id: groupId } = await context.params;
+  if (!user) return { response: Response.json({ error: "ChatGPT sign-in is required." }, { status: 401 }) };
   const member = await activeMember(groupId, user.email);
-  if (!member) return Response.json({ error: "Active group membership is required." }, { status: 403 });
+  if (!member) return { response: Response.json({ error: "Active group membership is required." }, { status: 403 }) };
+  const [assistant] = await getDb().select({ status: groupAssistants.status }).from(groupAssistants).where(eq(groupAssistants.groupId, groupId)).limit(1);
+  if (assistant?.status !== "active") return { response: Response.json({ error: "KINBAN assistant is inactive." }, { status: 403 }) };
+  return {
+    user,
+    member,
+    config: {
+      groupId,
+      memberName: (member as { displayName?: string | null }).displayName?.trim() || user.email.split("@")[0],
+      runtimeUrl: process.env.KINBAN_AGENT_RUNTIME_URL || null,
+    },
+  };
+}
+
+export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+  const { id: groupId } = await context.params;
+  const result = await memberContextConfig(groupId);
+  if ("response" in result) return result.response;
+  return Response.json(result.config);
+}
+
+export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+  const { id: groupId } = await context.params;
+  const result = await memberContextConfig(groupId);
+  if ("response" in result) return result.response;
+  const { user, member, config } = result;
   const body = await request.json().catch(() => ({})) as { mode?: "member" | "operations"; expiresInSeconds?: number };
   const mode = body.mode ?? "operations";
   if (mode !== "member" && mode !== "operations")
@@ -63,7 +87,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     expiresInSeconds,
     scopes,
     memberName: (member as { displayName?: string | null }).displayName?.trim() || user.email.split("@")[0],
-    runtimeUrl: process.env.KINBAN_AGENT_RUNTIME_URL || null,
+    runtimeUrl: config.runtimeUrl,
   }, { status: 201 });
 }
 
