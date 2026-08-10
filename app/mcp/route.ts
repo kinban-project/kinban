@@ -191,6 +191,7 @@ const personalTools = new Set([
   "save_group_preferences",
   "list_shift_plans",
   "get_shift_plan",
+  "list_my_shift_request_periods",
   "list_knowledge_pages",
   "search_knowledge_pages",
   "get_knowledge_page",
@@ -1022,6 +1023,16 @@ const tools = [
         recordId: { type: "string" },
         confirm: { type: "boolean" },
       },
+    },
+  },
+  {
+    name: "list_my_shift_request_periods",
+    description:
+      "List shift request periods available to the authenticated member. Includes only the member's groups, the request window state, the demo-time availability, the member's submission state, and the minimum slot information needed to submit requests. It does not expose assignments or other members' requests.",
+    inputSchema: {
+      type: "object",
+      required: ["groupId"],
+      properties: { groupId: { type: "string" } },
     },
   },
   {
@@ -2891,6 +2902,114 @@ export async function POST(request: Request) {
         },
       );
     }
+    if (name === "list_my_shift_request_periods") {
+      const groupId = text(args.groupId);
+      const restricted = assistantGroupError(identity, groupId);
+      if (restricted) return rpcError(payload.id, restricted);
+      const member = await membership(db, groupId, identity.email);
+      if (!member || member.status !== "active")
+        return rpcError(payload.id, "Active group membership required");
+
+      const [periods, plans, demoTime] = await Promise.all([
+        db
+          .select()
+          .from(shiftRequestPeriods)
+          .where(eq(shiftRequestPeriods.groupId, groupId))
+          .orderBy(desc(shiftRequestPeriods.opensOn)),
+        db
+          .select({
+            id: shiftPlans.id,
+            name: shiftPlans.name,
+            startDate: shiftPlans.startDate,
+            endDate: shiftPlans.endDate,
+          })
+          .from(shiftPlans)
+          .where(eq(shiftPlans.groupId, groupId)),
+        getDemoTimeContext(groupId),
+      ]);
+      if (!periods.length)
+        return rpc(payload.id, { groupId, periods: [], demoTime });
+
+      const slots = await db
+        .select({
+          id: shiftSlots.id,
+          planId: shiftSlots.planId,
+          date: shiftSlots.date,
+          startTime: shiftSlots.startTime,
+          endTime: shiftSlots.endTime,
+          requiredCount: shiftSlots.requiredCount,
+          role: shiftSlots.role,
+        })
+        .from(shiftSlots)
+        .where(inArray(shiftSlots.planId, [...new Set(periods.map((period) => period.planId))]));
+      const submissions = await db
+        .select({
+          periodId: shiftRequestSubmissions.periodId,
+          savedAt: shiftRequestSubmissions.savedAt,
+          requestComment: shiftRequestSubmissions.requestComment,
+        })
+        .from(shiftRequestSubmissions)
+        .where(
+          and(
+            eq(shiftRequestSubmissions.userEmail, identity.email),
+            inArray(shiftRequestSubmissions.periodId, periods.map((period) => period.id)),
+          ),
+        );
+      const planById = new Map(plans.map((plan) => [plan.id, plan]));
+      const slotsByPlan = new Map<string, typeof slots>();
+      for (const slot of slots) {
+        const planSlots = slotsByPlan.get(slot.planId) ?? [];
+        planSlots.push(slot);
+        slotsByPlan.set(slot.planId, planSlots);
+      }
+      const submissionByPeriod = new Map(
+        submissions.map((submission) => [submission.periodId, submission]),
+      );
+      const today = demoTime.today;
+      return rpc(payload.id, {
+        groupId,
+        demoTime,
+        periods: periods.map((period) => {
+          const plan = planById.get(period.planId);
+          const submission = submissionByPeriod.get(period.id);
+          const isAcceptingNow =
+            period.status === "open" &&
+            today >= period.opensOn &&
+            today <= period.closesOn &&
+            !shiftRequestDeadlinePassed(period.closesOn, new Date(demoTime.currentAt));
+          return {
+            periodId: period.id,
+            name: period.name,
+            status: period.status,
+            opensOn: period.opensOn,
+            closesOn: period.closesOn,
+            isAcceptingNow,
+            plan: plan
+              ? {
+                  id: plan.id,
+                  name: plan.name,
+                  startDate: plan.startDate,
+                  endDate: plan.endDate,
+                }
+              : null,
+            submission: submission
+              ? {
+                  savedAt: submission.savedAt,
+                  requestComment: submission.requestComment,
+                }
+              : null,
+            slots: (slotsByPlan.get(period.planId) ?? []).map((slot) => ({
+              id: slot.id,
+              date: slot.date,
+              startTime: slot.startTime,
+              endTime: slot.endTime,
+              requiredCount: slot.requiredCount,
+              role: slot.role,
+            })),
+          };
+        }),
+      });
+    }
     if (name === "get_shift_plan") {
       const found = await planFor(db, text(args.planId), identity.email);
       if ("error" in found) return rpcError(payload.id, found.error);
@@ -3688,8 +3807,43 @@ export async function POST(request: Request) {
         .select()
         .from(shiftRequestPeriods)
         .where(eq(shiftRequestPeriods.groupId, groupId));
-      const period =
-        periods.find((p) => p.id === text(args.periodId)) ?? periods[0];
+      const requestedPeriodId = text(args.periodId);
+      let period = periods.find((p) => p.id === requestedPeriodId);
+      if (!requestedPeriodId) {
+        const demoTime = await getDemoTimeContext(groupId);
+        const acceptingPeriods = periods.filter(
+          (candidate) =>
+            candidate.status === "open" &&
+            demoTime.today >= candidate.opensOn &&
+            demoTime.today <= candidate.closesOn &&
+            !shiftRequestDeadlinePassed(
+              candidate.closesOn,
+              new Date(demoTime.currentAt),
+            ),
+        );
+        if (acceptingPeriods.length === 1) {
+          period = acceptingPeriods[0];
+        } else {
+          return rpc(payload.id, {
+            period: null,
+            periods: periods.map((candidate) => ({
+              periodId: candidate.id,
+              name: candidate.name,
+              planId: candidate.planId,
+              opensOn: candidate.opensOn,
+              closesOn: candidate.closesOn,
+              status: candidate.status,
+            })),
+            requiresPeriodId: true,
+            reason:
+              acceptingPeriods.length === 0
+                ? "No single accepting shift request period was found."
+                : "Multiple accepting shift request periods were found; specify periodId.",
+            requests: [],
+            submission: null,
+          });
+        }
+      }
       if (!period)
         return rpc(payload.id, {
           period: null,
