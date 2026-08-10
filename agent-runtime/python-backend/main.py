@@ -33,7 +33,8 @@ class ChatResponse(BaseModel):
 
 
 def client() -> KinbanMCPClient:
-    return KinbanMCPClient(env("KINBAN_MCP_URL", "http://localhost:3003/api/mcp"), required("KINBAN_API_KEY"))
+    key = env("KINBAN_DELEGATION_TOKEN") or required("KINBAN_API_KEY")
+    return KinbanMCPClient(env("KINBAN_MCP_URL", "http://localhost:3003/api/mcp"), key, env("KINBAN_TOKEN_AUDIENCE", "agent-runtime"))
 
 
 async def build_agent() -> Agent:
@@ -72,7 +73,7 @@ async def build_agent() -> Agent:
 async def health() -> dict[str, Any]:
     model = env("KINBAN_AGENT_MODEL", "gpt-5.6-luna")
     profile = pricing_profile(model)
-    return {"status": "healthy", "service": "kinban-agent-runtime", "model": model, "pricingProfileId": profile["pricingProfileId"], "mcpConfigured": bool(env("KINBAN_API_KEY"))}
+    return {"status": "healthy", "service": "kinban-agent-runtime", "model": model, "pricingProfileId": profile["pricingProfileId"], "mcpConfigured": bool(env("KINBAN_DELEGATION_TOKEN") or env("KINBAN_API_KEY"))}
 
 
 @app.post("/api/chat", response_model=ChatResponse)

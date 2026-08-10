@@ -11,10 +11,12 @@ export async function issueAssistantContext(
   db: Db,
   input: {
     groupId: string;
-    mode: "member" | "manager" | "operations";
+    mode: "member" | "operations";
     memberEmail?: string;
     messageId?: string;
     issuedBy: string;
+    audience?: string;
+    scopes?: string[];
     expiresInSeconds?: number;
   },
 ) {
@@ -29,6 +31,8 @@ export async function issueAssistantContext(
     memberEmail: input.memberEmail ?? null,
     messageId: input.messageId ?? null,
     issuedBy: input.issuedBy,
+    audience: input.audience ?? "agent-runtime",
+    scopes: JSON.stringify(input.scopes ?? []),
     expiresAt,
   });
   return { token: raw, expiresAt };
@@ -38,5 +42,14 @@ export async function resolveAssistantContext(db: Db, groupId: string, rawToken:
   if (typeof rawToken !== "string" || !rawToken.trim()) return null;
   const now = new Date().toISOString();
   const [context] = await db.select().from(assistantContexts).where(and(eq(assistantContexts.tokenHash, await hashApiToken(rawToken.trim())), eq(assistantContexts.groupId, groupId), gt(assistantContexts.expiresAt, now))).limit(1);
+  return context ?? null;
+}
+
+export async function resolveAssistantContextByToken(db: Db, rawToken: unknown) {
+  if (typeof rawToken !== "string" || !rawToken.trim()) return null;
+  const [context] = await db.select().from(assistantContexts).where(and(
+    eq(assistantContexts.tokenHash, await hashApiToken(rawToken.trim())),
+    gt(assistantContexts.expiresAt, new Date().toISOString()),
+  )).limit(1);
   return context ?? null;
 }

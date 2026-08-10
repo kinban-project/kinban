@@ -11,9 +11,10 @@ class KinbanMCPError(RuntimeError):
 
 
 class KinbanMCPClient:
-    def __init__(self, url: str, api_key: str) -> None:
+    def __init__(self, url: str, api_key: str, audience: str = "agent-runtime") -> None:
         self.url = url
         self.api_key = api_key
+        self.audience = audience
 
     async def request(self, method: str, params: dict[str, Any] | None = None) -> Any:
         payload = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params or {}}
@@ -21,6 +22,7 @@ class KinbanMCPClient:
             "Authorization": f"Bearer {self.api_key}",
             "Accept": "application/json, text/event-stream",
             "Content-Type": "application/json",
+            "X-KINBAN-Audience": self.audience,
         }
         async with httpx.AsyncClient(timeout=60) as client:
             response = await client.post(self.url, headers=headers, json=payload)

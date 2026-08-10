@@ -77,10 +77,10 @@ def estimate_cost(usage: dict[str, int | None], profile: dict[str, Any]) -> tupl
 
 async def persist_usage(payload: dict[str, Any]) -> bool:
     url = env("KINBAN_USAGE_URL", "http://localhost:3003/api/v1/agent-usage")
-    key = env("KINBAN_API_KEY")
+    key = env("KINBAN_DELEGATION_TOKEN") or env("KINBAN_API_KEY")
     if not key:
         return False
-    headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+    headers = {"Authorization": f"Bearer {key}", "X-KINBAN-Audience": env("KINBAN_TOKEN_AUDIENCE", "agent-runtime"), "Content-Type": "application/json"}
     try:
         async with httpx.AsyncClient(timeout=20) as client:
             response = await client.post(url, headers=headers, content=json.dumps(payload, ensure_ascii=False))

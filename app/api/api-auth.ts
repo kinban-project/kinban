@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { and, eq, gt, isNull } from "drizzle-orm";
 import { getDb } from "../../db";
-import { apiTokens } from "../../db/schema";
+import { apiTokens, assistantContexts } from "../../db/schema";
 
 export type ApiTokenType = "personal" | "assistant";
 export const personalApiScopes = [
@@ -28,6 +28,9 @@ export type ApiIdentity = {
   tokenType: ApiTokenType;
   groupId: string | null;
   scopes: string[];
+  delegated?: boolean;
+  audience?: string;
+  contextId?: string;
 };
 
 export async function hashApiToken(token: string): Promise<string> {
@@ -43,7 +46,33 @@ export async function requireApiIdentity(request: Request): Promise<ApiIdentity 
   const tokenHash = await hashApiToken(match[1].trim());
   const db = getDb();
   const [token] = await db.select().from(apiTokens).where(eq(apiTokens.tokenHash, tokenHash)).limit(1);
-  if (!token) return Response.json({ error: "Invalid API token." }, { status: 401 });
+  if (!token) {
+    const [context] = await db.select().from(assistantContexts).where(and(
+      eq(assistantContexts.tokenHash, tokenHash),
+      gt(assistantContexts.expiresAt, new Date().toISOString()),
+      isNull(assistantContexts.revokedAt),
+    )).limit(1);
+    if (!context) return Response.json({ error: "Invalid or expired API token." }, { status: 401 });
+    if (request.headers.get("x-kinban-audience") !== context.audience)
+      return Response.json({ error: "This short-lived token is restricted to its configured audience." }, { status: 401 });
+    let delegatedScopes: string[] = [];
+    try {
+      const parsed = JSON.parse(context.scopes || "[]");
+      if (Array.isArray(parsed)) delegatedScopes = parsed.filter((item): item is string => typeof item === "string");
+    } catch {
+      delegatedScopes = [];
+    }
+    return {
+      email: context.memberEmail ?? context.issuedBy,
+      tokenId: context.id,
+      tokenType: context.mode === "member" ? "personal" : "assistant",
+      groupId: context.groupId,
+      scopes: delegatedScopes,
+      delegated: true,
+      audience: context.audience,
+      contextId: context.id,
+    };
+  }
   await db.update(apiTokens).set({ lastUsedAt: new Date().toISOString() }).where(eq(apiTokens.id, token.id));
   let scopes: string[] = [];
   try {

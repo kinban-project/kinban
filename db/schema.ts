@@ -207,7 +207,10 @@ export const assistantContexts = sqliteTable("assistant_contexts", {
   memberEmail: text("member_email"),
   messageId: text("message_id"),
   issuedBy: text("issued_by").notNull(),
+  audience: text("audience").notNull().default("agent-runtime"),
+  scopes: text("scopes").notNull().default("[]"),
   expiresAt: text("expires_at").notNull(),
+  revokedAt: text("revoked_at"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
