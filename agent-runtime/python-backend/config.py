@@ -5,8 +5,10 @@ import os
 from pathlib import Path
 from typing import Any
 
+from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parents[1]
+load_dotenv(ROOT / ".env")
 PRICING_PATH = Path(os.getenv("AGENT_PRICING_PROFILES", ROOT / "pricing_profiles.json"))
 
 
