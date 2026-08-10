@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>KINBAN Agent Runtime</title>
+  <style>
+    :root { color: #173332; background: #f7faf7; font-family: system-ui, sans-serif; }
+    main { max-width: 860px; margin: 40px auto; padding: 0 18px; }
+    textarea { width: 100%; min-height: 160px; box-sizing: border-box; padding: 12px; border: 1px solid #ccd9d2; border-radius: 12px; }
+    button { margin-top: 12px; padding: 12px 22px; border: 0; border-radius: 999px; background: #173332; color: #fff; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: wait; }
+    pre { white-space: pre-wrap; background: #eef5ef; padding: 16px; border-radius: 12px; min-height: 80px; }
+    .meta { color: #55716a; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>KINBAN Agent Runtime</h1>
+    <p class="meta">ローカル限定のKINBAN MCP接続用ランタイム</p>
+    <textarea id="message" placeholder="例：現在受付中のシフト希望期間を確認して"></textarea>
+    <br>
+    <button id="run">実行</button>
+    <pre id="answer">待機中</pre>
+  </main>
+  <script>
+    document.querySelector('#run').onclick = async () => {
+      const button = document.querySelector('#run');
+      const answer = document.querySelector('#answer');
+      button.disabled = true;
+      answer.textContent = '実行中…';
+      try {
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ message: document.querySelector('#message').value, userCategory: 'manager' }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || '実行に失敗しました');
+        answer.textContent = `${data.answer}\n\nモデル: ${data.model} / 利用量保存: ${data.usagePersisted ? '済み' : '未保存'}`;
+      } catch (error) {
+        answer.textContent = error.message;
+      } finally {
+        button.disabled = false;
+      }
+    };
+  </script>
+</body>
+</html>

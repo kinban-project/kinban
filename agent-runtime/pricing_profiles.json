@@ -1,0 +1,9 @@
+{
+  "gpt-5.6-luna": {
+    "pricingProfileId": "gpt-5.6-luna-default",
+    "model": "gpt-5.6-luna",
+    "jpyPerUsd": 160,
+    "inputUsdPer1M": null,
+    "outputUsdPer1M": null
+  }
+}

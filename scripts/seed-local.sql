@@ -66,6 +66,30 @@ CREATE TABLE IF NOT EXISTS shift_assignment_scenarios (
 CREATE INDEX IF NOT EXISTS shift_assignment_scenario_plan_idx
   ON shift_assignment_scenarios(plan_id, updated_at);
 
+CREATE TABLE IF NOT EXISTS agent_usage_records (
+  id TEXT PRIMARY KEY NOT NULL,
+  group_id TEXT,
+  actor_email TEXT DEFAULT '' NOT NULL,
+  user_category TEXT DEFAULT 'unknown' NOT NULL,
+  model TEXT NOT NULL,
+  status TEXT NOT NULL,
+  started_at TEXT NOT NULL,
+  completed_at TEXT NOT NULL,
+  duration_ms INTEGER DEFAULT 0 NOT NULL,
+  input_tokens INTEGER,
+  output_tokens INTEGER,
+  total_tokens INTEGER,
+  reasoning_tokens INTEGER,
+  cached_input_tokens INTEGER,
+  pricing_profile_id TEXT NOT NULL,
+  jpy_per_usd INTEGER DEFAULT 160 NOT NULL,
+  estimated_usd_micros INTEGER,
+  estimated_jpy_micros INTEGER,
+  error_message TEXT DEFAULT '' NOT NULL,
+  metadata_json TEXT DEFAULT '{}' NOT NULL,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
 DELETE FROM work_breaks;
 DELETE FROM push_deliveries;
 DELETE FROM push_subscriptions;
@@ -74,6 +98,7 @@ DELETE FROM work_records;
 DELETE FROM mcp_confirmations;
 DELETE FROM assistant_contexts;
 DELETE FROM assistant_message_executions;
+DELETE FROM agent_usage_records;
 DELETE FROM shift_swap_candidates;
 DELETE FROM shift_swap_requests;
 DELETE FROM assistant_announcement_drafts;
@@ -165,7 +190,7 @@ INSERT INTO group_assistants (group_id, display_name, role, status, can_create_s
 
 INSERT INTO api_tokens (id, owner_email, name, token_type, group_id, scopes, token_hash, token_prefix) VALUES
   ('seed-token-assistant-local', 'tanaka@local.test', 'ローカルシード用 運営支援APIキー', 'assistant', 'seed-group-store',
-   '["assistant:read","assistant:reply","shift:read","work:read","announcement:read"]',
+   '["assistant:read","assistant:reply","shift:read","work:read","announcement:read","agent:usage:write"]',
    '9a9bbd08d3ca4272e0cb36b76dab96b2484f7dc4b4e732795ee65bb9dcd81bc1', 'mcp_local_s');
 
 INSERT INTO group_members (id, group_id, user_email, display_name, admin_note, role, status, show_in_personal) VALUES

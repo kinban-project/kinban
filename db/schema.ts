@@ -679,6 +679,33 @@ export const apiTokens = sqliteTable("api_tokens", {
     .default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const agentUsageRecords = sqliteTable("agent_usage_records", {
+  id: text("id").primaryKey(),
+  groupId: text("group_id"),
+  actorEmail: text("actor_email").notNull().default(""),
+  userCategory: text("user_category").notNull().default("unknown"),
+  model: text("model").notNull(),
+  status: text("status", { enum: ["succeeded", "failed"] }).notNull(),
+  startedAt: text("started_at").notNull(),
+  completedAt: text("completed_at").notNull(),
+  durationMs: integer("duration_ms").notNull().default(0),
+  inputTokens: integer("input_tokens"),
+  outputTokens: integer("output_tokens"),
+  totalTokens: integer("total_tokens"),
+  reasoningTokens: integer("reasoning_tokens"),
+  cachedInputTokens: integer("cached_input_tokens"),
+  pricingProfileId: text("pricing_profile_id").notNull(),
+  jpyPerUsd: integer("jpy_per_usd").notNull().default(160),
+  estimatedUsdMicros: integer("estimated_usd_micros"),
+  estimatedJpyMicros: integer("estimated_jpy_micros"),
+  errorMessage: text("error_message").notNull().default(""),
+  metadataJson: text("metadata_json").notNull().default("{}"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("agent_usage_group_created_idx").on(table.groupId, table.createdAt),
+  index("agent_usage_model_created_idx").on(table.model, table.createdAt),
+]);
+
 export const shiftAssignmentScenarios = sqliteTable("shift_assignment_scenarios", {
   id: text("id").primaryKey(),
   planId: text("plan_id").notNull(),
