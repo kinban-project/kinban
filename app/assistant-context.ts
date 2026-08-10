@@ -1,4 +1,4 @@
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, isNull } from "drizzle-orm";
 import { getDb } from "../db";
 import { assistantContexts } from "../db/schema";
 import { hashApiToken } from "./api/api-auth";
@@ -41,7 +41,7 @@ export async function issueAssistantContext(
 export async function resolveAssistantContext(db: Db, groupId: string, rawToken: unknown) {
   if (typeof rawToken !== "string" || !rawToken.trim()) return null;
   const now = new Date().toISOString();
-  const [context] = await db.select().from(assistantContexts).where(and(eq(assistantContexts.tokenHash, await hashApiToken(rawToken.trim())), eq(assistantContexts.groupId, groupId), gt(assistantContexts.expiresAt, now))).limit(1);
+  const [context] = await db.select().from(assistantContexts).where(and(eq(assistantContexts.tokenHash, await hashApiToken(rawToken.trim())), eq(assistantContexts.groupId, groupId), gt(assistantContexts.expiresAt, now), isNull(assistantContexts.revokedAt))).limit(1);
   return context ?? null;
 }
 
@@ -50,6 +50,7 @@ export async function resolveAssistantContextByToken(db: Db, rawToken: unknown) 
   const [context] = await db.select().from(assistantContexts).where(and(
     eq(assistantContexts.tokenHash, await hashApiToken(rawToken.trim())),
     gt(assistantContexts.expiresAt, new Date().toISOString()),
+    isNull(assistantContexts.revokedAt),
   )).limit(1);
   return context ?? null;
 }

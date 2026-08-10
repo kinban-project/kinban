@@ -37,6 +37,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   if (!member) return Response.json({ error: "Active group membership is required." }, { status: 403 });
   const body = await request.json().catch(() => ({})) as { mode?: "member" | "operations"; expiresInSeconds?: number };
   const mode = body.mode ?? "operations";
+  if (mode !== "member" && mode !== "operations")
+    return Response.json({ error: "mode must be member or operations." }, { status: 400 });
   if (mode === "operations" && !["owner", "editor"].includes(member.role))
     return Response.json({ error: "Manager membership is required for operations tokens." }, { status: 403 });
   const [assistant] = await getDb().select({ status: groupAssistants.status }).from(groupAssistants).where(eq(groupAssistants.groupId, groupId)).limit(1);

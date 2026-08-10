@@ -1,6 +1,6 @@
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { getDb } from "../../db";
-import { apiTokens, assistantContexts } from "../../db/schema";
+import { apiTokens, assistantContexts, groupAssistants, groupMembers } from "../../db/schema";
 
 export type ApiTokenType = "personal" | "assistant";
 export const personalApiScopes = [
@@ -55,6 +55,17 @@ export async function requireApiIdentity(request: Request): Promise<ApiIdentity 
     if (!context) return Response.json({ error: "Invalid or expired API token." }, { status: 401 });
     if (request.headers.get("x-kinban-audience") !== context.audience)
       return Response.json({ error: "This short-lived token is restricted to its configured audience." }, { status: 401 });
+    const subjectEmail = context.memberEmail ?? context.issuedBy;
+    const [membership] = await db.select({ status: groupMembers.status, role: groupMembers.role }).from(groupMembers).where(and(
+      eq(groupMembers.groupId, context.groupId), eq(groupMembers.userEmail, subjectEmail),
+    )).limit(1);
+    if (!membership || membership.status !== "active")
+      return Response.json({ error: "The short-lived token subject is no longer an active group member." }, { status: 403 });
+    if (context.mode === "operations" && !["owner", "editor"].includes(membership.role))
+      return Response.json({ error: "The short-lived operations token subject is no longer a manager." }, { status: 403 });
+    const [assistant] = await db.select({ status: groupAssistants.status }).from(groupAssistants).where(eq(groupAssistants.groupId, context.groupId)).limit(1);
+    if (assistant?.status !== "active")
+      return Response.json({ error: "KINBAN assistant is inactive." }, { status: 403 });
     let delegatedScopes: string[] = [];
     try {
       const parsed = JSON.parse(context.scopes || "[]");
@@ -63,7 +74,7 @@ export async function requireApiIdentity(request: Request): Promise<ApiIdentity 
       delegatedScopes = [];
     }
     return {
-      email: context.memberEmail ?? context.issuedBy,
+      email: subjectEmail,
       tokenId: context.id,
       tokenType: context.mode === "member" ? "personal" : "assistant",
       groupId: context.groupId,
