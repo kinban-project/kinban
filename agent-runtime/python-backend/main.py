@@ -48,6 +48,10 @@ class HandoffRequest(BaseModel):
     audience: Literal["agent-runtime"] = "agent-runtime"
 
 
+class HandoffCodeRequest(BaseModel):
+    handoff: str = Field(min_length=20, max_length=200)
+
+
 class SessionInfo(BaseModel):
     groupId: str
     memberName: str
@@ -84,6 +88,7 @@ class RuntimeSession:
 
 
 sessions: dict[str, RuntimeSession] = {}
+pending_handoffs: dict[str, tuple[HandoffRequest, float]] = {}
 SESSION_COOKIE = "kinban_agent_session"
 
 
@@ -225,8 +230,7 @@ async def health() -> dict[str, Any]:
     return {"status": "healthy", "service": "kinban-agent-runtime", "model": model, "pricingProfileId": profile["pricingProfileId"], "mcpConfigured": bool(env("KINBAN_DELEGATION_TOKEN") or env("KINBAN_API_KEY"))}
 
 
-@app.post("/api/session", response_model=SessionInfo)
-async def create_session(payload: HandoffRequest, response: Response) -> SessionInfo:
+async def establish_session(payload: HandoffRequest, response: Response) -> SessionInfo:
     if payload.audience != "agent-runtime":
         raise HTTPException(status_code=400, detail="接続先が不正です。")
     # Validate the handoff immediately. MCP revalidates the token on every call.
@@ -239,6 +243,27 @@ async def create_session(payload: HandoffRequest, response: Response) -> Session
     sessions[session_id] = session
     response.set_cookie(SESSION_COOKIE, session_id, max_age=max(60, session.info().remainingSeconds), httponly=True, samesite="lax", path="/")
     return session.info()
+
+
+@app.post("/api/handoff")
+async def create_handoff(payload: HandoffRequest) -> dict[str, Any]:
+    """Stage a one-time opaque handoff; the API token never appears in a URL."""
+    code = secrets.token_urlsafe(32)
+    pending_handoffs[code] = (payload, time.time() + 120)
+    return {"handoff": code, "expiresInSeconds": 120}
+
+
+@app.post("/api/session", response_model=SessionInfo)
+async def create_session(payload: HandoffRequest, response: Response) -> SessionInfo:
+    return await establish_session(payload, response)
+
+
+@app.post("/api/session/handoff", response_model=SessionInfo)
+async def consume_handoff(payload: HandoffCodeRequest, response: Response) -> SessionInfo:
+    staged = pending_handoffs.pop(payload.handoff, None)
+    if not staged or staged[1] <= time.time():
+        raise HTTPException(status_code=410, detail="AIアシストの引渡しが期限切れです。KINBANから起動し直してください。")
+    return await establish_session(staged[0], response)
 
 
 @app.get("/api/session", response_model=SessionInfo)

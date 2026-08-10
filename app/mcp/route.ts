@@ -210,8 +210,24 @@ const personalTools = new Set([
   "mark_announcement_read",
   "reply_announcement",
   "send_manager_message",
+  "list_my_tasks",
+  "create_task",
+  "update_task",
+  "delete_task",
   "list_personal_assistant_messages",
+  "list_my_memos",
+  "get_my_memo",
+  "create_my_memo",
+  "update_my_memo",
+  "delete_my_memo",
 ]);
+const delegatedMemberExcludedTools = new Set([
+  "list_my_tasks", "create_task", "update_task", "delete_task",
+  "list_my_memos", "get_my_memo", "create_my_memo", "update_my_memo", "delete_my_memo",
+]);
+function personalToolAllowed(identity: Awaited<ReturnType<typeof requireApiIdentity>>, name: string) {
+  return personalTools.has(name) && !(identity.tokenType === "personal" && identity.delegated && delegatedMemberExcludedTools.has(name));
+}
 const chunk = <T>(items: T[], size: number) => {
   const chunks: T[][] = [];
   for (let index = 0; index < items.length; index += size)
@@ -1758,7 +1774,7 @@ export async function POST(request: Request) {
       result: {
         tools:
           identity.tokenType === "personal"
-            ? tools.filter((tool) => personalTools.has(tool.name))
+            ? tools.filter((tool) => personalToolAllowed(identity, tool.name))
             : identity.tokenType === "assistant"
               ? tools.filter((tool) => assistantTools.has(tool.name))
               : tools,
@@ -1803,7 +1819,7 @@ export async function POST(request: Request) {
       payload.id,
       "This operation is not available to an assistant token.",
     );
-  if (identity.tokenType === "personal" && !personalTools.has(name))
+  if (identity.tokenType === "personal" && !personalToolAllowed(identity, name))
     return rpcError(
       payload.id,
       "This operation is not available to a personal member key. Use the group operation AI key for manager actions.",

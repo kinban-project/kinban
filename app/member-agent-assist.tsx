@@ -30,6 +30,20 @@ export default function MemberAgentAssist({ groupId, groupName }: { groupId: str
       }
       const popup = window.open(runtimeUrl, "kinban-member-assist");
       if (!popup) throw new Error("新しい画面を開けませんでした。ポップアップを許可してください。");
+      const handoff = await fetch(`${runtimeUrl}/api/handoff`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: data.token, groupId: data.groupId, memberName: data.memberName ?? groupName ?? "繝｡繝ｳ繝舌・", expiresAt: data.expiresAt, audience: "agent-runtime" }),
+      });
+      const handoffData = await handoff.json().catch(() => ({})) as { handoff?: string; error?: string };
+      if (!handoff.ok || !handoffData.handoff) {
+        popup.close();
+        throw new Error(handoffData.error ?? "AI handoff failed.");
+      }
+      // 一時的な不透明コードだけをURLへ渡し、KINBANトークンはURLへ出しません。
+      popup.location.href = `${runtimeUrl}/?handoff=${encodeURIComponent(handoffData.handoff)}`;
+      setBusy(false);
+      return;
       const targetOrigin = new URL(runtimeUrl).origin;
       let sent = false;
       let handoffToken = data.token;

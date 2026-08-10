@@ -100,8 +100,17 @@
         window.opener?.postMessage({ type: 'kinban-agent-session-ready' }, kinbanOrigin);
       } catch (error) { showError(error.message || 'KINBANの接続を確認できません。'); }
     });
+    async function consumeHandoff() {
+      const handoff = new URLSearchParams(window.location.search).get('handoff');
+      if (!handoff) return false;
+      const response = await fetch('/api/session/handoff', { method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include', body: JSON.stringify({ handoff }) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || 'KINBANからの引渡しを確認できません。');
+      window.history.replaceState({}, document.title, window.location.pathname);
+      return true;
+    }
     if (kinbanOrigin) window.opener?.postMessage({ type: 'kinban-agent-ready' }, kinbanOrigin);
-    loadSession();
+    consumeHandoff().then(() => loadSession()).catch((error) => showError(error.message || 'KINBANからの引渡しを確認できません。'));
   </script>
 </body>
 </html>
