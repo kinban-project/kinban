@@ -3997,7 +3997,13 @@ export async function POST(request: Request) {
         .limit(1);
       if (!period || period.status !== "open")
         return rpcError(payload.id, "Open request period required");
-      if (shiftRequestDeadlinePassed(period.closesOn)) {
+      const demoTime = await getDemoTimeContext(groupId);
+      if (
+        shiftRequestDeadlinePassed(
+          period.closesOn,
+          new Date(demoTime.currentAt),
+        )
+      ) {
         await db
           .update(shiftRequestPeriods)
           .set({ status: "closed" })

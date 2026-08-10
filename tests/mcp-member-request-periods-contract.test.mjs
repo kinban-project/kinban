@@ -30,3 +30,11 @@ test("personal connection pack explains request-period discovery and explicit pe
   assert.match(personalPack, /before the related shift is published/);
   assert.match(personalPack, /Never select an arbitrary old or closed period/);
 });
+
+test("saving personal shift requests uses the demo clock for the deadline", () => {
+  const start = route.indexOf('if (name === "save_shift_requests")');
+  const end = route.indexOf('if (name === "set_shift_assignments")', start);
+  const block = route.slice(start, end);
+  assert.match(block, /const demoTime = await getDemoTimeContext\(groupId\)/);
+  assert.match(block, /shiftRequestDeadlinePassed\(\s*period\.closesOn,\s*new Date\(demoTime\.currentAt\)/);
+});
