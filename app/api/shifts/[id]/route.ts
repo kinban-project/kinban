@@ -9,6 +9,7 @@ import { canViewAdminNote, toPublicMember } from "../../groups/member-dto";
 import { createSystemMessagesAndPush } from "../../../notification-events";
 import { getDemoNow, jstDate } from "../../../demo-clock";
 import { buildLaborWarnings } from "../../../shift-labor-warnings";
+import { pruneInvalidShiftRequests } from "../../../shift-request-cleanup";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     .where(eq(groups.id, plan.groupId))
     .limit(1);
   const slots = await db.select().from(shiftSlots).where(eq(shiftSlots.planId, id));
+  await pruneInvalidShiftRequests(db, id);
   const [requestPeriod] = await db.select().from(shiftRequestPeriods).where(eq(shiftRequestPeriods.planId, id)).limit(1);
   const assignmentChunks = await Promise.all(chunk(slots.map((slot) => slot.id), 50).map((slotIds) => db.select().from(shiftAssignments).where(inArray(shiftAssignments.slotId, slotIds))));
   const assignments = assignmentChunks.flat();
@@ -126,8 +128,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     ];
     if (body.requestCloseDate && requestPeriod?.status === "pending") statements.push(db.update(shiftRequestPeriods).set({ closesOn: body.requestCloseDate }).where(eq(shiftRequestPeriods.id, requestPeriod.id)));
     await db.batch(statements);
+    const prunedRequestCount = await pruneInvalidShiftRequests(db, id);
     await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: "shift.update", entityType: "shiftPlan", entityId: id, summary: `シフト枠を保存: ${plan.name}`, details: { slotCount: nextSlots.length, closedDates: body.layout.closedDates ?? [] } });
     if (plan.status === "published") await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: "shift.update", entityType: "shiftPlan", entityId: id, summary: `公開済みシフトの枠を更新: ${plan.name}`, details: { changeType: "layout", reason: body.reason?.trim().slice(0, 300) ?? "", changedSlotCount: layoutChanges.length, changedSlots: layoutChanges.slice(0, 40), closedDates: body.layout.closedDates ?? [] } });
+    if (prunedRequestCount > 0) await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: "shift.request.prune", entityType: "shiftRequestPeriod", entityId: requestPeriod?.id ?? id, summary: "勤務枠変更で無効になった希望を自動破棄", details: { planId: id, count: prunedRequestCount } });
     currentSlots = await db.select().from(shiftSlots).where(eq(shiftSlots.planId, id));
     if (body.action !== "start-requests" && body.assignments === undefined) return Response.json({ ok: true, slotCount: nextSlots.length });
   }

@@ -23,6 +23,7 @@ import {
   monthlyWorkClaims,
 } from "../../../../../../db/schema";
 import { requireApiIdentity } from "../../../../api-auth";
+import { pruneInvalidShiftRequestsForPlans } from "../../../../../shift-request-cleanup";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +73,7 @@ export async function GET(_request: Request, context: Context) {
 
   const emails = [...new Set(members.map((member) => member.userEmail))];
   const planIds = plans.map((plan) => plan.id);
+  await pruneInvalidShiftRequestsForPlans(db, planIds);
   const announcementIds = announcements.map((announcement) => announcement.id);
 
   const [profiles, slots, periods, assignments, requests, submissions, reads, replies] = await Promise.all([

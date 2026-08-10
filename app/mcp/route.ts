@@ -48,6 +48,7 @@ import {
 import { requireApiIdentity } from "../api/api-auth";
 import { canViewAdminNote, toPublicMember } from "../api/groups/member-dto";
 import { shiftRequestDeadlinePassed } from "../shift-request-deadline";
+import { pruneInvalidShiftRequests } from "../shift-request-cleanup";
 import { isPreferenceStatus, preferenceStatuses } from "../preference-status";
 import { recordAudit } from "../audit-log";
 import {
@@ -254,6 +255,7 @@ async function readPlanningContext(
   const [period] = await db.select().from(shiftRequestPeriods)
     .where(and(eq(shiftRequestPeriods.groupId, plan.groupId), eq(shiftRequestPeriods.planId, plan.id)))
     .orderBy(desc(shiftRequestPeriods.opensOn)).limit(1);
+  await pruneInvalidShiftRequests(db, plan.id);
   const [requests, submissions, preferences, availability, group] = await Promise.all([
     period ? db.select().from(shiftRequests).where(eq(shiftRequests.periodId, period.id)) : Promise.resolve([]),
     period ? db.select().from(shiftRequestSubmissions).where(eq(shiftRequestSubmissions.periodId, period.id)) : Promise.resolve([]),
@@ -3777,6 +3779,10 @@ export async function POST(request: Request) {
             ),
         );
       await db.batch(slotUpdates);
+      const prunedRequestCount = await pruneInvalidShiftRequests(
+        db,
+        found.plan.id,
+      );
       await recordAudit({
         groupId: found.plan.groupId,
         userEmail: identity.email,
@@ -3788,6 +3794,7 @@ export async function POST(request: Request) {
           source: "mcp",
           updated: changes.length,
           closedDates: Array.isArray(args.closedDates) ? args.closedDates : [],
+          prunedRequestCount,
         },
       });
       return completeManagedExecution({
@@ -3850,6 +3857,7 @@ export async function POST(request: Request) {
           requests: [],
           submission: null,
         });
+      await pruneInvalidShiftRequests(db, period.planId);
       const [submission] = await db
         .select()
         .from(shiftRequestSubmissions)
@@ -3903,6 +3911,7 @@ export async function POST(request: Request) {
         .limit(1);
       if (!period)
         return rpcError(payload.id, "Shift request period not found");
+      await pruneInvalidShiftRequests(db, period.planId);
       const members = await db
         .select()
         .from(groupMembers)
@@ -4014,6 +4023,10 @@ export async function POST(request: Request) {
         .select()
         .from(shiftSlots)
         .where(eq(shiftSlots.planId, period.planId));
+      const prunedRequestCount = await pruneInvalidShiftRequests(
+        db,
+        period.planId,
+      );
       const valid = new Set(
         slots.map((s) => `${s.date}|${s.startTime}|${s.endTime}`),
       );
@@ -4086,7 +4099,13 @@ export async function POST(request: Request) {
         entityType: "shiftRequestPeriod",
         entityId: period.id,
         summary: `勤務希望を保存: ${period.name}`,
-        details: { count: rows.length, savedAt, requestComment, source: "mcp" },
+        details: {
+          count: rows.length,
+          savedAt,
+          requestComment,
+          prunedRequestCount,
+          source: "mcp",
+        },
       });
       return rpc(payload.id, {
         ok: true,

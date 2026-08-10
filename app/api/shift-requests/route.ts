@@ -7,6 +7,7 @@ import { recordAudit } from "../../audit-log";
 import { shiftRequestDeadlinePassed } from "../../shift-request-deadline";
 import { isPreferenceStatus, preferenceStatuses } from "../../preference-status";
 import { getDemoNow } from "../../demo-clock";
+import { pruneInvalidShiftRequests, pruneInvalidShiftRequestsForPlans } from "../../shift-request-cleanup";
 
 export const dynamic = "force-dynamic";
 const editable = (role: string) => role === "owner" || role === "editor";
@@ -26,6 +27,7 @@ export async function GET(request: Request) {
   const allPeriods = await db.select().from(shiftRequestPeriods).where(eq(shiftRequestPeriods.groupId, groupId));
   const periods = editable(membership.role) ? allPeriods : allPeriods.filter((item) => item.status === "open" && !shiftRequestDeadlinePassed(item.closesOn, demoNow));
   const plans = await db.select().from(shiftPlans).where(eq(shiftPlans.groupId, groupId));
+  await pruneInvalidShiftRequestsForPlans(db, plans.map((plan) => plan.id));
   const members = await db.select().from(groupMembers).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.status, "active")));
   const availability = await db.select().from(shiftAvailability).where(and(eq(shiftAvailability.groupId, groupId), editable(membership.role) ? undefined : eq(shiftAvailability.userEmail, user.email)));
   const [preferences] = await db.select().from(groupPreferences).where(and(eq(groupPreferences.groupId, groupId), eq(groupPreferences.userEmail, user.email))).limit(1);
@@ -85,6 +87,7 @@ export async function POST(request: Request) {
       return Response.json({ error: "シフト希望の締切日時を過ぎています。", status: "closed" }, { status: 409 });
     }
     const slots = await db.select().from(shiftSlots).where(eq(shiftSlots.planId, period.planId));
+    await pruneInvalidShiftRequests(db, period.planId);
     const valid = new Set(slots.map((slot) => `${slot.date}|${slot.startTime}|${slot.endTime}`));
     const requests = body.requests ?? [];
     const invalidIndex = requests.findIndex((item) => !valid.has(`${item.date}|${item.startTime}|${item.endTime}`) || !preferences.has(item.preference));

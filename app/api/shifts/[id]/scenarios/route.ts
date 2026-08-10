@@ -6,6 +6,7 @@ import { buildLaborWarnings } from "../../../../shift-labor-warnings";
 import { shiftTimeToMinutes } from "../../../../shift-time";
 import { groupMembers, shiftAssignmentScenarios, shiftAssignments, shiftPlans, shiftSlots, shiftAvailability, groupPreferences, shiftRequestPeriods, shiftRequests, groups } from "../../../../../db/schema";
 import { proposalMeta, proposalSettings, proposalSlotSignature } from "../../../../shift-assignment-proposals";
+import { pruneInvalidShiftRequests } from "../../../../shift-request-cleanup";
 
 export const dynamic = "force-dynamic";
 
@@ -115,6 +116,7 @@ async function generateAssignments(db: ReturnType<typeof getDb>, planId: string,
     fourWeekRestDaysRequired: group.laborFourWeekRestDaysRequired,
   } : undefined;
   const [period] = await db.select().from(shiftRequestPeriods).where(eq(shiftRequestPeriods.planId, planId)).limit(1);
+  await pruneInvalidShiftRequests(db, planId);
   const requests = period ? await db.select().from(shiftRequests).where(eq(shiftRequests.periodId, period.id)) : [];
   const basicPreference = new Map(preferences.map((row) => [row.userEmail, row]));
   const existingBySlot = new Map<string, string[]>();
