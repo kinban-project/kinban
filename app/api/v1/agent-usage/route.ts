@@ -34,12 +34,17 @@ function numberOrNull(value: unknown) {
 export async function POST(request: Request) {
   const identity = await requireApiIdentity(request);
   if (identity instanceof Response) return identity;
-  if (identity.tokenType !== "assistant" || !identity.scopes.includes("agent:usage:write")) {
-    return Response.json({ error: "An assistant key with agent:usage:write scope is required." }, { status: 403 });
+  const canWrite = identity.scopes.includes("agent:usage:write") &&
+    (identity.tokenType === "assistant" || (identity.tokenType === "personal" && identity.delegated));
+  if (!canWrite) {
+    return Response.json({ error: "A delegated assistant or member key with agent:usage:write scope is required." }, { status: 403 });
   }
   const payload = await request.json().catch(() => ({})) as UsagePayload;
   const groupId = payload.groupId || identity.groupId;
-  if (!groupId || identity.groupId !== groupId) return Response.json({ error: "The assistant key is restricted to its group." }, { status: 403 });
+  if (!groupId || identity.groupId !== groupId) return Response.json({ error: "The key is restricted to its group." }, { status: 403 });
+  if (identity.tokenType === "personal" && payload.actorEmail && payload.actorEmail !== identity.email) {
+    return Response.json({ error: "A member usage record must belong to the authenticated member." }, { status: 403 });
+  }
   const [assistant] = await getDb().select({ status: groupAssistants.status }).from(groupAssistants).where(eq(groupAssistants.groupId, groupId)).limit(1);
   if (assistant?.status !== "active") return Response.json({ error: "KINBAN assistant is inactive." }, { status: 403 });
   if (!payload.model || !payload.status || !payload.startedAt || !payload.completedAt || !payload.pricingProfileId) {
@@ -48,8 +53,8 @@ export async function POST(request: Request) {
   const row = {
     id: crypto.randomUUID(),
     groupId,
-    actorEmail: payload.actorEmail?.trim() || identity.email,
-    userCategory: payload.userCategory?.trim() || "unknown",
+    actorEmail: identity.tokenType === "personal" ? identity.email : payload.actorEmail?.trim() || identity.email,
+    userCategory: identity.tokenType === "personal" ? "member" : payload.userCategory?.trim() || "unknown",
     model: payload.model.trim(),
     status: payload.status,
     startedAt: payload.startedAt,

@@ -14,7 +14,7 @@ const memberScopes = [
   "member:profile:read", "member:profile:write", "member:preferences:read",
   "member:preferences:write", "member:shift:read", "member:shift:write",
   "member:work:read", "member:work:write", "member:announcement:read",
-  "member:message:write", "member:assistant:read",
+  "member:message:write", "member:assistant:read", "agent:usage:write",
 ];
 
 function newToken() {

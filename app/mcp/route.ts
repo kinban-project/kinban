@@ -210,16 +210,7 @@ const personalTools = new Set([
   "mark_announcement_read",
   "reply_announcement",
   "send_manager_message",
-  "list_my_tasks",
-  "create_task",
-  "update_task",
-  "delete_task",
   "list_personal_assistant_messages",
-  "list_my_memos",
-  "get_my_memo",
-  "create_my_memo",
-  "update_my_memo",
-  "delete_my_memo",
 ]);
 const chunk = <T>(items: T[], size: number) => {
   const chunks: T[][] = [];

@@ -56,6 +56,7 @@
     const message = document.querySelector('#message');
     const answer = document.querySelector('#answer');
     const run = document.querySelector('#run');
+    const kinbanOrigin = (() => { try { return document.referrer ? new URL(document.referrer).origin : ''; } catch { return ''; } })();
     function showError(text) { status.className = 'status error'; status.textContent = text; }
     async function loadSession() {
       try {
@@ -90,16 +91,16 @@
       } catch (error) { answer.textContent = error.message || '実行に失敗しました。'; } finally { run.disabled = false; }
     });
     window.addEventListener('message', async (event) => {
-      if (event.source !== window.opener || event.data?.type !== 'kinban-agent-handoff') return;
+      if (event.source !== window.opener || event.data?.type !== 'kinban-agent-handoff' || !kinbanOrigin || event.origin !== kinbanOrigin) return;
       try {
         const response = await fetch('/api/session', { method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include', body: JSON.stringify(event.data) });
         const data = await response.json();
         if (!response.ok) throw new Error(data.detail || 'KINBANの接続を確認できません。');
         await loadSession();
-        window.opener?.postMessage({ type: 'kinban-agent-session-ready' }, '*');
+        window.opener?.postMessage({ type: 'kinban-agent-session-ready' }, kinbanOrigin);
       } catch (error) { showError(error.message || 'KINBANの接続を確認できません。'); }
     });
-    window.opener?.postMessage({ type: 'kinban-agent-ready' }, '*');
+    if (kinbanOrigin) window.opener?.postMessage({ type: 'kinban-agent-ready' }, kinbanOrigin);
     loadSession();
   </script>
 </body>

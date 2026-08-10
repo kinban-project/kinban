@@ -57,10 +57,10 @@ class SessionInfo(BaseModel):
 
 
 class RuntimeSession:
-    def __init__(self, payload: HandoffRequest) -> None:
+    def __init__(self, payload: HandoffRequest, verified_group_id: str, verified_member_name: str) -> None:
         self.token = payload.token
-        self.group_id = payload.groupId
-        self.member_name = payload.memberName
+        self.group_id = verified_group_id
+        self.member_name = verified_member_name
         self.expires_at = payload.expiresAt
         self.created_at = time.time()
 
@@ -129,6 +129,7 @@ async def build_agent(token: str) -> Agent:
         name="KINBAN 本人用AIアシスト",
         model=model,
         instructions=(
+            "This is a member-only KINBAN assistant. The current groupId is supplied in each user message. For questions about shifts, requests, work records, or guides, you MUST use the available KINBAN MCP tool before answering; do not answer from general knowledge. Never use manager operations or expose another member's data.\n"
             "あなたはKINBANの本人用AIアシストです。日本語で簡潔に回答してください。\n"
             "利用者本人のシフト希望、公開済みシフト、打刻・勤務申告、管理者への連絡、業務ガイドだけを扱います。\n"
             "MCPを業務データの正本として使い、直接HTTP、DB、ファイル操作はしません。\n"
@@ -139,6 +140,82 @@ async def build_agent(token: str) -> Agent:
         ),
         tools=[call_kinban_tool],
     )
+
+
+def mcp_value(result: Any) -> Any:
+    """Unwrap the MCP JSON-RPC text envelope without persisting it."""
+    if isinstance(result, dict) and isinstance(result.get("content"), list):
+        for item in result["content"]:
+            if isinstance(item, dict) and item.get("type") == "text":
+                try:
+                    return json.loads(item.get("text", ""))
+                except json.JSONDecodeError:
+                    return item.get("text")
+    return result
+
+
+async def validate_member_handoff(token: str, expected_group_id: str) -> tuple[str, str]:
+    """Verify token mode/group through KINBAN; never trust handoff display fields."""
+    client = configured_client(token)
+    tools = await client.tools()
+    names = {item.get("name") for item in tools if isinstance(item, dict)}
+    if "list_groups" not in names or "get_profile" not in names:
+        raise KinbanMCPError("本人用MCPの接続情報を確認できません。")
+    groups = mcp_value(await client.call("list_groups", {}))
+    if not isinstance(groups, list):
+        raise KinbanMCPError("本人用MCPのグループ情報を確認できません。")
+    match = next((item for item in groups if isinstance(item, dict) and item.get("id") == expected_group_id), None)
+    if not match or match.get("tokenType") != "personal":
+        raise KinbanMCPError("本人用AIアシストのグループ・権限を確認できません。")
+    profile = mcp_value(await client.call("get_profile", {}))
+    if not isinstance(profile, dict) or not profile.get("email"):
+        raise KinbanMCPError("本人用AIアシストの利用者を確認できません。")
+    member_name = str(profile.get("nickname") or profile["email"].split("@", 1)[0])
+    return expected_group_id, member_name
+
+
+async def preload_context(session: RuntimeSession, message: str) -> str:
+    """Fetch authoritative data for common member questions before generation."""
+    client = configured_client(session.token)
+    lowered = message.lower()
+    calls: list[tuple[str, dict[str, Any]]] = [("get_demo_time", {"groupId": session.group_id})]
+    if any(word in message for word in ("シフト", "勤務予定", "今日")) or "shift" in lowered:
+        calls.append(("list_shift_plans", {"groupId": session.group_id}))
+    if any(word in message for word in ("希望", "受付")) or "request" in lowered:
+        calls.append(("list_my_shift_request_periods", {"groupId": session.group_id}))
+    if any(word in message for word in ("ガイド", "手順", "業務")) or "guide" in lowered:
+        calls.append(("list_knowledge_pages", {"groupId": session.group_id}))
+    if any(word in message for word in ("申告", "打刻", "勤務記録")) or "work" in lowered:
+        calls.append(("get_work_records", {"groupId": session.group_id}))
+    facts: list[dict[str, Any]] = []
+    for name, arguments in calls:
+        try:
+            value = mcp_value(await client.call(name, arguments))
+            facts.append({"tool": name, "result": value})
+            if name == "list_shift_plans" and isinstance(value, dict):
+                plans = value.get("plans")
+                if isinstance(plans, list):
+                    published = [plan for plan in plans if isinstance(plan, dict) and plan.get("status") == "published"]
+                    if published and published[0].get("id"):
+                        try:
+                            detail = mcp_value(await client.call("get_shift_plan", {"planId": published[0]["id"]}))
+                            facts.append({"tool": "get_shift_plan", "result": detail})
+                        except KinbanMCPError as exc:
+                            facts.append({"tool": "get_shift_plan", "error": str(exc)})
+            if name == "list_knowledge_pages" and isinstance(value, list):
+                for page in value[:3]:
+                    if isinstance(page, dict) and page.get("id"):
+                        try:
+                            detail = mcp_value(await client.call("get_knowledge_page", {
+                                "groupId": session.group_id,
+                                "pageId": page["id"],
+                            }))
+                            facts.append({"tool": "get_knowledge_page", "result": detail})
+                        except KinbanMCPError as exc:
+                            facts.append({"tool": "get_knowledge_page", "error": str(exc)})
+        except KinbanMCPError as exc:
+            facts.append({"tool": name, "error": str(exc)})
+    return json.dumps(facts, ensure_ascii=False, default=str)
 
 
 @app.get("/health")
@@ -154,11 +231,11 @@ async def create_session(payload: HandoffRequest, response: Response) -> Session
         raise HTTPException(status_code=400, detail="接続先が不正です。")
     # Validate the handoff immediately. MCP revalidates the token on every call.
     try:
-        await configured_client(payload.token).tools()
+        verified_group_id, verified_member_name = await validate_member_handoff(payload.token, payload.groupId)
     except (KinbanMCPError, ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=401, detail="KINBANの接続を確認できません。期限切れ・失効・利用停止の可能性があります。") from exc
     session_id = secrets.token_urlsafe(32)
-    session = RuntimeSession(payload)
+    session = RuntimeSession(payload, verified_group_id, verified_member_name)
     sessions[session_id] = session
     response.set_cookie(SESSION_COOKIE, session_id, max_age=max(60, session.info().remainingSeconds), httponly=True, samesite="lax", path="/")
     return session.info()
@@ -191,9 +268,10 @@ async def chat(request: ChatRequest, http_request: Request) -> ChatResponse:
     result: Any = None
     answer = ""
     try:
+        facts = await preload_context(session, request.message)
         agent = await build_agent(session.token)
         items = [{"role": item["role"], "content": item["content"]} for item in request.history if item.get("role") in {"user", "assistant"} and item.get("content")]
-        items.append({"role": "user", "content": request.message})
+        items.append({"role": "user", "content": f"現在のKINBANグループIDは {session.group_id} です。以下は回答前に取得した最新のKINBAN情報です。これを根拠に回答し、必要なら追加の本人用MCPを呼んでください。\n{facts}\n\n依頼:\n{request.message}"})
         result = await Runner.run(agent, items)
         answer = result.final_output
     except (KinbanMCPError, ValueError, RuntimeError) as exc:
