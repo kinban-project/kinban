@@ -3,47 +3,104 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>KINBAN Agent Runtime</title>
+  <title>KINBAN 本人用AIアシスト</title>
   <style>
     :root { color: #173332; background: #f7faf7; font-family: system-ui, sans-serif; }
-    main { max-width: 860px; margin: 40px auto; padding: 0 18px; }
-    textarea { width: 100%; min-height: 160px; box-sizing: border-box; padding: 12px; border: 1px solid #ccd9d2; border-radius: 12px; }
-    button { margin-top: 12px; padding: 12px 22px; border: 0; border-radius: 999px; background: #173332; color: #fff; cursor: pointer; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    main { max-width: 860px; margin: 0 auto; padding: 28px 18px 48px; }
+    h1 { margin: 0 0 8px; font-size: clamp(22px, 5vw, 34px); }
+    .eyebrow { color: #26747a; letter-spacing: .16em; font-size: 11px; font-weight: 800; }
+    .meta { color: #55716a; font-size: 13px; line-height: 1.6; }
+    .status { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 18px 0; padding: 12px 14px; border: 1px solid #cfe4df; border-radius: 12px; background: #f0f8f1; }
+    .status strong { color: #23633c; }
+    .status.expired, .error { color: #8b4c4c; background: #fff4f2; border-color: #efc4bc; }
+    .samples { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 18px; }
+    .sample { padding: 8px 11px; border: 1px solid #cfe4df; border-radius: 999px; color: #26747a; background: #fff; cursor: pointer; }
+    textarea { width: 100%; min-height: 120px; padding: 12px; border: 1px solid #ccd9d2; border-radius: 12px; resize: vertical; font: inherit; }
+    .actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+    button { margin-top: 12px; padding: 11px 18px; border: 0; border-radius: 999px; background: #173332; color: #fff; cursor: pointer; font: inherit; }
+    button.secondary { background: #dff0ee; color: #26747a; }
     button:disabled { opacity: .5; cursor: wait; }
-    pre { white-space: pre-wrap; background: #eef5ef; padding: 16px; border-radius: 12px; min-height: 80px; }
-    .meta { color: #55716a; font-size: 13px; }
+    pre { white-space: pre-wrap; background: #eef5ef; padding: 16px; border-radius: 12px; min-height: 100px; line-height: 1.65; overflow-wrap: anywhere; }
+    .hidden { display: none; }
   </style>
 </head>
 <body>
   <main>
-    <h1>KINBAN Agent Runtime</h1>
-    <p class="meta">ローカル限定のKINBAN MCP接続用ランタイム</p>
-    <textarea id="message" placeholder="例：現在受付中のシフト希望期間を確認して"></textarea>
-    <br>
-    <button id="run">実行</button>
-    <pre id="answer">待機中</pre>
+    <p class="eyebrow">KINBAN MEMBER ASSIST</p>
+    <h1>KINBAN 本人用AIアシスト</h1>
+    <p class="meta">本人のシフト希望・勤務申告・管理者への連絡・業務ガイドを確認できます。シフト作成や承認などの管理者操作はできません。</p>
+    <section id="status" class="status"><strong>接続を確認しています…</strong></section>
+    <section id="app" class="hidden">
+      <div class="samples" aria-label="質問例">
+        <button class="sample" data-message="今日のシフトを確認して">今日のシフト</button>
+        <button class="sample" data-message="受付中のシフト希望を確認して">受付中の希望</button>
+        <button class="sample" data-message="水曜日を休み希望で提出して">水曜を休み希望</button>
+        <button class="sample" data-message="今月の勤務申告状況を確認して">勤務申告状況</button>
+        <button class="sample" data-message="勤務を開始して">勤務を開始</button>
+        <button class="sample" data-message="昨日の勤務を修正して再申告して">昨日の勤務を修正</button>
+        <button class="sample" data-message="今日行けなくなったので管理者に連絡したい">管理者へ連絡</button>
+        <button class="sample" data-message="この業務の手順をガイドから教えて">業務ガイド</button>
+      </div>
+      <textarea id="message" placeholder="相談や依頼を入力してください"></textarea>
+      <div class="actions"><button id="new" class="secondary" type="button">新しい相談</button><button id="run" type="button">送信</button></div>
+      <pre id="answer">回答はここに表示されます。</pre>
+    </section>
   </main>
   <script>
-    document.querySelector('#run').onclick = async () => {
-      const button = document.querySelector('#run');
-      const answer = document.querySelector('#answer');
-      button.disabled = true;
-      answer.textContent = '実行中…';
+    let history = [];
+    let ready = false;
+    const status = document.querySelector('#status');
+    const app = document.querySelector('#app');
+    const message = document.querySelector('#message');
+    const answer = document.querySelector('#answer');
+    const run = document.querySelector('#run');
+    function showError(text) { status.className = 'status error'; status.textContent = text; }
+    async function loadSession() {
       try {
-        const response = await fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ message: document.querySelector('#message').value, userCategory: 'manager' }),
-        });
+        const response = await fetch('/api/session', { credentials: 'include' });
+        if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || 'KINBANから接続してください。');
         const data = await response.json();
-        if (!response.ok) throw new Error(data.detail || '実行に失敗しました');
-        answer.textContent = `${data.answer}\n\nモデル: ${data.model} / 利用量保存: ${data.usagePersisted ? '済み' : '未保存'}`;
-      } catch (error) {
-        answer.textContent = error.message;
-      } finally {
-        button.disabled = false;
-      }
-    };
+        ready = true;
+        status.className = 'status';
+        status.innerHTML = '<strong>接続中</strong><span>' + data.groupId + '</span><span>' + data.memberName + '（メンバー用）</span><span id="remaining"></span>';
+        app.classList.remove('hidden');
+        updateRemaining(data.remainingSeconds);
+      } catch (error) { showError(error.message || '接続を確認できません。'); }
+    }
+    function updateRemaining(seconds) {
+      const node = document.querySelector('#remaining');
+      if (!node) return;
+      const timer = () => { const min = Math.floor(seconds / 60); const sec = seconds % 60; node.textContent = '残り接続時間 ' + min + ':' + String(sec).padStart(2, '0'); if (seconds <= 0) { ready = false; showError('接続時間が終了しました。KINBANから再接続してください。'); } seconds -= 1; };
+      timer(); window.setInterval(timer, 1000);
+    }
+    document.querySelectorAll('.sample').forEach((button) => button.addEventListener('click', () => { message.value = button.dataset.message; message.focus(); }));
+    document.querySelector('#new').addEventListener('click', () => { history = []; message.value = ''; answer.textContent = '新しい相談を開始しました。'; message.focus(); });
+    run.addEventListener('click', async () => {
+      if (!ready || !message.value.trim()) return;
+      run.disabled = true; answer.textContent = '確認しています…';
+      try {
+        const response = await fetch('/api/chat', { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: message.value.trim(), history }) });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || 'AIアシストの実行に失敗しました。');
+        history.push({ role: 'user', content: message.value.trim() }, { role: 'assistant', content: data.answer });
+        answer.textContent = data.answer;
+        message.value = '';
+      } catch (error) { answer.textContent = error.message || '実行に失敗しました。'; } finally { run.disabled = false; }
+    });
+    window.addEventListener('message', async (event) => {
+      if (event.source !== window.opener || event.data?.type !== 'kinban-agent-handoff') return;
+      try {
+        const response = await fetch('/api/session', { method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include', body: JSON.stringify(event.data) });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || 'KINBANの接続を確認できません。');
+        await loadSession();
+        window.opener?.postMessage({ type: 'kinban-agent-session-ready' }, '*');
+      } catch (error) { showError(error.message || 'KINBANの接続を確認できません。'); }
+    });
+    window.opener?.postMessage({ type: 'kinban-agent-ready' }, '*');
+    loadSession();
   </script>
 </body>
 </html>

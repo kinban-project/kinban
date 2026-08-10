@@ -26,7 +26,11 @@ class KinbanMCPClient:
         }
         async with httpx.AsyncClient(timeout=60) as client:
             response = await client.post(self.url, headers=headers, json=payload)
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            detail = response.text.strip()[:300]
+            raise KinbanMCPError(f"KINBAN MCP HTTP {response.status_code}: {detail}") from exc
         raw = response.text.strip()
         if raw.startswith("data:"):
             raw = raw.split("data:", 1)[1].strip()

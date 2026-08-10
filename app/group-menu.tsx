@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { localApiFetch } from "./local-api";
+import MemberAgentAssist from "./member-agent-assist";
 
 type Group = {
   groupId: string;
@@ -155,6 +156,7 @@ export default function GroupMenu({
             <div className="group-menu-actions">
               <ClockControls groupId={group.groupId} />
               <WorkDeclareButton groupId={group.groupId} onClick={() => onWorkDeclare(group.groupId)} />
+              <MemberAgentAssist groupId={group.groupId} groupName={group.name} />
               {!manager && <button
                 className={`group-menu-button${assistantUnread ? " has-unread" : ""}`}
                 type="button"

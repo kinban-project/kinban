@@ -75,9 +75,9 @@ def estimate_cost(usage: dict[str, int | None], profile: dict[str, Any]) -> tupl
     return round(usd * 1_000_000), round(jpy * 1_000_000)
 
 
-async def persist_usage(payload: dict[str, Any]) -> bool:
+async def persist_usage(payload: dict[str, Any], token: str | None = None) -> bool:
     url = env("KINBAN_USAGE_URL", "http://localhost:3003/api/v1/agent-usage")
-    key = env("KINBAN_DELEGATION_TOKEN") or env("KINBAN_API_KEY")
+    key = token or env("KINBAN_DELEGATION_TOKEN") or env("KINBAN_API_KEY")
     if not key:
         return False
     headers = {"Authorization": f"Bearer {key}", "X-KINBAN-Audience": env("KINBAN_TOKEN_AUDIENCE", "agent-runtime"), "Content-Type": "application/json"}

@@ -16,11 +16,17 @@ uvicorn main:app --app-dir python-backend --reload --port 8000
 
 ## KINBAN認証
 
-恒久的な `KINBAN_API_KEY` は互換用に残しています。通常はKINBANの管理者画面から、対象グループ・用途・有効期限が付いた短期トークンを発行し、`.env` の `KINBAN_DELEGATION_TOKEN` に設定します。
+恒久的な `KINBAN_API_KEY` は互換用に残しています。KINBAN画面から本人用AIアシストを起動すると、KINBANが現在のメンバー・グループに限定した短期トークンを発行し、ブラウザの一時メッセージでこのランタイムへ渡します。トークンはURL、localStorage、会話本文、`.env`へ保存しません。
 
 短期トークンは `POST /api/groups/{groupId}/assistant/context` で発行します。発行者のグループ権限をもとにスコープが決まり、用途は `agent-runtime` に固定されます。期限は5〜15分で、期限切れ・失効済み・無効化されたアシスタントはMCP側で拒否されます。
 
 `KINBAN_DELEGATION_TOKEN` が設定されている場合は `KINBAN_API_KEY` より優先されます。トークンはGitやログへ保存しないでください。
+
+### 本人用AIアシストの画面連携
+
+KINBAN側に `KINBAN_AGENT_RUNTIME_URL=http://localhost:8000` を設定すると、グループメニューに「AIアシスト」が表示されます。ボタンからランタイムを開くと、ランタイムは一時トークンをMCPで検証し、メモリ内セッションとHttpOnly Cookieを作成します。セッションは最大15分で、期限切れ・失効・メンバーの利用停止・アシスタント停止はMCP側で拒否されます。
+
+ランタイム未設定の環境ではボタンを実行できません。本人用AIアシストではシフト希望、公開済みシフト、打刻・勤務申告、管理者への連絡、公開済み業務ガイドだけを扱い、シフト作成・割当・公開・勤務承認や他メンバーの情報は扱いません。
 
 ## 利用量
 

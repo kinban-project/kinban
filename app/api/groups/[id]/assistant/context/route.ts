@@ -14,8 +14,7 @@ const memberScopes = [
   "member:profile:read", "member:profile:write", "member:preferences:read",
   "member:preferences:write", "member:shift:read", "member:shift:write",
   "member:work:read", "member:work:write", "member:announcement:read",
-  "member:message:write", "member:assistant:read", "member:memo:read",
-  "member:memo:write",
+  "member:message:write", "member:assistant:read",
 ];
 
 function newToken() {
@@ -53,7 +52,19 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     memberEmail: user.email, issuedBy: user.email, audience: "agent-runtime",
     scopes: JSON.stringify(scopes), expiresAt,
   });
-  return Response.json({ token, tokenType: "short-lived", contextId, groupId, mode, audience: "agent-runtime", expiresAt, expiresInSeconds, scopes }, { status: 201 });
+  return Response.json({
+    token,
+    tokenType: "short-lived",
+    contextId,
+    groupId,
+    mode,
+    audience: "agent-runtime",
+    expiresAt,
+    expiresInSeconds,
+    scopes,
+    memberName: (member as { displayName?: string | null }).displayName?.trim() || user.email.split("@")[0],
+    runtimeUrl: process.env.KINBAN_AGENT_RUNTIME_URL || null,
+  }, { status: 201 });
 }
 
 export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
