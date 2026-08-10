@@ -92,6 +92,13 @@ pending_handoffs: dict[str, tuple[HandoffRequest, float]] = {}
 SESSION_COOKIE = "kinban_agent_session"
 
 
+def purge_expired_handoffs() -> None:
+    now = time.time()
+    for code, (_, expires_at) in list(pending_handoffs.items()):
+        if expires_at <= now:
+            pending_handoffs.pop(code, None)
+
+
 def configured_client(token: str | None = None) -> KinbanMCPClient:
     key = token or env("KINBAN_DELEGATION_TOKEN") or required("KINBAN_API_KEY")
     return KinbanMCPClient(env("KINBAN_MCP_URL", "http://localhost:3003/api/mcp"), key, env("KINBAN_TOKEN_AUDIENCE", "agent-runtime"))
@@ -248,6 +255,9 @@ async def establish_session(payload: HandoffRequest, response: Response) -> Sess
 @app.post("/api/handoff")
 async def create_handoff(payload: HandoffRequest) -> dict[str, Any]:
     """Stage a one-time opaque handoff; the API token never appears in a URL."""
+    purge_expired_handoffs()
+    if len(pending_handoffs) >= 100:
+        raise HTTPException(status_code=429, detail="handoff queue is full")
     code = secrets.token_urlsafe(32)
     pending_handoffs[code] = (payload, time.time() + 120)
     return {"handoff": code, "expiresInSeconds": 120}
