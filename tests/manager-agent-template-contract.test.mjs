@@ -30,6 +30,10 @@ const files = [
   "scripts/bootstrap.ps1",
   "scripts/verify-connection.ps1",
   "workspace/README.md",
+  "pack/.codex/config.toml",
+  "pack/.mcp.json",
+  "pack/CLAUDE.md",
+  "pack/scripts/mcp-http-bridge.mjs",
 ];
 
 test("manager agent template contains the documented safe operating structure", () => {

@@ -20,6 +20,17 @@ function walkMarkdown(directory, relative = "") {
     });
 }
 
+function walkFiles(directory, relative = "") {
+  return fs.readdirSync(directory, { withFileTypes: true })
+    .sort((a, b) => a.name.localeCompare(b.name, "en"))
+    .flatMap((entry) => {
+      const absolute = path.join(directory, entry.name);
+      const nextRelative = path.join(relative, entry.name);
+      if (entry.isDirectory()) return walkFiles(absolute, nextRelative);
+      return entry.isFile() ? [nextRelative] : [];
+    });
+}
+
 function normalize(contents) {
   return contents.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
 }
@@ -28,6 +39,14 @@ function readSafeMarkdown(absolute, displayName) {
   const contents = normalize(fs.readFileSync(absolute, "utf8"));
   if (/(?:^|\W)(?:mcp|sk)-[A-Za-z0-9_-]{24,}(?:$|\W)|Bearer\s+[A-Za-z0-9._-]{32,}/i.test(contents)) {
     throw new Error(`Potential secret or local credential found in business guidance: ${displayName}`);
+  }
+  return contents;
+}
+
+function readSafePackFile(absolute, displayName) {
+  const contents = normalize(fs.readFileSync(absolute, "utf8"));
+  if (/(?:^|\W)(?:mcp|sk)-[A-Za-z0-9_-]{24,}(?:$|\W)|Bearer\s+[A-Za-z0-9._-]{32,}/i.test(contents)) {
+    throw new Error(`Potential secret or local credential found in connection pack: ${displayName}`);
   }
   return contents;
 }
@@ -45,6 +64,17 @@ const files = Object.fromEntries(relativeFiles.map((relativeFile) => [
   relativeFile.split(path.sep).join("/"),
   readSafeMarkdown(path.join(sourceRoot, relativeFile), relativeFile),
 ]));
+const packRoot = path.join(sourceRoot, "pack");
+if (!fs.existsSync(packRoot)) {
+  throw new Error(`Connection pack assets not found: ${packRoot}`);
+}
+for (const relativeFile of walkFiles(packRoot)) {
+  const archivePath = relativeFile.split(path.sep).join("/");
+  if (archivePath === "connection.env") {
+    throw new Error("connection.env must be generated at download time and cannot be committed");
+  }
+  files[archivePath] = readSafePackFile(path.join(packRoot, relativeFile), archivePath);
+}
 const repositoryGuide = "docs/運営支援AI実行環境分離.md";
 const repositoryGuidePath = path.join(root, repositoryGuide);
 if (!fs.existsSync(repositoryGuidePath)) {

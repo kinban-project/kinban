@@ -20,6 +20,10 @@ test("operations assistant connection packs include generated business guidance 
   assert.match(businessSet, /docs\/運営支援AI実行環境分離\.md/);
   assert.match(businessSet, /skills\/shift-planning\/SKILL\.md/);
   assert.match(businessSet, /runbooks\/ui-only-operations\.md/);
+  assert.match(businessSet, /scripts\/mcp-http-bridge\.mjs/);
+  assert.match(businessSet, /\.codex\/config\.toml/);
+  assert.match(businessSet, /\.mcp\.json/);
+  assert.match(businessSet, /CLAUDE\.md/);
   assert.doesNotMatch(businessSet, /KINBAN_API_KEY\s*=/);
 
   const connectionPackStart = route.lastIndexOf('const files = buildAssistantBusinessSetFiles();');
@@ -30,6 +34,9 @@ test("operations assistant connection packs include generated business guidance 
   assert.match(connectionPackBlock, /manifest\.json/);
   assert.match(connectionPackBlock, /sourceFingerprint/);
   assert.match(connectionPackBlock, /connection\.envとAPIキーは秘密情報です/);
+  assert.match(connectionPackBlock, /mcp-http-bridge\.mjs/);
+  assert.match(connectionPackBlock, /\.codex\/config\.toml/);
+  assert.match(connectionPackBlock, /\.mcp\.json/);
   assert.doesNotMatch(connectionPackBlock, /baseReadme/);
   assert.doesNotMatch(connectionPackBlock, /別途ダウンロードした/);
 });

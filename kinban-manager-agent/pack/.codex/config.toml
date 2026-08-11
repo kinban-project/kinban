@@ -1,0 +1,7 @@
+# Project-local MCP registration for the KINBAN connection pack.
+# Keep this folder trusted and never copy connection.env into another project.
+[mcp_servers.kinban]
+command = "node"
+args = ["scripts/mcp-http-bridge.mjs"]
+startup_timeout_sec = 10
+tool_timeout_sec = 120
