@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { env } from "cloudflare:workers";
 import { getChatGPTUser } from "../../../../../chatgpt-auth";
 import { getDb } from "../../../../../../db";
 import { assistantContexts, groupAssistants, groupMembers } from "../../../../../../db/schema";
@@ -16,6 +17,10 @@ const memberScopes = [
   "member:work:read", "member:work:write", "member:announcement:read",
   "member:message:write", "member:assistant:read", "agent:usage:write",
 ];
+
+function configured(name: string) {
+  return process.env[name] ?? (env as Record<string, string | undefined>)[name];
+}
 
 function newToken() {
   return `mcp_context_${crypto.randomUUID().replaceAll("-", "")}${crypto.randomUUID().replaceAll("-", "")}`;
@@ -41,7 +46,7 @@ async function memberContextConfig(groupId: string) {
     config: {
       groupId,
       memberName: (member as { displayName?: string | null }).displayName?.trim() || user.email.split("@")[0],
-      runtimeUrl: process.env.KINBAN_AGENT_RUNTIME_URL || null,
+      runtimeUrl: configured("KINBAN_AGENT_RUNTIME_URL") || null,
     },
   };
 }
