@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { localApiFetch } from "./local-api";
 
 type RuntimeConfig = { groupId: string; memberName?: string; runtimeUrl?: string };
@@ -19,6 +19,24 @@ function showStartupMessage(popup: Window) {
 export default function MemberAgentAssist({ groupId }: { groupId: string; groupName?: string }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [runtimeConfigured, setRuntimeConfigured] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    void localApiFetch(`/api/groups/${groupId}/assistant/context`)
+      .then(async (response) => {
+        const config = await response.json().catch(() => ({})) as RuntimeConfig;
+        if (active) setRuntimeConfigured(response.ok && Boolean(config.runtimeUrl?.trim()));
+      })
+      .catch(() => {
+        if (active) setRuntimeConfigured(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [groupId]);
 
   async function openAssist() {
     setBusy(true);
@@ -80,6 +98,8 @@ export default function MemberAgentAssist({ groupId }: { groupId: string; groupN
       setBusy(false);
     }
   }
+
+  if (runtimeConfigured !== true) return null;
 
   return <div className="member-agent-assist">
     <button className="group-menu-button member-agent-button" type="button" disabled={busy} onClick={() => void openAssist()}>
