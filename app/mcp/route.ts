@@ -3770,6 +3770,20 @@ export async function POST(request: Request) {
       const changes = Array.isArray(args.slots)
         ? (args.slots as Array<Record<string, unknown>>)
         : [];
+      const closedDates = Array.isArray(args.closedDates)
+        ? [...new Set(args.closedDates.map((value) => text(value)).filter((date) => date >= found.plan.startDate && date <= found.plan.endDate))]
+        : [];
+      const closedSlots = closedDates.length
+        ? await db
+            .select({ id: shiftSlots.id })
+            .from(shiftSlots)
+            .where(
+              and(
+                eq(shiftSlots.planId, found.plan.id),
+                inArray(shiftSlots.date, closedDates),
+              ),
+            )
+        : [];
       const slotUpdates = changes
         .filter((change) => text(change.slotId))
         .map((change) =>
@@ -3785,7 +3799,24 @@ export async function POST(request: Request) {
               ),
             ),
         );
-      await db.batch(slotUpdates);
+      await db.batch([
+        ...chunk(closedSlots.map((slot) => slot.id), 50).map((slotIds) =>
+          db.delete(shiftAssignments).where(inArray(shiftAssignments.slotId, slotIds)),
+        ),
+        ...(closedDates.length
+          ? [
+              db
+                .delete(shiftSlots)
+                .where(
+                  and(
+                    eq(shiftSlots.planId, found.plan.id),
+                    inArray(shiftSlots.date, closedDates),
+                  ),
+                ),
+            ]
+          : []),
+        ...slotUpdates,
+      ]);
       const prunedRequestCount = await pruneInvalidShiftRequests(
         db,
         found.plan.id,
@@ -3800,7 +3831,7 @@ export async function POST(request: Request) {
         details: {
           source: "mcp",
           updated: changes.length,
-          closedDates: Array.isArray(args.closedDates) ? args.closedDates : [],
+          closedDates,
           prunedRequestCount,
         },
       });
@@ -3808,7 +3839,7 @@ export async function POST(request: Request) {
         ok: true,
         updated: changes.length,
         version: found.plan.version + 1,
-        closedDates: Array.isArray(args.closedDates) ? args.closedDates : [],
+        closedDates,
       });
     }
     if (name === "get_shift_requests") {

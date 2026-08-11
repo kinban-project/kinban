@@ -50,6 +50,13 @@ next-env.d.ts
 
 # QA screenshots are kept locally; scenario scripts and reports remain tracked.
 /qa/**/evidence/
+/qa/acceptance-2026-07-19/phone-issue77-*.png
+/qa/acceptance-2026-07-19/mobile-new-surfaces-2026-07-27.md
+/qa/nightclub-3month-2026-07-30/
+
+# Local archives and TypeScript build metadata.
+/kinban-*.tar.gz
+*.tsbuildinfo
 
 # Separate reference materials kept outside this application repository
 /docs/
