@@ -2,6 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "kinban-prod",
   "main": "./dist/server/index.js",
+  "keep_vars": true,
   "compatibility_date": "2026-08-04",
   "compatibility_flags": ["nodejs_compat"],
   "assets": {
