@@ -25,8 +25,10 @@ type Slot = {
   endTime: string;
   requiredCount: number;
   role: string;
+  dutyId?: string | null;
+  dutyNameSnapshot?: string | null;
 };
-type Member = { userEmail: string; displayName?: string | null };
+type Member = { userEmail: string; displayName?: string | null; dutyIds?: string[] };
 type MemberAvailability = {
   userEmail: string;
   dayOfWeek: number;
@@ -83,7 +85,7 @@ type Preference = {
 };
 type AssignmentIssue = {
   id: string;
-  kind: "shortage" | "excess" | "overlap" | "labor";
+  kind: "shortage" | "excess" | "overlap" | "duty" | "labor";
   slotIds: string[];
   message: string;
   memberEmail?: string;
@@ -324,6 +326,20 @@ export default function ShiftAdjustment({
     const assignedSlots = detail.slots.flatMap((slot) =>
       [...new Set(assignments[slot.id] ?? [])].map((userEmail) => ({ slot, userEmail })),
     );
+    for (const { slot, userEmail } of assignedSlots) {
+      if (!slot.dutyId) continue;
+      const member = detail.members.find((row) => row.userEmail === userEmail);
+      if (member?.dutyIds?.includes(slot.dutyId)) continue;
+      const memberName = member?.displayName || userEmail.split("@")[0];
+      const dutyName = slot.dutyNameSnapshot || "担当";
+      issues.set(`duty:${slot.id}:${userEmail}`, {
+        id: `duty:${slot.id}:${userEmail}`,
+        kind: "duty",
+        slotIds: [slot.id],
+        memberEmail: userEmail,
+        message: `${slot.date} ${memberName}：${dutyName}の担当可否が未設定または不可です（既存割当の要確認）`,
+      });
+    }
     for (let index = 0; index < assignedSlots.length; index += 1) {
       for (let nextIndex = index + 1; nextIndex < assignedSlots.length; nextIndex += 1) {
         const left = assignedSlots[index];
@@ -551,6 +567,7 @@ export default function ShiftAdjustment({
         .filter((warning) => warning.memberEmail === member.userEmail && warning.slotIds.includes(slot.id))
         .map((warning) => laborWarningLabel(warning.kind)))]
       : [];
+    const dutyReview = assigned && Boolean(slot.dutyId) && !member.dutyIds?.includes(slot.dutyId!);
     return (
       <label
         className={`${assigned ? "assigned " : ""}pref-${preference}`}
@@ -564,6 +581,7 @@ export default function ShiftAdjustment({
         <span className="assignment-member-name">
           {member.displayName || member.userEmail.split("@")[0]}
           {hasMemberOverlap && <small className="assignment-overlap-badge">（時間重複）</small>}
+          {dutyReview && <small className="assignment-duty-badge">（担当要確認）</small>}
         </span>
         {plannedBreakMinutes > 0 && (
           <small className="assignment-break-badge">休憩{plannedBreakMinutes}分</small>
@@ -582,10 +600,12 @@ export default function ShiftAdjustment({
     const hasOverlap = assignmentIssues.some(
       (issue) => issue.kind === "overlap" && issue.memberEmail === userEmail && issue.slotIds.includes(slot.id),
     );
+    const dutyReview = Boolean(slot.dutyId) && !member?.dutyIds?.includes(slot.dutyId);
     const labels = [
       ...(minutes > 0 ? [`予定休憩${minutes}分`] : []),
       ...laborLabels,
       ...(hasOverlap ? ["時間重複"] : []),
+      ...(dutyReview ? ["担当要確認"] : []),
     ];
     return (
       <span className={`assignment-preview-person pref-${preference}`} key={`${slot.id}|${userEmail}|${index}`}>
@@ -723,8 +743,9 @@ export default function ShiftAdjustment({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ confirm: true, expectedVersion: detail.plan.version }),
     });
-    const data = await response.json().catch(() => ({})) as { error?: string };
-    setNotice(response.ok ? "割当案を公開版にしました。" : (data.error ?? "割当案を公開できませんでした。"));
+    const data = await response.json().catch(() => ({})) as { error?: string; dutyErrors?: Array<{ message?: string }> };
+    const detailError = data.dutyErrors?.map((item) => item.message).filter(Boolean).join("、");
+    setNotice(response.ok ? "割当案を公開版にしました。" : [data.error ?? "割当案を公開できませんでした。", detailError].filter(Boolean).join(" "));
     setBusy(false);
     if (response.ok) {
       await openPlan(detail.plan.id);
@@ -842,13 +863,14 @@ export default function ShiftAdjustment({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ assignments, status: nextStatus, reason, expectedVersion: detail.plan.version }),
     });
-    const data = (await response.json()) as { error?: string };
+    const data = (await response.json()) as { error?: string; dutyErrors?: Array<{ userEmail?: string; dutyId?: string; message?: string }> };
+    const dutyErrorText = data.dutyErrors?.map((item) => item.message).filter(Boolean).join("、");
     setNotice(
       response.ok
         ? nextStatus === "published"
           ? "シフトを公開しました"
           : "割り当てを保存しました"
-        : (data.error ?? "保存できませんでした"),
+        : [data.error ?? "保存できませんでした", dutyErrorText].filter(Boolean).join(" "),
     );
     setBusy(false);
     if (response.ok) await openPlan(detail.plan.id);

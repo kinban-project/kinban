@@ -26,6 +26,7 @@ import {
   groupInvitations,
   groupAnnouncements,
   groupAssistants,
+  groupDuties,
   groupJoinRequests,
   groupMembers,
   groupPreferences,
@@ -34,6 +35,7 @@ import {
   knowledgePages,
   memoFolders,
   memos,
+  memberDuties,
   shiftAssignments,
   shiftAssignmentScenarios,
   shiftSwapCandidates,
@@ -47,6 +49,7 @@ import {
 } from "../../db/schema";
 import { requireApiIdentity } from "../api/api-auth";
 import { canViewAdminNote, toPublicMember } from "../api/groups/member-dto";
+import { buildMemberDutyMap, memberCanTakeDuty, validateDutyAssignments } from "../duty-validation";
 import { shiftRequestDeadlinePassed } from "../shift-request-deadline";
 import { pruneInvalidShiftRequests } from "../shift-request-cleanup";
 import { isPreferenceStatus, preferenceStatuses } from "../preference-status";
@@ -85,6 +88,7 @@ type McpCustomSlot = {
   endTime: string;
   requiredCount: number;
   role: string;
+  dutyId?: string | null;
 };
 
 function parseMcpCustomSlots(input: unknown, planId: string, startDate: string, endDate: string) {
@@ -111,7 +115,8 @@ function parseMcpCustomSlots(input: unknown, planId: string, startDate: string, 
       throw new Error(`custom slot ${index + 1} has an invalid time range`);
     if (!Number.isInteger(requiredCount) || requiredCount < 1 || requiredCount > 50)
       throw new Error(`custom slot ${index + 1} has an invalid requiredCount`);
-    const key = `${date}|${startTime}|${endTime}|${role}`;
+    const dutyId = typeof item.dutyId === "string" && item.dutyId.trim() ? item.dutyId.trim() : null;
+    const key = `${date}|${startTime}|${endTime}|${role}|${dutyId ?? ""}`;
     if (used.has(key)) throw new Error(`duplicate custom slot: ${key}`);
     used.add(key);
     return {
@@ -122,6 +127,7 @@ function parseMcpCustomSlots(input: unknown, planId: string, startDate: string, 
       endTime: minutesToShiftTime(shiftTimeToMinutes(endTime)),
       requiredCount,
       role,
+      dutyId,
     };
   }) as Array<McpCustomSlot & { id: string; planId: string }>;
 }
@@ -246,6 +252,7 @@ type PlanningContext = {
   requests: Array<typeof shiftRequests.$inferSelect>;
   submissions: Array<typeof shiftRequestSubmissions.$inferSelect>;
   laborRules: Parameters<typeof buildLaborWarnings>[0]["rules"];
+  memberDutyMap: Map<string, Set<string>>;
 };
 
 async function readPlanningContext(
@@ -258,6 +265,7 @@ async function readPlanningContext(
     ids.length ? db.select().from(shiftAssignments).where(inArray(shiftAssignments.slotId, ids)) : Promise.resolve([]),
   ))).flat();
   const members = await db.select().from(groupMembers).where(eq(groupMembers.groupId, plan.groupId));
+  const memberDutyRows = await db.select().from(memberDuties).where(eq(memberDuties.groupId, plan.groupId));
   const memberEmails = members.map((member) => member.userEmail);
   const [period] = await db.select().from(shiftRequestPeriods)
     .where(and(eq(shiftRequestPeriods.groupId, plan.groupId), eq(shiftRequestPeriods.planId, plan.id)))
@@ -284,7 +292,7 @@ async function readPlanningContext(
     weeklyRestDaysRequired: group[0].laborWeeklyRestDaysRequired,
     fourWeekRestDaysRequired: group[0].laborFourWeekRestDaysRequired,
   } : undefined;
-  return { plan, slots, assignments: assignmentRows, members, preferences, availability, period: period ?? null, requests, submissions, laborRules: rules };
+  return { plan, slots, assignments: assignmentRows, members, preferences, availability, period: period ?? null, requests, submissions, laborRules: rules, memberDutyMap: buildMemberDutyMap(memberDutyRows) };
 }
 
 function assignmentObjectFromRows(rows: Array<typeof shiftAssignments.$inferSelect>) {
@@ -364,6 +372,7 @@ function validateCandidate(context: PlanningContext, candidate: Record<string, s
     if (assigned.length < slot.requiredCount) issues.push({ type: "shortage", severity: "error", slotId: slot.id, required: slot.requiredCount, assigned: assigned.length, message: `${slot.date} ${slot.startTime}-${slot.endTime}: ${slot.requiredCount}名に対して${assigned.length}名です` });
     if (assigned.length > slot.requiredCount) issues.push({ type: "excess", severity: "warning", slotId: slot.id, required: slot.requiredCount, assigned: assigned.length, message: `${slot.date} ${slot.startTime}-${slot.endTime}: ${assigned.length - slot.requiredCount}名超過です` });
     for (const email of assigned) if (!memberByEmail.get(email) || memberByEmail.get(email)?.status !== "active") issues.push({ type: "inactive_member", severity: "error", slotId: slot.id, memberEmail: email, memberName: memberName(email), message: `${memberName(email)}は有効なメンバーではありません` });
+    for (const email of assigned) if (memberByEmail.get(email)?.status === "active" && !memberCanTakeDuty(slot, email, context.memberDutyMap)) issues.push({ type: "duty_conflict", severity: "error", slotId: slot.id, memberEmail: email, memberName: memberName(email), dutyId: slot.dutyId, message: `${memberName(email)}はこの担当を担当できません` });
   }
   const assignedSlots: Array<{ slot: typeof context.slots[number]; userEmail: string }> = [];
   for (const row of assignedRows) { const slot = slotById.get(row.slotId); if (slot) assignedSlots.push({ slot, userEmail: row.userEmail }); }
@@ -459,8 +468,8 @@ function generateCandidate(context: PlanningContext, seed = "", rawSettings?: un
     return { status, allowed: allowed && !weekendRestricted };
   };
   const orderedSlots = [...context.slots].sort((a, b) => {
-    const aCandidates = context.members.filter((member) => member.status === "active" && canWork(member.userEmail, a).allowed).length;
-    const bCandidates = context.members.filter((member) => member.status === "active" && canWork(member.userEmail, b).allowed).length;
+    const aCandidates = context.members.filter((member) => member.status === "active" && memberCanTakeDuty(a, member.userEmail, context.memberDutyMap) && canWork(member.userEmail, a).allowed).length;
+    const bCandidates = context.members.filter((member) => member.status === "active" && memberCanTakeDuty(b, member.userEmail, context.memberDutyMap) && canWork(member.userEmail, b).allowed).length;
     return aCandidates - bCandidates || a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime);
   });
   for (const slot of orderedSlots) {
@@ -468,6 +477,7 @@ function generateCandidate(context: PlanningContext, seed = "", rawSettings?: un
     const members = context.members.filter((member) => member.status === "active");
     const candidates = members.filter((member) => {
       if (current.includes(member.userEmail)) return false;
+      if (!memberCanTakeDuty(slot, member.userEmail, context.memberDutyMap)) return false;
       if (!canWork(member.userEmail, slot).allowed) return false;
       return !assignedFor(candidate, member.userEmail).some((other) => slotsOverlap(slot, other));
     }).sort((left, right) => {
@@ -1179,6 +1189,7 @@ const tools = [
               endTime: { type: "string" },
               requiredCount: { type: "integer", minimum: 1, maximum: 50 },
               role: { type: "string", maxLength: 100 },
+              dutyId: { type: "string", description: "Optional active duty master ID for this slot." },
             },
           },
           description:
@@ -2517,6 +2528,16 @@ export async function POST(request: Request) {
               ),
             )
         : [];
+      const memberDutyRows = await db
+        .select()
+        .from(memberDuties)
+        .where(eq(memberDuties.groupId, groupId));
+      const dutyIdsByMember = new Map<string, string[]>();
+      for (const row of memberDutyRows) {
+        const ids = dutyIdsByMember.get(row.userEmail) ?? [];
+        ids.push(row.dutyId);
+        dutyIdsByMember.set(row.userEmail, ids);
+      }
       return rpc(
         payload.id,
         ms.map((m) => ({
@@ -2526,6 +2547,7 @@ export async function POST(request: Request) {
           ),
           accountNickname:
             profiles.find((p) => p.userEmail === m.userEmail)?.nickname ?? "",
+          dutyIds: dutyIdsByMember.get(m.userEmail) ?? [],
         })),
       );
     }
@@ -3071,7 +3093,7 @@ export async function POST(request: Request) {
       if (identity.tokenType === "personal" && found.plan.status !== "published") return rpcError(payload.id, "Personal member keys can only read published shifts.");
       const context = await readPlanningContext(db, found.plan);
       const visibleAssignments = identity.tokenType === "personal" ? context.assignments.filter((row) => row.userEmail === identity.email) : context.assignments;
-      return rpc(payload.id, { demoTime: await getDemoTimeContext(found.plan.groupId), plan: context.plan, slots: context.slots, assignments: visibleAssignments, members: context.members.filter((member) => member.status === "active").map((member) => ({ userEmail: member.userEmail, displayName: member.displayName, role: member.role, status: member.status })), preferences: context.preferences, availability: context.availability, requestPeriod: context.period, requests: context.requests, submissions: context.submissions, laborRules: context.laborRules });
+      return rpc(payload.id, { demoTime: await getDemoTimeContext(found.plan.groupId), plan: context.plan, slots: context.slots, assignments: visibleAssignments, members: context.members.filter((member) => member.status === "active").map((member) => ({ userEmail: member.userEmail, displayName: member.displayName, role: member.role, status: member.status, dutyIds: [...(context.memberDutyMap.get(member.userEmail) ?? new Set<string>())] })), preferences: context.preferences, availability: context.availability, requestPeriod: context.period, requests: context.requests, submissions: context.submissions, laborRules: context.laborRules });
     }
     if (name === "validate_shift_assignment_candidate") {
       const found = await planFor(db, text(args.planId), identity.email);
@@ -3481,10 +3503,16 @@ export async function POST(request: Request) {
         );
       const requestPeriodId = period ? crypto.randomUUID() : null;
       const planId = crypto.randomUUID();
+      const duties = await db.select().from(groupDuties).where(eq(groupDuties.groupId, groupId));
+      const dutyById = new Map(duties.map((duty) => [duty.id, duty]));
       let rows: Array<typeof shiftSlots.$inferInsert> = [];
       if (customSlotsProvided) {
         try { rows = parseMcpCustomSlots(args.customSlots, planId, startDate, endDate); }
         catch (error) { return rpcError(payload.id, error instanceof Error ? error.message : "Invalid customSlots"); }
+        rows = rows.map((row) => ({
+          ...row,
+          dutyNameSnapshot: row.dutyId ? dutyById.get(row.dutyId)?.name ?? null : null,
+        }));
       }
       if (!customSlotsProvided) {
         const dates: string[] = [];
@@ -3509,9 +3537,13 @@ export async function POST(request: Request) {
                 endTime: `${String(Math.floor((t + slotMinutes) / 60)).padStart(2, "0")}:${String(Math.floor((t + slotMinutes) % 60)).padStart(2, "0")}`,
                 role: text(rule.role),
                 requiredCount: Math.max(1, Number(rule.requiredCount ?? 1)),
+                dutyId: text(rule.dutyId) || null,
+                dutyNameSnapshot: text(rule.dutyId) ? dutyById.get(text(rule.dutyId))?.name ?? null : null,
               });
       }
       if (!rows.length) return rpcError(payload.id, "No slots were provided");
+      const invalidDuty = rows.find((row) => row.dutyId && (!dutyById.has(row.dutyId) || dutyById.get(row.dutyId)?.status !== "active"));
+      if (invalidDuty) return rpcError(payload.id, "勤務枠に無効または存在しない担当が指定されています");
       await db.batch([
         db.insert(shiftPlans).values({
           id: planId,
@@ -3691,6 +3723,9 @@ export async function POST(request: Request) {
         const meta = proposalMeta(JSON.parse(scenario.settingsJson || "{}"));
         if (meta.proposalStatus === "published") return completeManagedExecution({ ok: true, planId, scenarioId, status: "published", alreadyPublished: true });
         if (!proposalMatchesSlots(meta, context.slots)) return rpcError(payload.id, "勤務枠（時刻・必要人数・担当）が変更された後に作成された割当案です。現在の勤務枠で再作成してください。");
+        const dutyValidation = validateCandidate(context, scenarioAssignments);
+        if (dutyValidation.errors.some((error) => error.type === "duty_conflict"))
+          return rpcError(payload.id, "担当可否に反する割当があるため公開できません。現在の担当設定で割当案を再作成してください。");
         const [locked] = await db.update(shiftPlans).set({ status: "published", version: expectedVersion + 1 }).where(and(eq(shiftPlans.id, planId), eq(shiftPlans.version, expectedVersion))).returning({ version: shiftPlans.version });
         if (!locked) return rpcError(payload.id, "Shift plan version conflict. Reload the plan and retry with its latest version.");
         const now = new Date().toISOString();
@@ -3751,6 +3786,43 @@ export async function POST(request: Request) {
         return rpcError(
           payload.id,
           "Shift plan version conflict. Reload the plan and retry with its latest version.",
+        );
+      const slots = await db
+        .select()
+        .from(shiftSlots)
+        .where(eq(shiftSlots.planId, found.plan.id));
+      const members = await db
+        .select()
+        .from(groupMembers)
+        .where(
+          and(
+            eq(groupMembers.groupId, found.plan.groupId),
+            eq(groupMembers.status, "active"),
+          ),
+        );
+      const memberDutyRows = await db
+        .select()
+        .from(memberDuties)
+        .where(eq(memberDuties.groupId, found.plan.groupId));
+      const memberDutyMap = buildMemberDutyMap(memberDutyRows);
+      const memberEmails = new Set(members.map((m) => m.userEmail));
+      const input = (args.assignments ?? {}) as Record<string, unknown>;
+      const rows: Array<typeof shiftAssignments.$inferInsert> = [];
+      for (const slot of slots)
+        for (const email of Array.isArray(input[slot.id])
+          ? (input[slot.id] as unknown[])
+          : [])
+          if (typeof email === "string" && memberEmails.has(email))
+            rows.push({
+              id: crypto.randomUUID(),
+              slotId: slot.id,
+              userEmail: email,
+            });
+      const dutyValidation = validateDutyAssignments(slots, rows, memberDutyMap);
+      if (dutyValidation.length)
+        return rpcError(
+          payload.id,
+          `担当可否に反する割当があります: ${dutyValidation.map((error) => `${error.userEmail} / ${error.dutyName}`).join("、")}`,
         );
       const [locked] = await db
         .update(shiftPlans)
@@ -4183,32 +4255,6 @@ export async function POST(request: Request) {
           payload.id,
           "Shift plan version conflict. Reload the plan and retry with its latest version.",
         );
-      const slots = await db
-        .select()
-        .from(shiftSlots)
-        .where(eq(shiftSlots.planId, found.plan.id));
-      const members = await db
-        .select()
-        .from(groupMembers)
-        .where(
-          and(
-            eq(groupMembers.groupId, found.plan.groupId),
-            eq(groupMembers.status, "active"),
-          ),
-        );
-      const memberEmails = new Set(members.map((m) => m.userEmail));
-      const input = (args.assignments ?? {}) as Record<string, unknown>;
-      const rows: Array<typeof shiftAssignments.$inferInsert> = [];
-      for (const slot of slots)
-        for (const email of Array.isArray(input[slot.id])
-          ? (input[slot.id] as unknown[])
-          : [])
-          if (typeof email === "string" && memberEmails.has(email))
-            rows.push({
-              id: crypto.randomUUID(),
-              slotId: slot.id,
-              userEmail: email,
-            });
       const status = args.status === "published" ? "published" : "draft";
       // D1 has a bound-variable/statement limit. Keep this path aligned with
       // the HTTP API and split the replacement into small statements so large

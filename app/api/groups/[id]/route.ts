@@ -1,7 +1,7 @@
 import { eq, inArray } from "drizzle-orm";
 import { getChatGPTUser } from "../../../chatgpt-auth";
 import { getDb } from "../../../../db";
-import { apiTokens, assistantAnnouncementDrafts, assistantMessageExecutions, assistantMessages, events, groupAssistants, groupInvitations, groupJoinRequests, groupMembers, groupPreferences, groups, knowledgeAssets, knowledgeFolders, knowledgePages, memoFolders, memos, shiftAvailability, shiftSwapCandidates, shiftSwapRequests } from "../../../../db/schema";
+import { apiTokens, assistantAnnouncementDrafts, assistantMessageExecutions, assistantMessages, events, groupAssistants, groupDuties, groupInvitations, groupJoinRequests, groupMembers, groupPreferences, groups, knowledgeAssets, knowledgeFolders, knowledgePages, memberDuties, memoFolders, memos, shiftAvailability, shiftSwapCandidates, shiftSwapRequests } from "../../../../db/schema";
 import { getGroup, getMembership } from "../group-access";
 import { recordAudit } from "../../../audit-log";
 import { canViewAdminNote, toPublicMember } from "../member-dto";
@@ -52,6 +52,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   if (!membership) return Response.json({ error: "このグループのメンバーではありません" }, { status: 403 });
   const db = getDb();
   const members = await db.select().from(groupMembers).where(eq(groupMembers.groupId, id));
+  const duties = await db.select().from(groupDuties).where(eq(groupDuties.groupId, id));
+  const dutyRows = await db.select({ userEmail: memberDuties.userEmail, dutyId: memberDuties.dutyId }).from(memberDuties).where(eq(memberDuties.groupId, id));
   const [assistant] = await db.select().from(groupAssistants).where(eq(groupAssistants.groupId, id)).limit(1);
   const requests = membership.role === "owner" ? await db.select().from(groupJoinRequests).where(eq(groupJoinRequests.groupId, id)) : [];
   const isAdmin = canViewAdminNote(membership.role);
@@ -71,8 +73,11 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     availability: visiblePreferenceEmails.includes(member.userEmail)
       ? availability.filter((entry) => entry.userEmail === member.userEmail)
       : [],
+    dutyIds: (isAdmin || member.userEmail === user.email)
+      ? dutyRows.filter((row) => row.userEmail === member.userEmail).map((row) => row.dutyId)
+      : [],
   }));
-  return Response.json({ currentEmail: user.email, group: { ...group, memoEnabled: group.memoEnabled !== false, knowledgeEnabled: group.knowledgeEnabled !== false, autoBreakSuggestion: group.autoBreakSuggestion !== false }, membership: toPublicMember(membership, isAdmin), members: safeMembers, requests, invitations, assistant: assistant ?? null });
+  return Response.json({ currentEmail: user.email, group: { ...group, memoEnabled: group.memoEnabled !== false, knowledgeEnabled: group.knowledgeEnabled !== false, autoBreakSuggestion: group.autoBreakSuggestion !== false }, membership: toPublicMember(membership, isAdmin), members: safeMembers, duties, requests, invitations, assistant: assistant ?? null });
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -124,6 +129,8 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
     db.delete(assistantMessages).where(eq(assistantMessages.groupId, id)),
     db.delete(apiTokens).where(eq(apiTokens.groupId, id)),
     db.delete(groupAssistants).where(eq(groupAssistants.groupId, id)),
+    db.delete(memberDuties).where(eq(memberDuties.groupId, id)),
+    db.delete(groupDuties).where(eq(groupDuties.groupId, id)),
     db.delete(memos).where(eq(memos.groupId, id)),
     db.delete(memoFolders).where(eq(memoFolders.groupId, id)),
     db.delete(knowledgePages).where(eq(knowledgePages.groupId, id)),

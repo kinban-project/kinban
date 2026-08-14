@@ -29,7 +29,8 @@ type Group = {
 };
 type MemberPreference = { minDays: number; maxDays: number; minHours: number; maxHours: number; freeComment?: string | null };
 type Availability = { dayOfWeek: number; status: string; startTime: string; endTime: string };
-type Member = { userEmail: string; displayName?: string | null; adminNote?: string | null; role: string; status: "active" | "inactive"; showInPersonal: boolean; preference?: MemberPreference | null; availability?: Availability[] };
+type Duty = { id: string; name: string; description?: string; displayOrder: number; status: "active" | "inactive" };
+type Member = { userEmail: string; displayName?: string | null; adminNote?: string | null; role: string; status: "active" | "inactive"; showInPersonal: boolean; preference?: MemberPreference | null; availability?: Availability[]; dutyIds?: string[] };
 type Assistant = {
   displayName: string;
   role: "editor";
@@ -42,7 +43,7 @@ type Assistant = {
 };
 type GroupInvitation = { id: string; inviteeEmail: string; status: string; expiresAt: string };
 type PendingInvitation = GroupInvitation & { groupId: string; group: Group | null };
-type GroupDetail = { currentEmail: string; group: Group; membership: { role: string; showInPersonal: boolean }; members: Member[]; requests: Array<{ id: string; userEmail: string; status: string }>; invitations?: GroupInvitation[]; assistant: Assistant | null };
+type GroupDetail = { currentEmail: string; group: Group; membership: { role: string; showInPersonal: boolean }; members: Member[]; duties: Duty[]; requests: Array<{ id: string; userEmail: string; status: string }>; invitations?: GroupInvitation[]; assistant: Assistant | null };
 
 const weekdayLabels = ["日", "月", "火", "水", "木", "金", "土"];
 const preferenceStatusLabels: Record<string, string> = { want: "出勤希望", possible: "可能", off: "休み希望", unavailable: "勤務不可" };
@@ -66,6 +67,8 @@ export default function GroupsPanel({ onChanged, initialGroupId }: { onChanged: 
   const [memberQuery, setMemberQuery] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [pendingInvitations, setPendingInvitations] = useState<PendingInvitation[]>([]);
+  const [dutyName, setDutyName] = useState("");
+  const [dutyDescription, setDutyDescription] = useState("");
 
   async function loadGroups() {
     const response = await localApiFetch("/api/groups");
@@ -111,11 +114,29 @@ export default function GroupsPanel({ onChanged, initialGroupId }: { onChanged: 
     const response = await localApiFetch(`/api/groups/${selected.group.id}/invitations`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ invitationId }) });
     if (response.ok) await openGroup(selected.group);
   }
-  async function updateMember(body: { userEmail: string; role?: string; status?: "active" | "inactive"; adminNote?: string }) {
+  async function updateMember(body: { userEmail: string; role?: string; status?: "active" | "inactive"; adminNote?: string; dutyIds?: string[] }) {
     if (!selected) return;
     const response = await localApiFetch(`/api/groups/${selected.group.id}/members`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     if (!response.ok) return setNotice(((await response.json().catch(() => ({})) as { error?: string }).error) ?? "メンバー情報を保存できませんでした");
     setNotice("保存しました"); await openGroup(selected.group); await loadGroups(); onChanged();
+  }
+  async function createDuty(event: React.FormEvent) {
+    event.preventDefault();
+    if (!selected || !dutyName.trim()) return;
+    const response = await localApiFetch(`/api/groups/${selected.group.id}/duties`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: dutyName.trim(), description: dutyDescription.trim() }) });
+    const data = await response.json().catch(() => ({})) as { error?: string };
+    if (!response.ok) return setNotice(data.error ?? "担当を追加できませんでした");
+    setDutyName(""); setDutyDescription(""); setNotice("担当を追加しました"); await openGroup(selected.group);
+  }
+  async function toggleDuty(duty: Duty) {
+    if (!selected) return;
+    const response = await localApiFetch(`/api/groups/${selected.group.id}/duties`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ dutyId: duty.id, status: duty.status === "active" ? "inactive" : "active" }) });
+    if (response.ok) await openGroup(selected.group);
+  }
+  function updateMemberDuties(member: Member, dutyId: string, checked: boolean) {
+    const current = new Set(member.dutyIds ?? []);
+    if (checked) current.add(dutyId); else current.delete(dutyId);
+    void updateMember({ userEmail: member.userEmail, dutyIds: [...current] });
   }
   async function updateGroupRules(patch: Record<string, boolean | number>) {
     if (!selected) return;
@@ -197,10 +218,12 @@ export default function GroupsPanel({ onChanged, initialGroupId }: { onChanged: 
     {selected && <div className="group-detail">
       <div className="modal-head"><div><p className="eyebrow">GROUP MANAGEMENT</p><h3>グループ管理（{selected.group.name}）</h3><small>メンバー・シフト／勤怠ルール・運営支援AIを管理します。　{selected.group.id}</small></div></div>
       <div className="member-search"><input value={memberQuery} onChange={(event) => setMemberQuery(event.target.value)} placeholder="氏名・メールで検索" aria-label="メンバー検索" /><small>{filteredMembers.length}/{selected.members.length}人</small></div>
+      {isAdmin && <section className="group-rules-panel"><h4>担当マスタ</h4><p className="group-feature-caption">担当付きの勤務枠は、担当を「可能」にしたメンバーだけが候補になります。担当なしの既存枠は従来どおり全員が候補です。</p><form className="group-invitation-form" onSubmit={createDuty}><input required value={dutyName} onChange={(event) => setDutyName(event.target.value)} placeholder="担当名（例：ホール）" /><input value={dutyDescription} onChange={(event) => setDutyDescription(event.target.value)} placeholder="説明（任意）" /><button className="small-action" type="submit">担当を追加</button></form>{selected.duties.filter((duty) => duty.status === "active").map((duty) => <div className="member-row" key={duty.id}><span><strong>{duty.name}</strong>{duty.description && <small>　{duty.description}</small>}</span><button className="small-action" type="button" onClick={() => void toggleDuty(duty)}>無効化</button></div>)}{selected.duties.filter((duty) => duty.status === "inactive").map((duty) => <div className="member-row" key={duty.id}><span><strong>{duty.name}</strong>（無効）</span><button className="small-action" type="button" onClick={() => void toggleDuty(duty)}>再有効化</button></div>)}</section>}
       <h4>メンバー</h4><div className="member-cards">{filteredMembers.map((member) => <article className={`member-card ${member.status === "inactive" ? "is-inactive" : ""}`} key={member.userEmail}>
         <div className="member-card-head"><div><strong>{member.displayName?.trim() || member.userEmail.split("@")[0]}</strong><small>{member.userEmail}</small></div><div className="member-card-badges">{member.status === "inactive" && <span className="member-status-badge inactive">利用停止</span>}{isAdmin && member.userEmail !== selected.group.ownerEmail && member.userEmail !== selected.currentEmail && <select className="member-role-select" value={member.role} onChange={(event) => void updateMember({ userEmail: member.userEmail, role: event.target.value })} aria-label={`${member.displayName?.trim() || member.userEmail}の権限`}><option value="member">メンバー</option><option value="editor">管理者</option></select>}</div></div>
         <div className="member-preference"><div><b>希望日数</b><span>{member.preference ? `${member.preference.minDays}〜${member.preference.maxDays}日／週` : "未設定"}</span></div><div><b>希望時間</b><span>{member.preference ? `${member.preference.minHours}〜${member.preference.maxHours}時間／週` : "未設定"}</span></div></div>
         <div className="member-availability"><b>曜日別の希望</b><p>{formatAvailability(member)}</p></div>{member.preference?.freeComment && <div className="member-free-comment"><b>本人のフリーコメント</b><p>{member.preference.freeComment}</p></div>}
+        {isAdmin && selected.duties.length > 0 && <div className="member-duty-field"><strong className="member-duty-label">担当可能</strong><div className="member-duty-toggles" role="group" aria-label={`${member.displayName?.trim() || member.userEmail}の担当可能設定`}>{selected.duties.filter((duty) => duty.status === "active").map((duty) => { const checked = (member.dutyIds ?? []).includes(duty.id); return <button className={`member-duty-toggle ${checked ? "is-checked" : ""}`} key={duty.id} type="button" aria-pressed={checked} onClick={() => updateMemberDuties(member, duty.id, !checked)}>{checked ? "✓ " : ""}{duty.name}</button>; })}</div></div>}
         {isAdmin && <label className="member-admin-note-field">管理者メモ<textarea defaultValue={member.adminNote ?? ""} placeholder="気を付けることなど" rows={2} onBlur={(event) => { const value = event.currentTarget.value.trim(); if (value !== (member.adminNote ?? "")) void updateMember({ userEmail: member.userEmail, adminNote: value }); }} /></label>}
         {isAdmin && member.role !== "owner" && member.userEmail !== selected.currentEmail && <div className="member-admin-actions"><button className="small-action" onClick={() => void changeStatus(member)}>{member.status === "inactive" ? "有効化" : "利用停止"}</button><button className="small-action danger" onClick={() => void removeMember(member)}>メンバーを削除</button></div>}
       </article>)}</div>

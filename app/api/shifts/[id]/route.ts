@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { getChatGPTUser } from "../../../chatgpt-auth";
 import { getDb } from "../../../../db";
-import { accountProfiles, events, groupMembers, groupPreferences, groups, shiftAssignments, shiftAvailability, shiftPlans, shiftRequests, shiftRequestPeriods, shiftRequestSubmissions, shiftSlots } from "../../../../db/schema";
+import { accountProfiles, events, groupDuties, groupMembers, groupPreferences, groups, memberDuties, shiftAssignments, shiftAvailability, shiftPlans, shiftRequests, shiftRequestPeriods, shiftRequestSubmissions, shiftSlots } from "../../../../db/schema";
 import { getMembership } from "../../groups/group-access";
 import { isValidShiftTime, shiftDateTime, shiftTimeToMinutes } from "../../../shift-time";
 import { recordAudit } from "../../../audit-log";
@@ -10,6 +10,7 @@ import { createSystemMessagesAndPush } from "../../../notification-events";
 import { getDemoNow, jstDate } from "../../../demo-clock";
 import { buildLaborWarnings } from "../../../shift-labor-warnings";
 import { pruneInvalidShiftRequests } from "../../../shift-request-cleanup";
+import { buildMemberDutyMap, memberCanTakeDuty } from "../../../duty-validation";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,12 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const assignmentChunks = await Promise.all(chunk(slots.map((slot) => slot.id), 50).map((slotIds) => db.select().from(shiftAssignments).where(inArray(shiftAssignments.slotId, slotIds))));
   const assignments = assignmentChunks.flat();
   const members = await db.select().from(groupMembers).where(and(eq(groupMembers.groupId, plan.groupId), eq(groupMembers.status, "active")));
+  const memberDutyRows = await db.select().from(memberDuties).where(eq(memberDuties.groupId, plan.groupId));
+  const dutyIdsByMember = buildMemberDutyMap(memberDutyRows);
+  const membersWithDuties = members.map((member) => ({
+    ...toPublicMember(member, canViewAdminNote(membership.role)),
+    dutyIds: [...(dutyIdsByMember.get(member.userEmail) ?? new Set<string>())],
+  }));
   const activeDates = new Set(slots.map((slot) => slot.date));
   const closedDates = dateKeys(plan.startDate, plan.endDate).filter((date) => !activeDates.has(date));
   const canManage = membership.role === "owner" || membership.role === "editor";
@@ -47,7 +54,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const memberAvailability = canManage ? await db.select().from(shiftAvailability).where(eq(shiftAvailability.groupId, plan.groupId)) : [];
   const requests = canManage && requestPeriod ? await db.select().from(shiftRequests).where(eq(shiftRequests.periodId, requestPeriod.id)) : [];
   const requestSubmissions = canManage && requestPeriod ? await db.select().from(shiftRequestSubmissions).where(eq(shiftRequestSubmissions.periodId, requestPeriod.id)) : [];
-  return Response.json({ currentEmail: user.email, plan, slots, assignments, members: members.map((member) => toPublicMember(member, canViewAdminNote(membership.role))), closedDates, requestPeriod: requestPeriod ?? null, memberPreferences, memberAvailability, requests, requestSubmissions, autoBreakSuggestion: group?.autoBreakSuggestion !== false, laborRules: group ? { plannedBreakWarning: group.laborPlannedBreakWarning, dailyHoursWarning: group.laborDailyHoursWarning, weeklyHoursWarning: group.laborWeeklyHoursWarning, restIntervalWarning: group.laborRestIntervalWarning, consecutiveDaysWarning: group.laborConsecutiveDaysWarning, weeklyRestWarning: group.laborWeeklyRestWarning, dailyHoursLimitMinutes: group.laborDailyHoursLimitMinutes, weeklyHoursLimitMinutes: group.laborWeeklyHoursLimitMinutes, restIntervalMinutes: group.laborRestIntervalMinutes, consecutiveDaysLimit: group.laborConsecutiveDaysLimit, weeklyRestDaysRequired: group.laborWeeklyRestDaysRequired, fourWeekRestDaysRequired: group.laborFourWeekRestDaysRequired } : undefined });
+  return Response.json({ currentEmail: user.email, plan, slots, assignments, members: membersWithDuties, closedDates, requestPeriod: requestPeriod ?? null, memberPreferences, memberAvailability, requests, requestSubmissions, autoBreakSuggestion: group?.autoBreakSuggestion !== false, laborRules: group ? { plannedBreakWarning: group.laborPlannedBreakWarning, dailyHoursWarning: group.laborDailyHoursWarning, weeklyHoursWarning: group.laborWeeklyHoursWarning, restIntervalWarning: group.laborRestIntervalWarning, consecutiveDaysWarning: group.laborConsecutiveDaysWarning, weeklyRestWarning: group.laborWeeklyRestWarning, dailyHoursLimitMinutes: group.laborDailyHoursLimitMinutes, weeklyHoursLimitMinutes: group.laborWeeklyHoursLimitMinutes, restIntervalMinutes: group.laborRestIntervalMinutes, consecutiveDaysLimit: group.laborConsecutiveDaysLimit, weeklyRestDaysRequired: group.laborWeeklyRestDaysRequired, fourWeekRestDaysRequired: group.laborFourWeekRestDaysRequired } : undefined });
 }
 
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
@@ -84,7 +91,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (!plan) return Response.json({ error: "シフト計画が見つかりません" }, { status: 404 });
   const membership = await getMembership(plan.groupId, user.email);
   if (!membership || (membership.role !== "owner" && membership.role !== "editor")) return Response.json({ error: "シフト編集にはグループの編集権限が必要です" }, { status: 403 });
-  let body: { action?: "start-requests"; name?: string; requestCloseDate?: string; reason?: string; expectedVersion?: number; layout?: { notes?: string; slots?: Array<{ id?: string; date: string; startTime: string; endTime: string; requiredCount: number; role?: string }>; closedDates?: string[] }; assignments?: Record<string, string[]>; status?: "draft" | "published" };
+  let body: { action?: "start-requests"; name?: string; requestCloseDate?: string; reason?: string; expectedVersion?: number; layout?: { notes?: string; slots?: Array<{ id?: string; date: string; startTime: string; endTime: string; requiredCount: number; role?: string; dutyId?: string | null }>; closedDates?: string[] }; assignments?: Record<string, string[]>; status?: "draft" | "published" };
   try {
     body = await request.json();
   } catch {
@@ -111,15 +118,21 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     nextVersion = locked.version;
   }
   const slots = await db.select().from(shiftSlots).where(eq(shiftSlots.planId, id));
+  const duties = await db.select().from(groupDuties).where(eq(groupDuties.groupId, plan.groupId));
+  const dutyById = new Map(duties.map((duty) => [duty.id, duty]));
+  const memberDutyRows = await db.select().from(memberDuties).where(eq(memberDuties.groupId, plan.groupId));
+  const memberDutyMap = buildMemberDutyMap(memberDutyRows);
   let currentSlots = slots;
   const beforeAssignmentChunks = await Promise.all(chunk(slots.map((slot) => slot.id), 50).map((slotIds) => slotIds.length ? db.select().from(shiftAssignments).where(inArray(shiftAssignments.slotId, slotIds)) : Promise.resolve([])));
   const beforeAssignments = beforeAssignmentChunks.flat();
   const [requestPeriod] = await db.select().from(shiftRequestPeriods).where(eq(shiftRequestPeriods.planId, id)).limit(1);
   if (body.layout) {
     const closedDates = new Set(body.layout.closedDates ?? []);
-    const nextSlots = (body.layout.slots ?? []).filter((slot) => !closedDates.has(slot.date) && slot.date >= plan.startDate && slot.date <= plan.endDate && isValidShiftTime(slot.startTime) && isValidShiftTime(slot.endTime) && shiftTimeToMinutes(slot.startTime) < shiftTimeToMinutes(slot.endTime)).map((slot) => ({ id: slot.id ?? crypto.randomUUID(), planId: id, date: slot.date, startTime: slot.startTime, endTime: slot.endTime, requiredCount: Math.max(1, Math.min(50, Number(slot.requiredCount) || 1)), role: slot.role?.trim() ?? "" }));
-     const beforeLayout = new Map(slots.map((slot) => [slot.id, `${slot.date}|${slot.startTime}|${slot.endTime}|${slot.role}|${slot.requiredCount}`]));
-     const layoutChanges = nextSlots.flatMap((slot) => beforeLayout.get(slot.id) === `${slot.date}|${slot.startTime}|${slot.endTime}|${slot.role}|${slot.requiredCount}` ? [] : [{ id: slot.id, date: slot.date, startTime: slot.startTime, endTime: slot.endTime, role: slot.role, requiredCount: slot.requiredCount }]);
+    const invalidDuty = (body.layout.slots ?? []).find((slot) => slot.dutyId && (!dutyById.has(slot.dutyId) || dutyById.get(slot.dutyId)?.status !== "active"));
+    if (invalidDuty) return Response.json({ error: "無効または存在しない担当が勤務枠に指定されています" }, { status: 400 });
+    const nextSlots = (body.layout.slots ?? []).filter((slot) => !closedDates.has(slot.date) && slot.date >= plan.startDate && slot.date <= plan.endDate && isValidShiftTime(slot.startTime) && isValidShiftTime(slot.endTime) && shiftTimeToMinutes(slot.startTime) < shiftTimeToMinutes(slot.endTime)).map((slot) => ({ id: slot.id ?? crypto.randomUUID(), planId: id, date: slot.date, startTime: slot.startTime, endTime: slot.endTime, requiredCount: Math.max(1, Math.min(50, Number(slot.requiredCount) || 1)), role: slot.role?.trim() ?? "", dutyId: slot.dutyId ?? null, dutyNameSnapshot: slot.dutyId ? dutyById.get(slot.dutyId)?.name ?? null : null }));
+     const beforeLayout = new Map(slots.map((slot) => [slot.id, `${slot.date}|${slot.startTime}|${slot.endTime}|${slot.role}|${slot.requiredCount}|${slot.dutyId ?? ""}`]));
+     const layoutChanges = nextSlots.flatMap((slot) => beforeLayout.get(slot.id) === `${slot.date}|${slot.startTime}|${slot.endTime}|${slot.role}|${slot.requiredCount}|${slot.dutyId ?? ""}` ? [] : [{ id: slot.id, date: slot.date, startTime: slot.startTime, endTime: slot.endTime, role: slot.role, requiredCount: slot.requiredCount, dutyId: slot.dutyId }]);
     const statements = [
       ...chunk(slots.map((slot) => slot.id), 50).map((slotIds) => db.delete(shiftAssignments).where(inArray(shiftAssignments.slotId, slotIds))),
       db.delete(shiftSlots).where(eq(shiftSlots.planId, id)),
@@ -152,6 +165,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const validUsers = new Set(members.map((member) => member.userEmail));
   const requested = body.assignments ?? {};
   const allRows = currentSlots.flatMap((slot) => [...new Set((requested[slot.id] ?? []).filter((email) => validUsers.has(email)))].map((userEmail) => ({ id: crypto.randomUUID(), slotId: slot.id, userEmail })));
+  const invalidDutyAssignments = currentSlots.flatMap((slot) => allRows.filter((row) => row.slotId === slot.id && !memberCanTakeDuty(slot, row.userEmail, memberDutyMap)).map((row) => ({ slotId: slot.id, userEmail: row.userEmail, dutyId: slot.dutyId })));
+  if (invalidDutyAssignments.length) return Response.json({ error: "担当不可のメンバーはその勤務枠に割り当てできません", dutyErrors: invalidDutyAssignments }, { status: 409 });
   const [groupRules] = await db.select({ autoBreakSuggestion: groups.autoBreakSuggestion, laborPlannedBreakWarning: groups.laborPlannedBreakWarning, laborDailyHoursWarning: groups.laborDailyHoursWarning, laborWeeklyHoursWarning: groups.laborWeeklyHoursWarning, laborRestIntervalWarning: groups.laborRestIntervalWarning, laborConsecutiveDaysWarning: groups.laborConsecutiveDaysWarning, laborWeeklyRestWarning: groups.laborWeeklyRestWarning, laborDailyHoursLimitMinutes: groups.laborDailyHoursLimitMinutes, laborWeeklyHoursLimitMinutes: groups.laborWeeklyHoursLimitMinutes, laborRestIntervalMinutes: groups.laborRestIntervalMinutes, laborConsecutiveDaysLimit: groups.laborConsecutiveDaysLimit, laborWeeklyRestDaysRequired: groups.laborWeeklyRestDaysRequired, laborFourWeekRestDaysRequired: groups.laborFourWeekRestDaysRequired }).from(groups).where(eq(groups.id, plan.groupId)).limit(1);
   const laborWarnings = buildLaborWarnings({
     slots: currentSlots,

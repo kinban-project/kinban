@@ -15,6 +15,8 @@ export type AssignmentProposalSlot = {
   endTime: string;
   requiredCount: number;
   role: string;
+  dutyId?: string | null;
+  dutyNameSnapshot?: string | null;
 };
 
 export function proposalSlotSignature(slots: Array<AssignmentProposalSlot>): AssignmentProposalSlot[] {
@@ -25,6 +27,8 @@ export function proposalSlotSignature(slots: Array<AssignmentProposalSlot>): Ass
     endTime: slot.endTime,
     requiredCount: Number(slot.requiredCount),
     role: slot.role ?? "",
+    dutyId: slot.dutyId ?? null,
+    dutyNameSnapshot: slot.dutyNameSnapshot ?? null,
   })).sort((a, b) => a.id.localeCompare(b.id));
 }
 

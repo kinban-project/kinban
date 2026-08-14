@@ -7,6 +7,7 @@ import { displayShiftTime } from "./shift-time";
 import { toDateTimeLocal } from "./shift-request-deadline";
 
 type Group = { id: string; name: string; membership: { role: string } };
+type Duty = { id: string; name: string; description?: string; status: "active" | "inactive" };
 type Plan = {
   id: string;
   groupId: string;
@@ -29,6 +30,8 @@ type Slot = {
   endTime: string;
   requiredCount: number;
   role: string;
+  dutyId?: string | null;
+  dutyNameSnapshot?: string | null;
 };
 type Member = { userEmail: string; displayName?: string | null; role: string };
 type RequestPeriod = {
@@ -55,7 +58,7 @@ type Detail = {
   closedDates?: string[];
   requestPeriod?: RequestPeriod | null;
 };
-type SlotRule = { role: string; requiredCount: string };
+type SlotRule = { role: string; requiredCount: string; dutyId: string };
 type InputMode = "standard" | "custom";
 
 function defaultRequestCloseDate(startDate: string) {
@@ -139,8 +142,9 @@ export default function ShiftBuilder({
   });
   const [notes, setNotes] = useState("");
   const [slotRules, setSlotRules] = useState<SlotRule[]>([
-    { role: "", requiredCount: "2" },
+    { role: "", requiredCount: "2", dutyId: "" },
   ]);
+  const [duties, setDuties] = useState<Duty[]>([]);
   const [inputMode, setInputMode] = useState<InputMode>("standard");
   const [customSlots, setCustomSlots] = useState(customSlotExample);
   const [closedDates, setClosedDates] = useState<string[]>([]);
@@ -167,6 +171,12 @@ export default function ShiftBuilder({
       if (!form.groupId && data.groups[0])
         setForm((current) => ({ ...current, groupId: data.groups[0].id }));
     }
+  }
+
+  async function loadDuties(groupId: string) {
+    if (!groupId) return;
+    const response = await localApiFetch(`/api/groups/${encodeURIComponent(groupId)}`);
+    if (response.ok) setDuties(((await response.json()) as { duties?: Duty[] }).duties ?? []);
   }
 
   async function loadPlans(groupId: string) {
@@ -247,6 +257,10 @@ export default function ShiftBuilder({
     };
   }, [form.groupId]);
 
+  useEffect(() => {
+    void loadDuties(form.groupId);
+  }, [form.groupId]);
+
   async function createPlan(event: React.FormEvent) {
     event.preventDefault();
     if (!form.name.trim()) {
@@ -267,6 +281,7 @@ export default function ShiftBuilder({
             ? slotRules.map((rule) => ({
                 role: rule.role,
                 requiredCount: Number(rule.requiredCount),
+                ...(rule.dutyId ? { dutyId: rule.dutyId } : {}),
               }))
             : undefined,
         customSlots: inputMode === "custom" ? customSlots : undefined,
@@ -425,9 +440,11 @@ export default function ShiftBuilder({
               <select
                 required
                 value={form.groupId}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, groupId: event.target.value }))
-                }
+                onChange={(event) => {
+                  const groupId = event.target.value;
+                  setForm((current) => ({ ...current, groupId }));
+                  void loadDuties(groupId);
+                }}
               >
                 <option value="">選択してください</option>
                 {editableGroups.map((group) => (
@@ -603,6 +620,10 @@ export default function ShiftBuilder({
                         aria-label="必要人数"
                       />
                       <span>名</span>
+                      <select value={rule.dutyId} onChange={(event) => updateSlotRule(index, { dutyId: event.target.value })} aria-label="担当">
+                        <option value="">担当なし（既存運用）</option>
+                        {duties.filter((duty) => duty.status === "active").map((duty) => <option key={duty.id} value={duty.id}>{duty.name}</option>)}
+                      </select>
                       {slotRules.length > 1 && (
                         <button
                           type="button"
@@ -626,7 +647,7 @@ export default function ShiftBuilder({
                     onClick={() =>
                       setSlotRules((current) => [
                         ...current,
-                        { role: "", requiredCount: "1" },
+                        { role: "", requiredCount: "1", dutyId: "" },
                       ])
                     }
                   >
@@ -871,6 +892,25 @@ export default function ShiftBuilder({
                                       <strong className="shift-grid-role">
                                         {slot.role || "共通"}
                                       </strong>
+                                      <select
+                                        className="slot-duty-select"
+                                        value={slot.dutyId ?? ""}
+                                        onChange={(event) =>
+                                          updateSlot(slot.id, {
+                                            dutyId: event.target.value || null,
+                                          })
+                                        }
+                                        aria-label="担当"
+                                      >
+                                        <option value="">担当なし</option>
+                                        {duties
+                                          .filter((duty) => duty.status === "active")
+                                          .map((duty) => (
+                                            <option key={duty.id} value={duty.id}>
+                                              {duty.name}
+                                            </option>
+                                          ))}
+                                      </select>
                                       <input
                                         className="slot-count-input"
                                         type="number"

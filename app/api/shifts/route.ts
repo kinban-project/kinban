@@ -2,6 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { getDb } from "../../../db";
 import {
+  groupDuties,
   groupMembers,
   shiftAssignments,
   shiftPlans,
@@ -46,6 +47,8 @@ type CustomSlot = {
   endTime: string;
   requiredCount: number;
   role: string;
+  dutyId: string | null;
+  dutyNameSnapshot: string | null;
 };
 function parseCustomSlots(
   input: unknown,
@@ -75,6 +78,7 @@ function parseCustomSlots(
     const role = String(item.role ?? "")
       .trim()
       .slice(0, 100);
+    const dutyId = typeof item.dutyId === "string" && item.dutyId.trim() ? item.dutyId.trim() : null;
     const requiredCount = Number(item.requiredCount);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < startDate || date > endDate)
       throw new Error(`${index + 1}件目の日付が勤務枠の期間外です`);
@@ -94,7 +98,7 @@ function parseCustomSlots(
       throw new Error(
         `${index + 1}件目の必要人数は1〜50の整数で指定してください`,
       );
-    const key = `${date}|${startTime}|${endTime}|${role}`;
+    const key = `${date}|${startTime}|${endTime}|${role}|${dutyId ?? ""}`;
     if (used.has(key)) throw new Error(`${index + 1}件目の枠が重複しています`);
     used.add(key);
     return {
@@ -105,6 +109,8 @@ function parseCustomSlots(
       endTime: minutesToShiftTime(minutes(endTime)),
       requiredCount,
       role,
+      dutyId,
+      dutyNameSnapshot: null,
     };
   }) as CustomSlot[] & Array<{ id: string; planId: string }>;
 }
@@ -216,7 +222,7 @@ export async function POST(request: Request) {
     slotMinutes?: number;
     requiredCount?: number;
     role?: string;
-    slotRules?: Array<{ role?: string; requiredCount?: number }>;
+    slotRules?: Array<{ role?: string; requiredCount?: number; dutyId?: string | null }>;
     customSlots?: unknown;
   };
   const groupId = body.groupId ?? "";
@@ -247,6 +253,7 @@ export async function POST(request: Request) {
     .map((rule) => ({
       role: rule.role?.trim() ?? "",
       requiredCount: Math.max(1, Number(rule.requiredCount ?? 1)),
+      dutyId: rule.dutyId ?? null,
     }))
     .filter((rule) => rule.requiredCount > 0);
   if (!name || !startDate || !endDate || startDate > endDate)
@@ -274,12 +281,24 @@ export async function POST(request: Request) {
     endTime: string;
     requiredCount: number;
     role: string;
+    dutyId: string | null;
+    dutyNameSnapshot: string | null;
   }>;
   let effectiveOpeningTime = openingTime;
   let effectiveClosingTime = closingTime;
+  const db = getDb();
+  const duties = await db.select().from(groupDuties).where(eq(groupDuties.groupId, groupId));
+  const dutyById = new Map(duties.map((duty) => [duty.id, duty]));
+  for (const rule of rules) {
+    if (rule.dutyId && (!dutyById.get(rule.dutyId) || dutyById.get(rule.dutyId)?.status !== "active")) return Response.json({ error: "有効な担当を指定してください" }, { status: 400 });
+  }
   if (body.customSlots !== undefined) {
     try {
       slots = parseCustomSlots(body.customSlots, id, startDate, endDate);
+      for (const slot of slots) {
+        if (slot.dutyId && (!dutyById.get(slot.dutyId) || dutyById.get(slot.dutyId)?.status !== "active")) throw new Error("有効な担当を指定してください");
+        slot.dutyNameSnapshot = slot.dutyId ? dutyById.get(slot.dutyId)?.name ?? null : null;
+      }
     } catch (error) {
       return Response.json(
         {
@@ -314,6 +333,8 @@ export async function POST(request: Request) {
         endTime: string;
         requiredCount: number;
         role: string;
+        dutyId: string | null;
+        dutyNameSnapshot: string | null;
       }> = [];
       for (
         let current = minutes(openingTime);
@@ -329,11 +350,12 @@ export async function POST(request: Request) {
             endTime: time(current + slotMinutes),
             requiredCount: rule.requiredCount,
             role: rule.role,
+            dutyId: rule.dutyId,
+            dutyNameSnapshot: rule.dutyId ? dutyById.get(rule.dutyId)?.name ?? null : null,
           });
       return rows;
     });
   }
-  const db = getDb();
   const slotStatements = [];
   for (let index = 0; index < slots.length; index += 8)
     slotStatements.push(

@@ -1,12 +1,13 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { getChatGPTUser } from "../../../../../../chatgpt-auth";
 import { getDb } from "../../../../../../../db";
-import { accountProfiles, events, groupMembers, groups, shiftAssignmentScenarios, shiftAssignments, shiftPlans, shiftSlots } from "../../../../../../../db/schema";
+import { accountProfiles, events, groupMembers, groups, memberDuties, shiftAssignmentScenarios, shiftAssignments, shiftPlans, shiftSlots } from "../../../../../../../db/schema";
 import { getMembership } from "../../../../../groups/group-access";
 import { recordAudit } from "../../../../../../audit-log";
 import { createSystemMessagesAndPush } from "../../../../../../notification-events";
 import { shiftDateTime } from "../../../../../../shift-time";
 import { proposalMeta, proposalMatchesSlots, proposalSettings } from "../../../../../../shift-assignment-proposals";
+import { buildMemberDutyMap, validateDutyAssignments } from "../../../../../../duty-validation";
 
 export const dynamic = "force-dynamic";
 
@@ -53,12 +54,15 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const members = await result.db.select().from(groupMembers).where(and(eq(groupMembers.groupId, result.plan.groupId), eq(groupMembers.status, "active")));
   const validMembers = new Set(members.map((member) => member.userEmail));
   const validSlots = new Set(slots.map((slot) => slot.id));
+  const dutyRows = await result.db.select({ userEmail: memberDuties.userEmail, dutyId: memberDuties.dutyId }).from(memberDuties).where(eq(memberDuties.groupId, result.plan.groupId));
   const rows = slots.flatMap((slot) => {
     const users = Array.isArray(assignments[slot.id]) ? [...new Set(assignments[slot.id])] : [];
     return users.filter((email) => validMembers.has(email)).map((userEmail) => ({ id: crypto.randomUUID(), slotId: slot.id, userEmail }));
   });
   const unknownSlot = Object.keys(assignments).some((slotId) => !validSlots.has(slotId));
   if (unknownSlot) return Response.json({ error: "割当案に存在しない勤務枠が含まれています。再作成してください" }, { status: 409 });
+  const dutyErrors = validateDutyAssignments(slots, rows, buildMemberDutyMap(dutyRows));
+  if (dutyErrors.length) return Response.json({ error: "担当可能ではないメンバーが割り当てられています。既存の公開版は変更されていません。", dutyErrors }, { status: 409 });
   const [currentPublished] = (await result.db.select().from(shiftAssignmentScenarios).where(eq(shiftAssignmentScenarios.planId, id))).filter((item) => {
     try { return proposalMeta(JSON.parse(item.settingsJson || "{}")).proposalStatus === "published"; } catch { return false; }
   });

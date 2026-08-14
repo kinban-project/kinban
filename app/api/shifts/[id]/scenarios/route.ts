@@ -4,7 +4,8 @@ import { getDb } from "../../../../../db";
 import { getMembership } from "../../../groups/group-access";
 import { buildLaborWarnings } from "../../../../shift-labor-warnings";
 import { shiftTimeToMinutes } from "../../../../shift-time";
-import { groupMembers, shiftAssignmentScenarios, shiftAssignments, shiftPlans, shiftSlots, shiftAvailability, groupPreferences, shiftRequestPeriods, shiftRequests, groups } from "../../../../../db/schema";
+import { groupMembers, memberDuties, shiftAssignmentScenarios, shiftAssignments, shiftPlans, shiftSlots, shiftAvailability, groupPreferences, shiftRequestPeriods, shiftRequests, groups } from "../../../../../db/schema";
+import { buildMemberDutyMap, memberCanTakeDuty } from "../../../../duty-validation";
 import { proposalMeta, proposalSettings, proposalSlotSignature } from "../../../../shift-assignment-proposals";
 import { pruneInvalidShiftRequests } from "../../../../shift-request-cleanup";
 
@@ -99,6 +100,8 @@ async function generateAssignments(db: ReturnType<typeof getDb>, planId: string,
   const slots = await db.select().from(shiftSlots).where(eq(shiftSlots.planId, planId));
   const members = await db.select().from(groupMembers).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.status, "active")));
   const availability = await db.select().from(shiftAvailability).where(eq(shiftAvailability.groupId, groupId));
+  const dutyRows = await db.select({ userEmail: memberDuties.userEmail, dutyId: memberDuties.dutyId }).from(memberDuties).where(eq(memberDuties.groupId, groupId));
+  const memberDutyMap = buildMemberDutyMap(dutyRows);
   const preferences = await db.select().from(groupPreferences).where(eq(groupPreferences.groupId, groupId));
   const [group] = await db.select().from(groups).where(eq(groups.id, groupId)).limit(1);
   const laborRules: Parameters<typeof buildLaborWarnings>[0]["rules"] = group ? {
@@ -133,6 +136,7 @@ async function generateAssignments(db: ReturnType<typeof getDb>, planId: string,
     for (const slot of slots) {
       const count = existingAssignments[slot.id]?.length ?? 0;
       if (count !== slot.requiredCount) problemSlotIds.add(slot.id);
+      if (slot.dutyId && (existingAssignments[slot.id] ?? []).some((email) => !memberCanTakeDuty(slot, email, memberDutyMap))) problemSlotIds.add(slot.id);
     }
     const existingRows = slots.flatMap((slot) => (existingAssignments[slot.id] ?? []).map((userEmail) => ({ slotId: slot.id, userEmail })));
     const existingLaborWarnings = buildLaborWarnings({
@@ -195,14 +199,15 @@ async function generateAssignments(db: ReturnType<typeof getDb>, planId: string,
     return { status, allowed: allowed && !weekendRestricted };
   };
   const orderedSlots = [...slots].sort((a, b) => {
-    const aCandidates = members.filter((member) => canWork(member.userEmail, a).allowed).length;
-    const bCandidates = members.filter((member) => canWork(member.userEmail, b).allowed).length;
+    const aCandidates = members.filter((member) => memberCanTakeDuty(a, member.userEmail, memberDutyMap) && canWork(member.userEmail, a).allowed).length;
+    const bCandidates = members.filter((member) => memberCanTakeDuty(b, member.userEmail, memberDutyMap) && canWork(member.userEmail, b).allowed).length;
     return aCandidates - bCandidates || a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime);
   });
   for (const slot of orderedSlots) {
     const current = assignments[slot.id] ?? [];
     const candidates = members.filter((member) => {
       if (current.includes(member.userEmail)) return false;
+      if (!memberCanTakeDuty(slot, member.userEmail, memberDutyMap)) return false;
       const availabilityResult = canWork(member.userEmail, slot);
       if (!availabilityResult.allowed) return false;
       return !assignedFor(member.userEmail).some((other) => overlaps(slot, other));
@@ -224,7 +229,8 @@ async function generateAssignments(db: ReturnType<typeof getDb>, planId: string,
     }
   }
   const warnings = plan ? buildLaborWarnings({ slots, assignments: slots.flatMap((slot) => (assignments[slot.id] ?? []).map((userEmail) => ({ slotId: slot.id, userEmail }))), members, rules: laborRules, planStartDate: plan.startDate, planEndDate: plan.endDate }) : [];
-  return { assignments, settings, seed, warnings: warnings.map((warning) => warning.message), unfilled: slots.filter((slot) => (assignments[slot.id] ?? []).length < slot.requiredCount).length };
+  const dutyWarnings = slots.flatMap((slot) => (assignments[slot.id] ?? []).filter((email) => !memberCanTakeDuty(slot, email, memberDutyMap)).map((email) => `${email}は${slot.dutyNameSnapshot || "担当付き勤務枠"}を担当可能として登録されていません`));
+  return { assignments, settings, seed, warnings: [...warnings.map((warning) => warning.message), ...dutyWarnings], unfilled: slots.filter((slot) => (assignments[slot.id] ?? []).length < slot.requiredCount).length };
 }
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {

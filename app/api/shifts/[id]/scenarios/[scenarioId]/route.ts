@@ -2,7 +2,8 @@ import { eq } from "drizzle-orm";
 import { getChatGPTUser } from "../../../../../chatgpt-auth";
 import { getDb } from "../../../../../../db";
 import { getMembership } from "../../../../groups/group-access";
-import { shiftAssignmentScenarios, shiftPlans } from "../../../../../../db/schema";
+import { memberDuties, shiftAssignmentScenarios, shiftPlans, shiftSlots } from "../../../../../../db/schema";
+import { buildMemberDutyMap, validateDutyAssignments } from "../../../../../duty-validation";
 import { proposalMeta, proposalSettings } from "../../../../../shift-assignment-proposals";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +36,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const name = typeof body.name === "string" ? body.name.trim() : scenario.name;
   if (!name) return Response.json({ error: "案名を入力してください" }, { status: 400 });
   const storedSettings = proposalSettings(currentSettings, { proposalStatus: "candidate" });
+  const slots = await result.db.select().from(shiftSlots).where(eq(shiftSlots.planId, id));
+  const dutyRows = await result.db.select({ userEmail: memberDuties.userEmail, dutyId: memberDuties.dutyId }).from(memberDuties).where(eq(memberDuties.groupId, result.plan.groupId));
+  const dutyErrors = validateDutyAssignments(slots, Object.entries(assignments as Record<string, unknown>).flatMap(([slotId, users]) => Array.isArray(users) ? users.filter((email): email is string => typeof email === "string").map((userEmail) => ({ slotId, userEmail })) : []), buildMemberDutyMap(dutyRows));
+  if (dutyErrors.length) return Response.json({ error: "担当可能ではないメンバーが割り当てられています", dutyErrors }, { status: 409 });
   const [updated] = await result.db.update(shiftAssignmentScenarios).set({ name, description: typeof body.description === "string" ? body.description.trim() : scenario.description, settingsJson: JSON.stringify(storedSettings), assignmentsJson: JSON.stringify(assignments), updatedAt: new Date().toISOString() }).where(eq(shiftAssignmentScenarios.id, scenarioId)).returning();
   return Response.json({ scenario: { ...updated, settings: storedSettings, ...proposalMeta(storedSettings), assignments } });
 }

@@ -214,6 +214,29 @@ export const assistantContexts = sqliteTable("assistant_contexts", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const groupDuties = sqliteTable("group_duties", {
+  id: text("id").primaryKey(),
+  groupId: text("group_id").notNull(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  displayOrder: integer("display_order").notNull().default(0),
+  status: text("status", { enum: ["active", "inactive"] }).notNull().default("active"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("group_duties_group_idx").on(table.groupId, table.displayOrder),
+]);
+
+export const memberDuties = sqliteTable("member_duties", {
+  id: text("id").primaryKey(),
+  groupId: text("group_id").notNull(),
+  userEmail: text("user_email").notNull(),
+  dutyId: text("duty_id").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("member_duties_unique_idx").on(table.groupId, table.userEmail, table.dutyId),
+  index("member_duties_duty_idx").on(table.groupId, table.dutyId),
+]);
+
 export const memoFolders = sqliteTable("memo_folders", {
   id: text("id").primaryKey(),
   groupId: text("group_id").notNull(),
@@ -502,6 +525,8 @@ export const shiftSlots = sqliteTable("shift_slots", {
   endTime: text("end_time").notNull(),
   requiredCount: integer("required_count").notNull().default(1),
   role: text("role").notNull().default(""),
+  dutyId: text("duty_id"),
+  dutyNameSnapshot: text("duty_name_snapshot"),
 });
 
 export const shiftAssignments = sqliteTable("shift_assignments", {
