@@ -700,6 +700,11 @@ button { cursor: pointer; }
 }
 .assignment-overlap-badge { color: #a44942; font-weight: 700; }
 .assignment-duty-badge { color: #a44942; font-weight: 700; }
+.assignment-candidate-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 8px 0 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fbfcfa; font-size: 11px; }
+.assignment-candidate-filter > strong { margin-right: 4px; }
+.assignment-candidate-filter label { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.assignment-candidate-filter input { accent-color: #267c73; }
+.assignment-candidate-filter small { flex-basis: 100%; color: var(--muted); font-size: 10px; }
 .assignment-table-wrap { max-height: none; overflow-x: auto; overflow-y: hidden; }
  .assignment-scenarios { margin: 10px 0 14px; padding: 10px 12px; border: 1px solid #d8e8d0; border-radius: 10px; background: #f8fbf5; }
 .assignment-scenarios-head { display: flex; gap: 10px; align-items: baseline; margin-bottom: 8px; font-size: 11px; }

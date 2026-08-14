@@ -76,6 +76,7 @@ type AssignmentScenario = {
   publishedBy?: string;
 };
 type AllocationScope = "unfilled" | "problems" | "all";
+type CandidateFilter = "want" | "possible" | "off" | "unavailable" | "duty";
 type Preference = {
   userEmail?: string;
   minDays: number;
@@ -180,6 +181,13 @@ export default function ShiftAdjustment({
   const [showAllWarnings, setShowAllWarnings] = useState(false);
   const [showAllPlannedBreaks, setShowAllPlannedBreaks] = useState(false);
   const [warningFilter, setWarningFilter] = useState<"all" | "warnings" | "labor" | "plannedBreak">("all");
+  const [candidateFilters, setCandidateFilters] = useState<Record<CandidateFilter, boolean>>({
+    want: true,
+    possible: true,
+    off: false,
+    unavailable: false,
+    duty: false,
+  });
   const [viewMode, setViewMode] = useState<"preview" | "list" | "calendar">("preview");
   const [scenarios, setScenarios] = useState<AssignmentScenario[]>([]);
   const [selectedScenarioId, setSelectedScenarioId] = useState("");
@@ -553,8 +561,16 @@ export default function ShiftAdjustment({
       };
     });
   }
+  function candidateIsVisible(slot: Slot, member: Member, assigned: boolean) {
+    if (assigned) return true;
+    const preference = preferenceFor(slot, member.userEmail);
+    const isDutyMismatch = Boolean(slot.dutyId) && !member.dutyIds?.includes(slot.dutyId!);
+    const preferenceVisible = candidateFilters[preference as CandidateFilter] ?? false;
+    return preferenceVisible || (isDutyMismatch && candidateFilters.duty);
+  }
   function renderMember(slot: Slot, member: Member) {
     const assigned = (assignments[slot.id] ?? []).includes(member.userEmail);
+    if (!candidateIsVisible(slot, member, assigned)) return null;
     const preference = preferenceFor(slot, member.userEmail);
     const plannedBreakMinutes = assigned
       ? plannedBreakByMemberDate.get(`${member.userEmail}|${slot.date}`) ?? 0
@@ -1065,6 +1081,26 @@ export default function ShiftAdjustment({
               )}
             </div>
           )}
+          <div className="assignment-candidate-filter" aria-label="候補者の表示">
+            <strong>表示する候補</strong>
+            {([
+              ["want", "出勤希望"],
+              ["possible", "可能"],
+              ["off", "休み希望"],
+              ["unavailable", "勤務不可"],
+              ["duty", "適性外"],
+            ] as Array<[CandidateFilter, string]>).map(([filter, label]) => (
+              <label key={filter}>
+                <input
+                  type="checkbox"
+                  checked={candidateFilters[filter]}
+                  onChange={() => setCandidateFilters((current) => ({ ...current, [filter]: !current[filter] }))}
+                />
+                {label}
+              </label>
+            ))}
+            <small>表示のみの絞り込みです。割当済みのメンバーは常に表示されます。</small>
+          </div>
           {!filterHasContent ? (
             <p className="assignment-warning-empty">該当する警告・労務注意・予定休憩はありません。</p>
           ) : <>
