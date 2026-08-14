@@ -13,6 +13,10 @@ const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 
 const localBindingConfig = {
   main: "./worker/index.ts",
+  // The local Miniflare runtime bundled with the current Wrangler version
+  // does not yet understand the public Sites compatibility date.
+  compatibility_date: "2026-05-22",
+  compatibility_flags: ["nodejs_compat"],
   vars: {
     LOCAL_MODE: process.env.LOCAL_MODE ?? "false",
     LOCAL_USER_ID: process.env.LOCAL_USER_ID ?? "local-user",
