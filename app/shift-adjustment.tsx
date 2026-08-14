@@ -566,7 +566,8 @@ export default function ShiftAdjustment({
     const preference = preferenceFor(slot, member.userEmail);
     const isDutyMismatch = Boolean(slot.dutyId) && !member.dutyIds?.includes(slot.dutyId!);
     const preferenceVisible = candidateFilters[preference as CandidateFilter] ?? false;
-    return preferenceVisible || (isDutyMismatch && candidateFilters.duty);
+    if (isDutyMismatch) return candidateFilters.duty;
+    return preferenceVisible;
   }
   function renderMember(slot: Slot, member: Member) {
     const assigned = (assignments[slot.id] ?? []).includes(member.userEmail);
@@ -583,7 +584,7 @@ export default function ShiftAdjustment({
         .filter((warning) => warning.memberEmail === member.userEmail && warning.slotIds.includes(slot.id))
         .map((warning) => laborWarningLabel(warning.kind)))]
       : [];
-    const dutyReview = assigned && Boolean(slot.dutyId) && !member.dutyIds?.includes(slot.dutyId!);
+    const dutyReview = Boolean(slot.dutyId) && !member.dutyIds?.includes(slot.dutyId!);
     return (
       <label
         className={`${assigned ? "assigned " : ""}pref-${preference}`}
@@ -597,7 +598,7 @@ export default function ShiftAdjustment({
         <span className="assignment-member-name">
           {member.displayName || member.userEmail.split("@")[0]}
           {hasMemberOverlap && <small className="assignment-overlap-badge">（時間重複）</small>}
-          {dutyReview && <small className="assignment-duty-badge">（担当要確認）</small>}
+          {dutyReview && <small className="assignment-duty-badge">適性外</small>}
         </span>
         {plannedBreakMinutes > 0 && (
           <small className="assignment-break-badge">休憩{plannedBreakMinutes}分</small>

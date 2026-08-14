@@ -14,5 +14,5 @@ test("shift assignment candidate filters default to preferred and possible", () 
 
 test("assigned candidates remain visible and duty mismatches are separately filtered", () => {
   assert.match(source, /if \(assigned\) return true/);
-  assert.match(source, /return preferenceVisible \|\| \(isDutyMismatch && candidateFilters\.duty\)/);
+  assert.match(source, /if \(isDutyMismatch\) return candidateFilters\.duty/);
 });
