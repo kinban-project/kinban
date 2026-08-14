@@ -8,8 +8,9 @@ import { hashApiToken } from "../../../../../api/api-auth";
 export const dynamic = "force-dynamic";
 
 const managerScopes = [
-  "assistant:read", "assistant:reply", "shift:read", "work:read",
-  "announcement:read", "agent:usage:write",
+  "assistant:read", "assistant:reply", "shift:read", "shift:write",
+  "work:read", "work:write", "announcement:read", "announcement:write",
+  "agent:usage:write",
 ];
 const memberScopes = [
   "member:profile:read", "member:profile:write", "member:preferences:read",

@@ -9,7 +9,11 @@ import { assistantBusinessSet, buildAssistantBusinessSetFiles } from "../../../.
 
 export const dynamic = "force-dynamic";
 
-const assistantScopes = ["assistant:read", "assistant:reply", "shift:read", "work:read", "announcement:read", "agent:usage:write"];
+const assistantScopes = [
+  "assistant:read", "assistant:reply", "shift:read", "shift:write",
+  "work:read", "work:write", "announcement:read", "announcement:write",
+  "agent:usage:write",
+];
 
 function unauthorized() {
   return Response.json({ error: "ChatGPT sign-in is required." }, { status: 401 });

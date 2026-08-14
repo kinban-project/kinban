@@ -643,6 +643,13 @@ async function assistantPermissionError(
     .where(eq(groupAssistants.groupId, groupId))
     .limit(1);
   if (assistant?.status !== "active") return "KINBAN assistant is inactive.";
+  const requiredScope = permission === "canCreateAnnouncements"
+    ? "announcement:write"
+    : permission === "canReviewDailyWork" || permission === "canReviewMonthlyWork"
+      ? "work:write"
+      : "shift:write";
+  if (!hasScope(identity, requiredScope))
+    return `Assistant token scope does not allow ${requiredScope} operations.`;
   if (!assistant[permission])
     return "This group has disabled the AI assistant permission for this operation.";
 
