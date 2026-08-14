@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { localApiFetch } from "./local-api";
-import MemberAgentAssist from "./member-agent-assist";
+import MemberAgentAssist, { ManagerAgentAssist } from "./member-agent-assist";
 
 type Group = {
   groupId: string;
@@ -284,6 +284,7 @@ export default function GroupMenu({
                       </div>
                     )}
                   </div>
+                  <ManagerAgentAssist groupId={group.groupId} groupName={group.name} />
                 </>
               )}
             </div>

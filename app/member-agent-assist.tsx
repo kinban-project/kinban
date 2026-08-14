@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { localApiFetch } from "./local-api";
 
 type RuntimeConfig = { groupId: string; memberName?: string; runtimeUrl?: string };
-type Handoff = RuntimeConfig & { token: string; expiresAt: string; error?: string };
+type AssistMode = "member" | "operations";
+type Handoff = RuntimeConfig & { token: string; expiresAt: string; mode?: AssistMode; error?: string };
 
 function showStartupMessage(popup: Window) {
   popup.document.title = "KINBANアシストを起動しています";
@@ -16,7 +17,15 @@ function showStartupMessage(popup: Window) {
     </main>`;
 }
 
-export default function MemberAgentAssist({ groupId }: { groupId: string; groupName?: string }) {
+export default function MemberAgentAssist(props: { groupId: string; groupName?: string }) {
+  return <AgentAssist {...props} mode="member" />;
+}
+
+export function ManagerAgentAssist(props: { groupId: string; groupName?: string }) {
+  return <AgentAssist {...props} mode="operations" />;
+}
+
+function AgentAssist({ groupId, mode = "member" }: { groupId: string; groupName?: string; mode?: AssistMode }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [runtimeConfigured, setRuntimeConfigured] = useState<boolean | null>(null);
@@ -41,7 +50,7 @@ export default function MemberAgentAssist({ groupId }: { groupId: string; groupN
   async function openAssist() {
     setBusy(true);
     setNotice(null);
-    const popup = window.open("about:blank", "kinban-member-assist");
+    const popup = window.open("about:blank", mode === "operations" ? "kinban-operations-assist" : "kinban-member-assist");
     if (!popup) {
       setBusy(false);
       setNotice("新しい画面を開けませんでした。ポップアップを許可してください。");
@@ -77,7 +86,7 @@ export default function MemberAgentAssist({ groupId }: { groupId: string; groupN
       const response = await localApiFetch(`/api/groups/${groupId}/assistant/context`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "member", expiresInSeconds: 600 }),
+        body: JSON.stringify({ mode, expiresInSeconds: 600 }),
       });
       const data = await response.json().catch(() => ({})) as Handoff;
       if (!response.ok || !data.token) throw new Error(data.error ?? "本人用AIアシストを開始できませんでした。");
@@ -85,7 +94,7 @@ export default function MemberAgentAssist({ groupId }: { groupId: string; groupN
       const handoff = await fetch(`${runtimeUrl}/api/handoff`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: data.token, groupId: data.groupId, memberName: data.memberName, expiresAt: data.expiresAt, audience: "agent-runtime" }),
+        body: JSON.stringify({ token: data.token, groupId: data.groupId, memberName: data.memberName, expiresAt: data.expiresAt, mode, audience: "agent-runtime" }),
       });
       const handoffData = await handoff.json().catch(() => ({})) as { handoff?: string; error?: string };
       if (!handoff.ok || !handoffData.handoff) throw new Error(handoffData.error ?? "AIアシストへの接続に失敗しました。");
@@ -100,6 +109,13 @@ export default function MemberAgentAssist({ groupId }: { groupId: string; groupN
   }
 
   if (runtimeConfigured !== true) return null;
+
+  if (mode === "operations") return <div className="member-agent-assist">
+    <button className="group-menu-button member-agent-button" type="button" disabled={busy} onClick={() => void openAssist()}>
+      {busy ? "起動中…" : "運営支援AI"}
+    </button>
+    {notice && <span className="member-agent-notice" role="status">{notice}</span>}
+  </div>;
 
   return <div className="member-agent-assist">
     <button className="group-menu-button member-agent-button" type="button" disabled={busy} onClick={() => void openAssist()}>

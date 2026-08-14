@@ -9,7 +9,7 @@
     "dev": "vinext dev",
     "build": "vinext build",
     "start": "vinext start",
-    "test": "npm run generate:assistant-business-set:check && npm run build && node --test tests/rendered-html.test.mjs tests/documentation-contract.test.mjs tests/manager-agent-template-contract.test.mjs tests/assistant-business-set-contract.test.mjs tests/mcp-http-bridge-contract.test.mjs tests/shift-evaluation-contract.test.mjs tests/mcp-planning-contract.test.mjs tests/mcp-member-request-periods-contract.test.mjs tests/shift-request-cleanup-contract.test.mjs",
+    "test": "npm run generate:assistant-business-set:check && npm run build && node --test tests/rendered-html.test.mjs tests/documentation-contract.test.mjs tests/manager-agent-template-contract.test.mjs tests/assistant-business-set-contract.test.mjs tests/agent-runtime-operations-contract.test.mjs tests/mcp-http-bridge-contract.test.mjs tests/shift-evaluation-contract.test.mjs tests/mcp-planning-contract.test.mjs tests/mcp-member-request-periods-contract.test.mjs tests/shift-request-cleanup-contract.test.mjs tests/duty-assignment-contract.test.mjs",
     "generate:assistant-business-set": "node scripts/generate-assistant-business-set.mjs",
     "generate:assistant-business-set:check": "node scripts/generate-assistant-business-set.mjs --check",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
@@ -17,6 +17,7 @@
     "db:seed:local": "wrangler d1 execute DB --local --file=scripts/seed-local.sql",
     "db:seed:evaluation": "wrangler d1 execute DB --local --file=scripts/seed-shift-evaluation.sql",
     "evaluate:shifts": "node scripts/evaluate-shift-scenarios.mjs",
+    "test:duties:runtime": "node scripts/verify-duty-assignment-runtime.mjs",
     "push:generate-vapid": "node scripts/generate-vapid.mjs"
   },
   "dependencies": {

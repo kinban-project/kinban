@@ -46,6 +46,7 @@ class HandoffRequest(BaseModel):
     memberName: str = Field(default="メンバー", max_length=200)
     expiresAt: str = Field(min_length=10, max_length=50)
     audience: Literal["agent-runtime"] = "agent-runtime"
+    mode: Literal["member", "operations"] = "member"
 
 
 class HandoffCodeRequest(BaseModel):
@@ -55,7 +56,7 @@ class HandoffCodeRequest(BaseModel):
 class SessionInfo(BaseModel):
     groupId: str
     memberName: str
-    mode: Literal["member"]
+    mode: Literal["member", "operations"]
     expiresAt: str
     remainingSeconds: int
 
@@ -65,6 +66,10 @@ class RuntimeSession:
         self.token = payload.token
         self.group_id = verified_group_id
         self.member_name = verified_member_name
+        self.mode = payload.mode
+        self.session_scope = f"{self.mode}:{self.group_id}:{secrets.token_urlsafe(12)}"
+        self.pending_confirmation: dict[str, Any] | None = None
+        self.user_turn = 0
         self.expires_at = payload.expiresAt
         self.created_at = time.time()
 
@@ -77,7 +82,7 @@ class RuntimeSession:
 
     def info(self) -> SessionInfo:
         remaining = max(0, int(self._expiry_timestamp() - time.time()))
-        return SessionInfo(groupId=self.group_id, memberName=self.member_name, mode="member", expiresAt=self.expires_at, remainingSeconds=remaining)
+        return SessionInfo(groupId=self.group_id, memberName=self.member_name, mode=self.mode, expiresAt=self.expires_at, remainingSeconds=remaining)
 
     def _expiry_timestamp(self) -> float:
         from datetime import datetime
@@ -89,7 +94,20 @@ class RuntimeSession:
 
 sessions: dict[str, RuntimeSession] = {}
 pending_handoffs: dict[str, tuple[HandoffRequest, float]] = {}
+handoff_attempts: dict[str, tuple[int, float]] = {}
 SESSION_COOKIE = "kinban_agent_session"
+HIGH_IMPACT_TOOLS = {
+    "publish_shift_assignment_scenario",
+    "set_shift_assignments",
+    "clear_draft_assignments",
+    "delete_draft_shift_plan",
+    "delete_shift_assignment_scenario",
+    "submit_work_record",
+    "review_monthly_work",
+    "create_announcement",
+    "delete_announcement",
+    "send_member_message",
+}
 
 
 def purge_expired_handoffs() -> None:
@@ -97,6 +115,16 @@ def purge_expired_handoffs() -> None:
     for code, (_, expires_at) in list(pending_handoffs.items()):
         if expires_at <= now:
             pending_handoffs.pop(code, None)
+
+
+def handoff_client_key(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for", "").split(",", 1)[0].strip()
+    return forwarded or (request.client.host if request.client else "unknown")
+
+
+def handoff_confirmation_key(tool_name: str, arguments: dict[str, Any]) -> str:
+    comparable = {key: value for key, value in arguments.items() if key != "confirm"}
+    return f"{tool_name}:{json.dumps(comparable, ensure_ascii=False, sort_keys=True, default=str)}"
 
 
 def configured_client(token: str | None = None) -> KinbanMCPClient:
@@ -119,7 +147,10 @@ async def session_for(request: Request) -> tuple[str, RuntimeSession]:
     return session_id or "", session
 
 
-async def build_agent(token: str) -> Agent:
+async def build_agent(token: str, mode: Literal["member", "operations"] = "member", session: RuntimeSession | None = None, user_turn: int = 0) -> Agent:
+    if session is None:
+        raise RuntimeError("Agent session context is required")
+    session_for_tool = session
     mcp = configured_client(token)
     tools = await mcp.tools()
     catalog = json.dumps([{k: v for k, v in item.items() if k in {"name", "description", "inputSchema"}} for item in tools], ensure_ascii=False)
@@ -131,12 +162,36 @@ async def build_agent(token: str) -> Agent:
             arguments = json.loads(arguments_json or "{}")
             if not isinstance(arguments, dict):
                 return "arguments_json must be an object"
+            if mode == "operations" and tool_name in HIGH_IMPACT_TOOLS:
+                confirmation_key = handoff_confirmation_key(tool_name, arguments)
+                pending = getattr(session_for_tool, "pending_confirmation", None)
+                if not pending or pending.get("key") != confirmation_key or pending.get("turn", 0) >= user_turn or arguments.get("confirm") is not True:
+                    session_for_tool.pending_confirmation = {"key": confirmation_key, "turn": user_turn, "createdAt": time.time()}
+                    return json.dumps({
+                        "confirmationRequired": True,
+                        "tool": tool_name,
+                        "message": "対象と影響を確認しました。別のメッセージで明示的に実行を確認してください。確認後は同じ対象に confirm:true を付けて再実行します。",
+                    }, ensure_ascii=False)
+                session_for_tool.pending_confirmation = None
             result = await mcp.call(tool_name, arguments)
             return json.dumps(result, ensure_ascii=False, default=str)
         except (json.JSONDecodeError, KinbanMCPError, ValueError) as exc:
             return f"KINBAN MCP error: {exc}"
 
     model = env("KINBAN_AGENT_MODEL", "gpt-5.6-luna")
+    if mode == "operations":
+        return Agent(
+            name="KINBAN operations assistant",
+            model=model,
+            instructions=(
+                "This is the KINBAN operations assistant. Keep every read and write scoped to the current groupId. "
+                "Use KINBAN MCP tools as the source of truth. You may help with shift planning, assignment scenarios, publication, work approval, announcements, and operational messages only when the token allows it. "
+                "For publication, approval/rejection, deletion, announcements, and member messages, first describe the target and impact without executing. Only after a separate follow-up user message explicitly confirms the same action may you call the tool with confirm:true. Never treat the first request alone as confirmation. "
+                "Never expose API tokens, private member data, or another group's data. Do not claim success until the MCP response confirms it.\n"
+                f"Available KINBAN MCP tools:\n{catalog}"
+            ),
+            tools=[call_kinban_tool],
+        )
     return Agent(
         name="KINBAN 本人用AIアシスト",
         model=model,
@@ -166,7 +221,7 @@ def mcp_value(result: Any) -> Any:
     return result
 
 
-async def validate_member_handoff(token: str, expected_group_id: str) -> tuple[str, str]:
+async def validate_handoff(token: str, expected_group_id: str, mode: Literal["member", "operations"]) -> tuple[str, str]:
     """Verify token mode/group through KINBAN; never trust handoff display fields."""
     client = configured_client(token)
     tools = await client.tools()
@@ -177,7 +232,8 @@ async def validate_member_handoff(token: str, expected_group_id: str) -> tuple[s
     if not isinstance(groups, list):
         raise KinbanMCPError("本人用MCPのグループ情報を確認できません。")
     match = next((item for item in groups if isinstance(item, dict) and item.get("id") == expected_group_id), None)
-    if not match or match.get("tokenType") != "personal":
+    expected_token_type = "personal" if mode == "member" else "assistant"
+    if not match or match.get("tokenType") != expected_token_type:
         raise KinbanMCPError("本人用AIアシストのグループ・権限を確認できません。")
     profile = mcp_value(await client.call("get_profile", {}))
     if not isinstance(profile, dict) or not profile.get("email"):
@@ -191,6 +247,8 @@ async def preload_context(session: RuntimeSession, message: str) -> str:
     client = configured_client(session.token)
     lowered = message.lower()
     calls: list[tuple[str, dict[str, Any]]] = [("get_demo_time", {"groupId": session.group_id})]
+    if session.mode == "operations":
+        calls.append(("list_groups", {}))
     if any(word in message for word in ("シフト", "勤務予定", "今日")) or "shift" in lowered:
         calls.append(("list_shift_plans", {"groupId": session.group_id}))
     if any(word in message for word in ("希望", "受付")) or "request" in lowered:
@@ -242,7 +300,7 @@ async def establish_session(payload: HandoffRequest, response: Response) -> Sess
         raise HTTPException(status_code=400, detail="接続先が不正です。")
     # Validate the handoff immediately. MCP revalidates the token on every call.
     try:
-        verified_group_id, verified_member_name = await validate_member_handoff(payload.token, payload.groupId)
+        verified_group_id, verified_member_name = await validate_handoff(payload.token, payload.groupId, payload.mode)
     except (KinbanMCPError, ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=401, detail="KINBANの接続を確認できません。期限切れ・失効・利用停止の可能性があります。") from exc
     session_id = secrets.token_urlsafe(32)
@@ -253,9 +311,23 @@ async def establish_session(payload: HandoffRequest, response: Response) -> Sess
 
 
 @app.post("/api/handoff")
-async def create_handoff(payload: HandoffRequest) -> dict[str, Any]:
+async def create_handoff(payload: HandoffRequest, request: Request) -> dict[str, Any]:
     """Stage a one-time opaque handoff; the API token never appears in a URL."""
     purge_expired_handoffs()
+    client_key = handoff_client_key(request)
+    now = time.time()
+    count, window_started = handoff_attempts.get(client_key, (0, now))
+    if now - window_started >= 60:
+        count, window_started = 0, now
+    if count >= 20:
+        handoff_attempts[client_key] = (count, window_started)
+        raise HTTPException(status_code=429, detail="handoff requests are temporarily rate limited")
+    handoff_attempts[client_key] = (count + 1, window_started)
+    try:
+        verified_group_id, verified_member_name = await validate_handoff(payload.token, payload.groupId, payload.mode)
+    except (KinbanMCPError, ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=401, detail="handoff token validation failed") from exc
+    payload = payload.model_copy(update={"groupId": verified_group_id, "memberName": verified_member_name})
     if len(pending_handoffs) >= 100:
         raise HTTPException(status_code=429, detail="handoff queue is full")
     code = secrets.token_urlsafe(32)
@@ -294,6 +366,8 @@ async def delete_session(request: Request, response: Response) -> dict[str, bool
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest, http_request: Request) -> ChatResponse:
     _, session = await session_for(http_request)
+    session.user_turn += 1
+    user_turn = session.user_turn
     model = env("KINBAN_AGENT_MODEL", "gpt-5.6-luna")
     profile = pricing_profile(model)
     started = now_iso()
@@ -304,7 +378,7 @@ async def chat(request: ChatRequest, http_request: Request) -> ChatResponse:
     answer = ""
     try:
         facts = await preload_context(session, request.message)
-        agent = await build_agent(session.token)
+        agent = await build_agent(session.token, session.mode, session, user_turn)
         items = [{"role": item["role"], "content": item["content"]} for item in request.history if item.get("role") in {"user", "assistant"} and item.get("content")]
         items.append({"role": "user", "content": f"現在のKINBANグループIDは {session.group_id} です。以下は回答前に取得した最新のKINBAN情報です。これを根拠に回答し、必要なら追加の本人用MCPを呼んでください。\n{facts}\n\n依頼:\n{request.message}"})
         result = await Runner.run(agent, items)
@@ -322,7 +396,7 @@ async def chat(request: ChatRequest, http_request: Request) -> ChatResponse:
         usage = extract_usage(result) if result is not None else {"inputTokens": None, "outputTokens": None, "totalTokens": None, "reasoningTokens": None, "cachedInputTokens": None}
         usd_micros, jpy_micros = estimate_cost(usage, profile)
         persisted = await persist_usage({
-            "userCategory": "member",
+            "userCategory": "manager" if session.mode == "operations" else "member",
             "model": model,
             "status": status,
             "startedAt": started,
@@ -334,7 +408,7 @@ async def chat(request: ChatRequest, http_request: Request) -> ChatResponse:
             "estimatedUsdMicros": usd_micros,
             "estimatedJpyMicros": jpy_micros,
             "errorMessage": error_message,
-            "metadata": {"runtime": "kinban-agent-runtime", "phase": 1, "mode": "member", "groupId": session.group_id},
+            "metadata": {"runtime": "kinban-agent-runtime", "phase": 1, "mode": session.mode, "groupId": session.group_id, "sessionScope": session.session_scope},
         }, token=session.token)
     return ChatResponse(answer=answer, model=model, pricingProfileId=profile["pricingProfileId"], usagePersisted=persisted)
 

@@ -4,6 +4,7 @@ WORKDIR /app
 COPY python-backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 COPY python-backend/ ./python-backend/
+COPY ui/ ./ui/
 COPY pricing_profiles.json ./pricing_profiles.json
 WORKDIR /app/python-backend
 EXPOSE 8000
