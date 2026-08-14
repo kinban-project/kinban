@@ -49,6 +49,7 @@ type CustomSlot = {
   role: string;
   dutyId: string | null;
   dutyNameSnapshot: string | null;
+  coverageDutyIds: string | null;
 };
 function parseCustomSlots(
   input: unknown,
@@ -79,6 +80,9 @@ function parseCustomSlots(
       .trim()
       .slice(0, 100);
     const dutyId = typeof item.dutyId === "string" && item.dutyId.trim() ? item.dutyId.trim() : null;
+    const coverageDutyIds = Array.isArray(item.coverageDutyIds)
+      ? JSON.stringify(item.coverageDutyIds.filter((value): value is string => typeof value === "string" && value.trim().length > 0))
+      : null;
     const requiredCount = Number(item.requiredCount);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < startDate || date > endDate)
       throw new Error(`${index + 1}件目の日付が勤務枠の期間外です`);
@@ -111,6 +115,7 @@ function parseCustomSlots(
       role,
       dutyId,
       dutyNameSnapshot: null,
+      coverageDutyIds,
     };
   }) as CustomSlot[] & Array<{ id: string; planId: string }>;
 }
@@ -222,7 +227,7 @@ export async function POST(request: Request) {
     slotMinutes?: number;
     requiredCount?: number;
     role?: string;
-    slotRules?: Array<{ role?: string; requiredCount?: number; dutyId?: string | null }>;
+    slotRules?: Array<{ role?: string; requiredCount?: number; dutyId?: string | null; coverageDutyIds?: string[] }>;
     customSlots?: unknown;
   };
   const groupId = body.groupId ?? "";
@@ -254,6 +259,7 @@ export async function POST(request: Request) {
       role: rule.role?.trim() ?? "",
       requiredCount: Math.max(1, Number(rule.requiredCount ?? 1)),
       dutyId: rule.dutyId ?? null,
+      coverageDutyIds: Array.isArray(rule.coverageDutyIds) ? JSON.stringify(rule.coverageDutyIds.filter((id) => typeof id === "string" && id.trim())) : null,
     }))
     .filter((rule) => rule.requiredCount > 0);
   if (!name || !startDate || !endDate || startDate > endDate)
@@ -283,6 +289,7 @@ export async function POST(request: Request) {
     role: string;
     dutyId: string | null;
     dutyNameSnapshot: string | null;
+    coverageDutyIds: string | null;
   }>;
   let effectiveOpeningTime = openingTime;
   let effectiveClosingTime = closingTime;
@@ -290,6 +297,12 @@ export async function POST(request: Request) {
   const duties = await db.select().from(groupDuties).where(eq(groupDuties.groupId, groupId));
   const dutyById = new Map(duties.map((duty) => [duty.id, duty]));
   for (const rule of rules) {
+    if (rule.coverageDutyIds) {
+      const coverageIds = JSON.parse(rule.coverageDutyIds) as unknown;
+      if (!Array.isArray(coverageIds) || coverageIds.some((dutyId) => typeof dutyId !== "string" || dutyById.get(dutyId)?.status !== "active")) {
+        return Response.json({ error: "coverageDutyIds must contain active duty IDs" }, { status: 400 });
+      }
+    }
     if (rule.dutyId && (!dutyById.get(rule.dutyId) || dutyById.get(rule.dutyId)?.status !== "active")) return Response.json({ error: "有効な担当を指定してください" }, { status: 400 });
   }
   if (body.customSlots !== undefined) {
@@ -297,6 +310,10 @@ export async function POST(request: Request) {
       slots = parseCustomSlots(body.customSlots, id, startDate, endDate);
       for (const slot of slots) {
         if (slot.dutyId && (!dutyById.get(slot.dutyId) || dutyById.get(slot.dutyId)?.status !== "active")) throw new Error("有効な担当を指定してください");
+        const coverageIds = slot.coverageDutyIds ? JSON.parse(slot.coverageDutyIds) as unknown : [];
+        if (!Array.isArray(coverageIds) || coverageIds.some((dutyId) => typeof dutyId !== "string" || dutyById.get(dutyId)?.status !== "active")) {
+          throw new Error("coverageDutyIds must contain active duty IDs");
+        }
         slot.dutyNameSnapshot = slot.dutyId ? dutyById.get(slot.dutyId)?.name ?? null : null;
       }
     } catch (error) {
@@ -352,6 +369,7 @@ export async function POST(request: Request) {
             role: rule.role,
             dutyId: rule.dutyId,
             dutyNameSnapshot: rule.dutyId ? dutyById.get(rule.dutyId)?.name ?? null : null,
+            coverageDutyIds: rule.coverageDutyIds,
           });
       return rows;
     });

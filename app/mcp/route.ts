@@ -89,6 +89,7 @@ type McpCustomSlot = {
   requiredCount: number;
   role: string;
   dutyId?: string | null;
+  coverageDutyIds?: string | null;
 };
 
 function parseMcpCustomSlots(input: unknown, planId: string, startDate: string, endDate: string) {
@@ -116,6 +117,9 @@ function parseMcpCustomSlots(input: unknown, planId: string, startDate: string, 
     if (!Number.isInteger(requiredCount) || requiredCount < 1 || requiredCount > 50)
       throw new Error(`custom slot ${index + 1} has an invalid requiredCount`);
     const dutyId = typeof item.dutyId === "string" && item.dutyId.trim() ? item.dutyId.trim() : null;
+    const coverageDutyIds = Array.isArray(item.coverageDutyIds)
+      ? JSON.stringify(item.coverageDutyIds.filter((value): value is string => typeof value === "string" && value.trim().length > 0))
+      : null;
     const key = `${date}|${startTime}|${endTime}|${role}|${dutyId ?? ""}`;
     if (used.has(key)) throw new Error(`duplicate custom slot: ${key}`);
     used.add(key);
@@ -128,6 +132,7 @@ function parseMcpCustomSlots(input: unknown, planId: string, startDate: string, 
       requiredCount,
       role,
       dutyId,
+      coverageDutyIds,
     };
   }) as Array<McpCustomSlot & { id: string; planId: string }>;
 }
@@ -1188,7 +1193,19 @@ const tools = [
         slotMinutes: { type: "number", enum: [30, 60, 120] },
         notes: { type: "string" },
         reason: { type: "string" },
-        slotRules: { type: "array" },
+        slotRules: {
+          type: "array",
+          description: "Regular slots. coverageDutyIds explicitly lists the active duties that must be covered during the slot; primary dutyId is not implicitly required.",
+          items: {
+            type: "object",
+            properties: {
+              role: { type: "string" },
+              requiredCount: { type: "integer", minimum: 1, maximum: 50 },
+              dutyId: { type: "string", description: "Optional primary active duty ID." },
+              coverageDutyIds: { type: "array", items: { type: "string" }, description: "Optional active duty IDs required simultaneously." },
+            },
+          },
+        },
         customSlots: {
           type: "array",
           minItems: 1,
@@ -1203,6 +1220,7 @@ const tools = [
               requiredCount: { type: "integer", minimum: 1, maximum: 50 },
               role: { type: "string", maxLength: 100 },
               dutyId: { type: "string", description: "Optional active duty master ID for this slot." },
+              coverageDutyIds: { type: "array", items: { type: "string" }, description: "Optional active duty IDs required simultaneously." },
             },
           },
           description:
@@ -3093,7 +3111,7 @@ export async function POST(request: Request) {
         : allAssignments;
       const coverageWarnings = buildDutyCoverageWarnings({
         slots,
-        assignments: visibleAssignments,
+        assignments: allAssignments,
         members: members.filter((member) => member.status === "active").map((member) => ({
           userEmail: member.userEmail,
           dutyIds: [...(memberDutyMap.get(member.userEmail) ?? new Set<string>())],
@@ -3104,7 +3122,7 @@ export async function POST(request: Request) {
         plan: found.plan,
         slots,
         assignments: visibleAssignments,
-        coverageWarnings,
+        coverageWarnings: identity.tokenType === "personal" ? [] : coverageWarnings,
       });
     }
     if (name === "get_shift_planning_context") {
@@ -3562,6 +3580,7 @@ export async function POST(request: Request) {
                 requiredCount: Math.max(1, Number(rule.requiredCount ?? 1)),
                 dutyId: text(rule.dutyId) || null,
                 dutyNameSnapshot: text(rule.dutyId) ? dutyById.get(text(rule.dutyId))?.name ?? null : null,
+                coverageDutyIds: Array.isArray(rule.coverageDutyIds) ? JSON.stringify(rule.coverageDutyIds.filter((value) => typeof value === "string" && value.trim())) : null,
               });
       }
       if (!rows.length) return rpcError(payload.id, "No slots were provided");
@@ -3639,6 +3658,16 @@ export async function POST(request: Request) {
             .delete(shiftAssignments)
             .where(inArray(shiftAssignments.slotId, slotIds.slice(index, index + 50))),
         );
+      const invalidCoverage = rows.find((row) => {
+        if (!row.coverageDutyIds) return false;
+        try {
+          const ids = JSON.parse(row.coverageDutyIds) as unknown;
+          return !Array.isArray(ids) || ids.some((dutyId) => typeof dutyId !== "string" || dutyById.get(dutyId)?.status !== "active");
+        } catch {
+          return true;
+        }
+      });
+      if (invalidCoverage) return rpcError(payload.id, "coverageDutyIds must contain active duty IDs");
       await db.batch([
         ...assignmentDeletes,
         db.delete(shiftSlots).where(eq(shiftSlots.planId, found.plan.id)),

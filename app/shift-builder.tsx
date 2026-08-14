@@ -32,6 +32,7 @@ type Slot = {
   role: string;
   dutyId?: string | null;
   dutyNameSnapshot?: string | null;
+  coverageDutyIds?: string[] | string | null;
 };
 type Member = { userEmail: string; displayName?: string | null; role: string };
 type RequestPeriod = {
@@ -58,7 +59,7 @@ type Detail = {
   closedDates?: string[];
   requestPeriod?: RequestPeriod | null;
 };
-type SlotRule = { role: string; requiredCount: string; dutyId: string };
+type SlotRule = { role: string; requiredCount: string; dutyId: string; coverageDutyIds: string[] };
 type InputMode = "standard" | "custom";
 
 function defaultRequestCloseDate(startDate: string) {
@@ -142,7 +143,7 @@ export default function ShiftBuilder({
   });
   const [notes, setNotes] = useState("");
   const [slotRules, setSlotRules] = useState<SlotRule[]>([
-    { role: "", requiredCount: "2", dutyId: "" },
+    { role: "", requiredCount: "2", dutyId: "", coverageDutyIds: [] },
   ]);
   const [duties, setDuties] = useState<Duty[]>([]);
   const [inputMode, setInputMode] = useState<InputMode>("standard");
@@ -282,6 +283,7 @@ export default function ShiftBuilder({
                 role: rule.role,
                 requiredCount: Number(rule.requiredCount),
                 ...(rule.dutyId ? { dutyId: rule.dutyId } : {}),
+                ...(rule.coverageDutyIds.length ? { coverageDutyIds: rule.coverageDutyIds } : {}),
               }))
             : undefined,
         customSlots: inputMode === "custom" ? customSlots : undefined,
@@ -624,6 +626,15 @@ export default function ShiftBuilder({
                         <option value="">担当なし（既存運用）</option>
                         {duties.filter((duty) => duty.status === "active").map((duty) => <option key={duty.id} value={duty.id}>{duty.name}</option>)}
                       </select>
+                      <select
+                        multiple
+                        size={Math.min(3, Math.max(1, duties.filter((duty) => duty.status === "active").length))}
+                        value={rule.coverageDutyIds}
+                        onChange={(event) => updateSlotRule(index, { coverageDutyIds: [...event.target.selectedOptions].map((option) => option.value) })}
+                        aria-label="Coverage duties"
+                      >
+                        {duties.filter((duty) => duty.status === "active").map((duty) => <option key={duty.id} value={duty.id}>{duty.name}</option>)}
+                      </select>
                       {slotRules.length > 1 && (
                         <button
                           type="button"
@@ -647,7 +658,7 @@ export default function ShiftBuilder({
                     onClick={() =>
                       setSlotRules((current) => [
                         ...current,
-                        { role: "", requiredCount: "1", dutyId: "" },
+                        { role: "", requiredCount: "1", dutyId: "", coverageDutyIds: [] },
                       ])
                     }
                   >
@@ -910,6 +921,16 @@ export default function ShiftBuilder({
                                               {duty.name}
                                             </option>
                                           ))}
+                                      </select>
+                                      <select
+                                        className="slot-coverage-duty-select"
+                                        multiple
+                                        size={Math.min(3, Math.max(1, duties.filter((duty) => duty.status === "active").length))}
+                                        value={Array.isArray(slot.coverageDutyIds) ? slot.coverageDutyIds : (() => { try { return slot.coverageDutyIds ? JSON.parse(slot.coverageDutyIds) as string[] : []; } catch { return []; } })()}
+                                        onChange={(event) => updateSlot(slot.id, { coverageDutyIds: [...event.target.selectedOptions].map((option) => option.value) })}
+                                        aria-label="Coverage duties"
+                                      >
+                                        {duties.filter((duty) => duty.status === "active").map((duty) => <option key={duty.id} value={duty.id}>{duty.name}</option>)}
                                       </select>
                                       <input
                                         className="slot-count-input"
