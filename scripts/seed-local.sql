@@ -1547,3 +1547,74 @@ WHERE plan_id = 'seed-yakiniku-plan-august-first' AND role = '洗い場';
 UPDATE shift_slots
 SET required_count = 2
 WHERE id = 'yakiniku-slot-2026-08-08-lunch-kitchen';
+
+-- 焼肉店ポジション割当デモの拡張。既存の8名に、利用可能な予備枠を2名追加し、
+-- 代表的な時間帯・担当・希望差分・未充足・適性外を同じ下書きで確認できるようにする。
+INSERT INTO account_profiles (user_email, nickname) VALUES
+  ('yakiniku-hall-c@local.test', 'ホールC'),
+  ('yakiniku-flex-b@local.test', '兼任B');
+INSERT INTO site_users (id, user_email, display_name, status, is_site_admin, can_create_groups) VALUES
+  ('seed-site-yakiniku-hall-c', 'yakiniku-hall-c@local.test', 'ホールC', 'active', 0, 0),
+  ('seed-site-yakiniku-flex-b', 'yakiniku-flex-b@local.test', '兼任B', 'active', 0, 0);
+INSERT INTO group_members (id, group_id, user_email, display_name, admin_note, role, status, show_in_personal) VALUES
+  ('seed-yakiniku-hall-c', 'seed-group-yakiniku', 'yakiniku-hall-c@local.test', 'ホールC', 'ホール接客・ウェイティング担当。土日ピークにも対応可能。', 'member', 'active', 1),
+  ('seed-yakiniku-flex-b', 'seed-group-yakiniku', 'yakiniku-flex-b@local.test', '兼任B', 'ドリンク・ウェイティング・洗い場を担当可能。平日中心の調整候補。', 'member', 'active', 1);
+INSERT INTO group_preferences (id, group_id, user_email, min_days, max_days, min_hours, max_hours, weekend_policy, free_comment) VALUES
+  ('seed-yakiniku-pref-hall-c', 'seed-group-yakiniku', 'yakiniku-hall-c@local.test', 2, 5, 12, 32, 'prefer', '土日のピーク帯も可能。ホール接客を優先。'),
+  ('seed-yakiniku-pref-flex-b', 'seed-group-yakiniku', 'yakiniku-flex-b@local.test', 1, 4, 8, 24, 'avoid', '平日中心。ドリンク・ウェイティング・洗い場の兼任候補。');
+INSERT INTO shift_availability (id, group_id, user_email, day_of_week, status, start_time, end_time, note)
+SELECT 'yakiniku-availability-' || lower(hex(randomblob(8))), 'seed-group-yakiniku', user_email,
+  day_of_week, 'possible', '14:00', '24:00', 'ポジション枠に合わせて調整可能。'
+FROM (SELECT 'yakiniku-hall-c@local.test' AS user_email UNION ALL SELECT 'yakiniku-flex-b@local.test') users
+CROSS JOIN (SELECT 0 AS day_of_week UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6) days;
+INSERT OR IGNORE INTO member_duties (id, group_id, user_email, duty_id) VALUES
+  ('member-duty-yakiniku-hall-c', 'seed-group-yakiniku', 'yakiniku-hall-c@local.test', 'duty-yakiniku-hall'),
+  ('member-duty-yakiniku-hall-c-waiting', 'seed-group-yakiniku', 'yakiniku-hall-c@local.test', 'duty-yakiniku-waiting'),
+  ('member-duty-yakiniku-flex-b-drink', 'seed-group-yakiniku', 'yakiniku-flex-b@local.test', 'duty-yakiniku-drink'),
+  ('member-duty-yakiniku-flex-b-waiting', 'seed-group-yakiniku', 'yakiniku-flex-b@local.test', 'duty-yakiniku-waiting'),
+  ('member-duty-yakiniku-flex-b-wash', 'seed-group-yakiniku', 'yakiniku-flex-b@local.test', 'duty-yakiniku-wash');
+
+-- 1日1担当を保ちつつ、時間帯ごとに必要な担当をcoverageDutyIdsで表現する。
+DELETE FROM shift_assignments WHERE slot_id IN (SELECT id FROM shift_slots WHERE plan_id = 'seed-yakiniku-plan-august-first');
+DELETE FROM shift_slots WHERE plan_id = 'seed-yakiniku-plan-august-first';
+WITH RECURSIVE dates(date) AS (
+  SELECT '2026-08-01'
+  UNION ALL SELECT date(date, '+1 day') FROM dates WHERE date < '2026-08-15'
+)
+INSERT INTO shift_slots (id, plan_id, date, start_time, end_time, required_count, role, duty_id, duty_name_snapshot, coverage_duty_ids)
+SELECT 'yakiniku-slot-' || date || '-1400-hall', 'seed-yakiniku-plan-august-first', date, '14:00', '17:00', 1, 'ホール接客', 'duty-yakiniku-hall', 'ホール接客', '["duty-yakiniku-hall"]' FROM dates
+UNION ALL SELECT 'yakiniku-slot-' || date || '-1400-kitchen', 'seed-yakiniku-plan-august-first', date, '14:00', '17:00', 1, '肉場', 'duty-yakiniku-meat', '肉場', '["duty-yakiniku-meat"]' FROM dates
+UNION ALL SELECT 'yakiniku-slot-' || date || '-1700-hall', 'seed-yakiniku-plan-august-first', date, '17:00', '18:00', CASE WHEN strftime('%w', date) IN ('0','6') THEN 3 ELSE 2 END, 'ホール接客', 'duty-yakiniku-hall', 'ホール接客', '["duty-yakiniku-hall","duty-yakiniku-waiting"]' FROM dates
+UNION ALL SELECT 'yakiniku-slot-' || date || '-1700-kitchen', 'seed-yakiniku-plan-august-first', date, '17:00', '18:00', 1, '肉場', 'duty-yakiniku-meat', '肉場', '["duty-yakiniku-meat"]' FROM dates
+UNION ALL SELECT 'yakiniku-slot-' || date || '-1800-hall', 'seed-yakiniku-plan-august-first', date, '18:00', '19:00', CASE WHEN strftime('%w', date) IN ('0','6') THEN 3 ELSE 2 END, 'ホール接客', 'duty-yakiniku-hall', 'ホール接客', '["duty-yakiniku-hall","duty-yakiniku-waiting","duty-yakiniku-drink"]' FROM dates
+UNION ALL SELECT 'yakiniku-slot-' || date || '-1800-kitchen', 'seed-yakiniku-plan-august-first', date, '18:00', '19:00', CASE WHEN strftime('%w', date) IN ('0','6') THEN 3 ELSE 2 END, 'サラダ場・スープ場', 'duty-yakiniku-salad-soup', 'サラダ場・スープ場', '["duty-yakiniku-meat","duty-yakiniku-salad-soup"]' FROM dates
+UNION ALL SELECT 'yakiniku-slot-' || date || '-1900-hall', 'seed-yakiniku-plan-august-first', date, '19:00', '21:00', CASE WHEN strftime('%w', date) IN ('0','6') THEN 4 ELSE 3 END, 'ホール接客', 'duty-yakiniku-hall', 'ホール接客', '["duty-yakiniku-hall","duty-yakiniku-waiting","duty-yakiniku-drink"]' FROM dates
+UNION ALL SELECT 'yakiniku-slot-' || date || '-1900-kitchen', 'seed-yakiniku-plan-august-first', date, '19:00', '21:00', CASE WHEN strftime('%w', date) IN ('0','6') THEN 3 ELSE 2 END, 'サラダ場・スープ場', 'duty-yakiniku-salad-soup', 'サラダ場・スープ場', '["duty-yakiniku-meat","duty-yakiniku-salad-soup"]' FROM dates
+UNION ALL SELECT 'yakiniku-slot-' || date || '-2100-hall', 'seed-yakiniku-plan-august-first', date, '21:00', '24:00', CASE WHEN strftime('%w', date) IN ('0','6') THEN 3 ELSE 2 END, 'ホール接客', 'duty-yakiniku-hall', 'ホール接客', '["duty-yakiniku-hall","duty-yakiniku-waiting"]' FROM dates
+UNION ALL SELECT 'yakiniku-slot-' || date || '-2100-kitchen', 'seed-yakiniku-plan-august-first', date, '21:00', '24:00', CASE WHEN strftime('%w', date) IN ('0','6') THEN 3 ELSE 2 END, 'サラダ場・スープ場', 'duty-yakiniku-salad-soup', 'サラダ場・スープ場', '["duty-yakiniku-meat","duty-yakiniku-salad-soup"]' FROM dates;
+
+-- 代表例：通常充足、土日ピークの体制不足、担当不可の割当を混在させる。
+INSERT INTO shift_assignments (id, slot_id, user_email) VALUES
+  ('yakiniku-assignment-0801-1400-hall', 'yakiniku-slot-2026-08-01-1400-hall', 'yakiniku-hall-a@local.test'),
+  ('yakiniku-assignment-0801-1400-kitchen', 'yakiniku-slot-2026-08-01-1400-kitchen', 'yakiniku-kitchen-a@local.test'),
+  ('yakiniku-assignment-0801-1700-hall-a', 'yakiniku-slot-2026-08-01-1700-hall', 'yakiniku-hall-a@local.test'),
+  ('yakiniku-assignment-0801-1700-hall-b', 'yakiniku-slot-2026-08-01-1700-hall', 'yakiniku-hall-b@local.test'),
+  ('yakiniku-assignment-0801-1700-kitchen', 'yakiniku-slot-2026-08-01-1700-kitchen', 'yakiniku-kitchen-a@local.test'),
+  ('yakiniku-assignment-0801-1800-hall-a', 'yakiniku-slot-2026-08-01-1800-hall', 'yakiniku-hall-a@local.test'),
+  ('yakiniku-assignment-0801-1800-hall-b', 'yakiniku-slot-2026-08-01-1800-hall', 'yakiniku-hall-b@local.test'),
+  ('yakiniku-assignment-0801-1800-kitchen-a', 'yakiniku-slot-2026-08-01-1800-kitchen', 'yakiniku-kitchen-a@local.test'),
+  ('yakiniku-assignment-0801-1800-kitchen-b', 'yakiniku-slot-2026-08-01-1800-kitchen', 'yakiniku-kitchen-b@local.test'),
+  ('yakiniku-assignment-0808-1900-hall-a', 'yakiniku-slot-2026-08-08-1900-hall', 'yakiniku-hall-a@local.test'),
+  ('yakiniku-assignment-0808-1900-hall-b', 'yakiniku-slot-2026-08-08-1900-hall', 'yakiniku-hall-b@local.test'),
+  ('yakiniku-assignment-0808-1900-kitchen-wrong', 'yakiniku-slot-2026-08-08-1900-kitchen', 'yakiniku-hall-a@local.test');
+
+UPDATE groups
+SET name = '焼肉店（ポジション割当デモ）',
+    description = '担当可能範囲を見ながら、焼肉店の時間帯別ポジション割当・体制不足・希望差分を確認するデモシナリオ'
+WHERE id = 'seed-group-yakiniku';
+UPDATE shift_plans
+SET notes = '店長は配置対象外。平日と土日で必要人数を変え、肉場・サラダ場・スープ場・ドリンク場・洗い場・ホール接客・ウェイティングの適性と希望差分を確認する下書きデモ。'
+WHERE id = 'seed-yakiniku-plan-august-first';
+UPDATE knowledge_pages
+SET body = replace('# 焼肉店のポジション割当デモ\n\n## 担当の考え方\n\n- 肉場、サラダ場・スープ場、ドリンク場、洗い場、ホール接客、ウェイティングを別の担当として確認します。\n- ホール接客は配膳・接客、ウェイティングは受付・案内です。混雑時は別担当として体制を確認します。\n- 兼任者は不足時の候補ですが、同じ時間帯に複数枠へ重ねず、主担当を一つに置きます。\n\n## 試すケース\n\n1. 平日夕方：人数は足りても担当適性が偏るケース。\n2. 土日ピーク：必要人数と担当の体制不足が同時に出るケース。\n3. 欠勤想定：肉場・ホール候補が減ったときの候補と不足を確認するケース。\n\n割当案は下書きとして確認し、公開前に店長が担当と希望差分を確認します。', '\\n', char(10))
+WHERE id = 'knowledge-yakiniku-position-guide';

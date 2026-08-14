@@ -27,6 +27,18 @@ const scenarios = [
       ["night-cast-a", "キャストA", "メンバー"],
     ],
   },
+  {
+    id: "yakiniku",
+    name: "焼肉店（ポジション割当デモ）",
+    description: "担当可能範囲と時間帯別の必要人数を見ながら、割当案・体制不足・希望差分を確認する例です。",
+    detail: "yakiniku",
+    users: [
+      ["yakiniku-manager", "焼肉店長", "代表管理者"],
+      ["yakiniku-submanager", "副店長", "メンバー"],
+      ["yakiniku-hall-a", "ホールA", "メンバー"],
+      ["yakiniku-kitchen-a", "厨房A", "メンバー"],
+    ],
+  },
 ] as const;
 
 export default function DemoPage() {

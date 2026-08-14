@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>焼肉店（ポジション割当デモ） | KINBAN DEMO</title>
+  <style>
+    :root{--ink:#173b38;--muted:#60736e;--line:#d9e8df;--green:#e8f4e7;--gold:#fff4d5;--red:#fff0ed}
+    *{box-sizing:border-box}body{margin:0;background:#f7faf7;color:var(--ink);font-family:system-ui,-apple-system,"Yu Gothic",Meiryo,sans-serif;line-height:1.7}
+    main{max-width:980px;margin:auto;padding:30px 18px 64px}a{color:#16766d}h1{margin:12px 0;font-size:clamp(1.7rem,4vw,2.5rem)}h2{margin:30px 0 10px;font-size:1.2rem}.muted{color:var(--muted)}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}.card{padding:16px;background:#fff;border:1px solid var(--line);border-radius:14px}.card p{margin:5px 0 0;color:var(--muted);font-size:.92rem}.green{background:var(--green)}.gold{background:var(--gold)}.red{background:var(--red)}
+    table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);font-size:.92rem}th,td{padding:10px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}th{background:#eef6f0;white-space:nowrap}tr:last-child td{border-bottom:0}.people{display:flex;flex-wrap:wrap;gap:8px}.people a{padding:7px 10px;background:#fff;border:1px solid var(--line);border-radius:9px;text-decoration:none}
+    .notice{padding:14px 16px;border-left:5px solid #d2a53a;background:var(--gold);border-radius:10px}.steps{padding-left:1.3rem}.steps li{margin:5px 0}
+    @media(max-width:650px){main{padding:22px 12px 42px}table{display:block;overflow-x:auto;white-space:nowrap}}
+  </style>
+</head>
+<body>
+  <main>
+    <p><a href="/demo">← デモ一覧へ戻る</a></p>
+    <h1>焼肉店（ポジション割当デモ）</h1>
+    <p class="muted">担当できるポジションと時間帯ごとの必要人数を見ながら、シフト割当の下書き・不足・希望との差分を確認するシナリオです。</p>
+    <div class="notice"><strong>デモのサンプルデータです</strong><br>誰でも操作でき、データがリセットされる場合があります。実在の個人情報や機密情報は入力しないでください。</div>
+
+    <h2>このデモで試せること</h2>
+    <ol class="steps">
+      <li>勤務枠の担当と必要人数を確認する。</li>
+      <li>担当可能なメンバーを見ながら、割当案を作成する。</li>
+      <li>平日夕方の適性外、土日ピークの体制不足、欠勤時の代替候補を確認する。</li>
+      <li>希望日数・希望時間との差分、警告、労務注意を確認してから公開を判断する。</li>
+    </ol>
+
+    <h2>担当ポジション</h2>
+    <div class="grid">
+      <section class="card green"><strong>厨房系</strong><p>肉場／サラダ場・スープ場／洗い場</p></section>
+      <section class="card"><strong>接客系</strong><p>ホール接客／ウェイティング／ドリンク場</p></section>
+      <section class="card gold"><strong>兼任</strong><p>不足時の候補。ただし同じ時間帯に複数枠へ重ねず、主担当を一つにします。</p></section>
+    </div>
+
+    <h2>時間帯と必要人数の目安</h2>
+    <table><thead><tr><th>時間</th><th>ホール・接客</th><th>厨房</th><th>確認ポイント</th></tr></thead><tbody>
+      <tr><td>14:00–17:00</td><td>1名</td><td>1名</td><td>開店準備と仕込み</td></tr>
+      <tr><td>17:00–18:00</td><td>2名</td><td>1名</td><td>営業開始</td></tr>
+      <tr><td>18:00–19:00</td><td>2名</td><td>2名</td><td>担当可能範囲を確認</td></tr>
+      <tr><td>19:00–21:00</td><td>3名</td><td>2名</td><td>ピーク。土日は必要人数が増加</td></tr>
+      <tr><td>21:00–24:00</td><td>2名</td><td>2名</td><td>閉店までの体制と兼任</td></tr>
+    </tbody></table>
+
+    <h2>シナリオのメンバー</h2>
+    <div class="people">
+      <a href="/?user=yakiniku-manager">焼肉店長（管理者）</a>
+      <a href="/?user=yakiniku-submanager">副店長</a>
+      <a href="/?user=yakiniku-hall-a">ホールA</a>
+      <a href="/?user=yakiniku-kitchen-a">厨房A</a>
+      <a href="/?user=yakiniku-hall-b">ホールB</a>
+      <a href="/?user=yakiniku-kitchen-b">厨房B</a>
+      <a href="/?user=yakiniku-wash-a">洗い場A</a>
+      <a href="/?user=yakiniku-flex-a">兼任A</a>
+      <a href="/?user=yakiniku-hall-c">ホールC</a>
+      <a href="/?user=yakiniku-flex-b">兼任B</a>
+    </div>
+  </main>
+</body>
+</html>
