@@ -7,7 +7,7 @@ import { recordAudit } from "../../../../../../audit-log";
 import { createSystemMessagesAndPush } from "../../../../../../notification-events";
 import { shiftDateTime } from "../../../../../../shift-time";
 import { proposalMeta, proposalMatchesSlots, proposalSettings } from "../../../../../../shift-assignment-proposals";
-import { buildMemberDutyMap, validateDutyAssignments } from "../../../../../../duty-validation";
+import { buildDutyCoverageWarnings, buildMemberDutyMap, validateDutyAssignments } from "../../../../../../duty-validation";
 
 export const dynamic = "force-dynamic";
 
@@ -61,7 +61,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   });
   const unknownSlot = Object.keys(assignments).some((slotId) => !validSlots.has(slotId));
   if (unknownSlot) return Response.json({ error: "割当案に存在しない勤務枠が含まれています。再作成してください" }, { status: 409 });
-  const dutyErrors = validateDutyAssignments(slots, rows, buildMemberDutyMap(dutyRows));
+  const dutyMap = buildMemberDutyMap(dutyRows);
+  const dutyErrors = validateDutyAssignments(slots, rows, dutyMap);
+  const coverageWarnings = buildDutyCoverageWarnings({
+    slots,
+    assignments: rows,
+    members: members.map((member) => ({ ...member, dutyIds: [...(dutyMap.get(member.userEmail) ?? new Set<string>())] })),
+  });
   if (dutyErrors.length) return Response.json({ error: "担当可能ではないメンバーが割り当てられています。既存の公開版は変更されていません。", dutyErrors }, { status: 409 });
   const [currentPublished] = (await result.db.select().from(shiftAssignmentScenarios).where(eq(shiftAssignmentScenarios.planId, id))).filter((item) => {
     try { return proposalMeta(JSON.parse(item.settingsJson || "{}")).proposalStatus === "published"; } catch { return false; }
@@ -87,5 +93,5 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   await recordAudit({ groupId: result.plan.groupId, userEmail: result.user.email, action: "shift.proposal.publish", entityType: "shiftAssignmentScenario", entityId: scenario.id, summary: `割当案を公開しました: ${scenario.name}`, details: { planId: id, previousPublishedScenarioId: currentPublished?.id ?? null, reason: body.reason?.trim().slice(0, 300) ?? "", assignedCount: rows.length } });
   const recipients = [...new Set(rows.map((row) => row.userEmail))];
   await createSystemMessagesAndPush(result.db, { groupId: result.plan.groupId, recipients, eventId: `shift-proposal-publish:${id}:${result.plan.version + 1}`, eventType: "published_shift_changed", body: "公開シフトが更新されました。シフト一覧を確認してください。", pushTitle: "KINBAN", pushBody: "公開シフトが更新されました", url: `/?group=${encodeURIComponent(result.plan.groupId)}&view=roster` });
-  return Response.json({ ok: true, planId: id, scenarioId, status: "published", version: result.plan.version + 1, assignedCount: rows.length });
+  return Response.json({ ok: true, planId: id, scenarioId, status: "published", version: result.plan.version + 1, assignedCount: rows.length, coverageWarnings });
 }

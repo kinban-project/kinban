@@ -5,7 +5,7 @@ import { getMembership } from "../../../groups/group-access";
 import { buildLaborWarnings } from "../../../../shift-labor-warnings";
 import { shiftTimeToMinutes } from "../../../../shift-time";
 import { groupMembers, memberDuties, shiftAssignmentScenarios, shiftAssignments, shiftPlans, shiftSlots, shiftAvailability, groupPreferences, shiftRequestPeriods, shiftRequests, groups } from "../../../../../db/schema";
-import { buildMemberDutyMap, memberCanTakeDuty } from "../../../../duty-validation";
+import { buildDutyCoverageWarnings, buildMemberDutyMap, memberCanTakeDuty } from "../../../../duty-validation";
 import { proposalMeta, proposalSettings, proposalSlotSignature } from "../../../../shift-assignment-proposals";
 import { pruneInvalidShiftRequests } from "../../../../shift-request-cleanup";
 
@@ -148,6 +148,12 @@ async function generateAssignments(db: ReturnType<typeof getDb>, planId: string,
       planEndDate: plan?.endDate ?? slots[slots.length - 1]?.date ?? "",
     });
     for (const warning of existingLaborWarnings) for (const slotId of warning.slotIds) problemSlotIds.add(slotId);
+    const existingCoverageWarnings = buildDutyCoverageWarnings({
+      slots,
+      assignments: existingRows,
+      members: members.map((member) => ({ ...member, dutyIds: [...(memberDutyMap.get(member.userEmail) ?? new Set<string>())] })),
+    });
+    for (const warning of existingCoverageWarnings) for (const slotId of warning.slotIds) problemSlotIds.add(slotId);
     for (let index = 0; index < slots.length; index += 1) {
       for (let nextIndex = index + 1; nextIndex < slots.length; nextIndex += 1) {
         const left = slots[index];
@@ -230,7 +236,12 @@ async function generateAssignments(db: ReturnType<typeof getDb>, planId: string,
   }
   const warnings = plan ? buildLaborWarnings({ slots, assignments: slots.flatMap((slot) => (assignments[slot.id] ?? []).map((userEmail) => ({ slotId: slot.id, userEmail }))), members, rules: laborRules, planStartDate: plan.startDate, planEndDate: plan.endDate }) : [];
   const dutyWarnings = slots.flatMap((slot) => (assignments[slot.id] ?? []).filter((email) => !memberCanTakeDuty(slot, email, memberDutyMap)).map((email) => `${email}は${slot.dutyNameSnapshot || "担当付き勤務枠"}を担当可能として登録されていません`));
-  return { assignments, settings, seed, warnings: [...warnings.map((warning) => warning.message), ...dutyWarnings], unfilled: slots.filter((slot) => (assignments[slot.id] ?? []).length < slot.requiredCount).length };
+  const coverageWarnings = buildDutyCoverageWarnings({
+    slots,
+    assignments: slots.flatMap((slot) => (assignments[slot.id] ?? []).map((userEmail) => ({ slotId: slot.id, userEmail }))),
+    members: members.map((member) => ({ ...member, dutyIds: [...(memberDutyMap.get(member.userEmail) ?? new Set<string>())] })),
+  });
+  return { assignments, settings, seed, warnings: [...warnings.map((warning) => warning.message), ...dutyWarnings, ...coverageWarnings.map((warning) => warning.message)], coverageWarnings, unfilled: slots.filter((slot) => (assignments[slot.id] ?? []).length < slot.requiredCount).length };
 }
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {

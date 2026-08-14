@@ -6,6 +6,7 @@ import { getShiftDisplayLabel, getShiftDisplayStatus } from "./shift-status";
 import { displayShiftTime, shiftTimeToMinutes } from "./shift-time";
 import { buildLaborWarnings, type LaborRules, type LaborWarning } from "./shift-labor-warnings";
 import { proposalMatchesSlots, proposalMeta, type AssignmentProposalSlot } from "./shift-assignment-proposals";
+import { buildDutyCoverageWarnings } from "./duty-validation";
 
 type Group = { id: string; name: string; membership: { role: string } };
 type Plan = {
@@ -86,7 +87,7 @@ type Preference = {
 };
 type AssignmentIssue = {
   id: string;
-  kind: "shortage" | "excess" | "overlap" | "duty" | "labor";
+  kind: "shortage" | "excess" | "overlap" | "duty" | "coverage" | "labor";
   slotIds: string[];
   message: string;
   memberEmail?: string;
@@ -180,7 +181,7 @@ export default function ShiftAdjustment({
   const [notice, setNotice] = useState("");
   const [showAllWarnings, setShowAllWarnings] = useState(false);
   const [showAllPlannedBreaks, setShowAllPlannedBreaks] = useState(false);
-  const [warningFilter, setWarningFilter] = useState<"all" | "warnings" | "labor" | "plannedBreak">("all");
+  const [warningFilter, setWarningFilter] = useState<"all" | "warnings" | "duty" | "coverage" | "labor" | "plannedBreak">("all");
   const [candidateFilters, setCandidateFilters] = useState<Record<CandidateFilter, boolean>>({
     want: true,
     possible: true,
@@ -348,6 +349,18 @@ export default function ShiftAdjustment({
         message: `${slot.date} ${memberName}：${dutyName}の担当可否が未設定または不可です（既存割当の要確認）`,
       });
     }
+    for (const warning of buildDutyCoverageWarnings({
+      slots: detail.slots,
+      assignments: detail.assignments,
+      members: detail.members,
+    })) {
+      issues.set(warning.id, {
+        id: warning.id,
+        kind: "coverage",
+        slotIds: warning.slotIds,
+        message: warning.message,
+      });
+    }
     for (let index = 0; index < assignedSlots.length; index += 1) {
       for (let nextIndex = index + 1; nextIndex < assignedSlots.length; nextIndex += 1) {
         const left = assignedSlots[index];
@@ -378,7 +391,9 @@ export default function ShiftAdjustment({
   }, [detail, assignments, laborWarnings]);
   const filteredIssues = useMemo(() => {
     if (warningFilter === "labor") return assignmentIssues.filter((issue) => issue.kind === "labor");
-    if (warningFilter === "warnings") return assignmentIssues.filter((issue) => issue.kind !== "labor");
+    if (warningFilter === "duty") return assignmentIssues.filter((issue) => issue.kind === "duty");
+    if (warningFilter === "coverage") return assignmentIssues.filter((issue) => issue.kind === "coverage");
+    if (warningFilter === "warnings") return assignmentIssues.filter((issue) => ["shortage", "excess", "overlap"].includes(issue.kind));
     return assignmentIssues;
   }, [assignmentIssues, warningFilter]);
   const warningSlotIds = useMemo(
@@ -390,8 +405,10 @@ export default function ShiftAdjustment({
       shortage: assignmentIssues.filter((issue) => issue.kind === "shortage").length,
       excess: assignmentIssues.filter((issue) => issue.kind === "excess").length,
       overlap: assignmentIssues.filter((issue) => issue.kind === "overlap").length,
+      duty: assignmentIssues.filter((issue) => issue.kind === "duty").length,
+      coverage: assignmentIssues.filter((issue) => issue.kind === "coverage").length,
       labor: assignmentIssues.filter((issue) => issue.kind === "labor").length,
-      warnings: assignmentIssues.filter((issue) => issue.kind !== "labor").length,
+      warnings: assignmentIssues.filter((issue) => ["shortage", "excess", "overlap"].includes(issue.kind)).length,
     }),
     [assignmentIssues],
   );
@@ -622,7 +639,7 @@ export default function ShiftAdjustment({
       ...(minutes > 0 ? [`予定休憩${minutes}分`] : []),
       ...laborLabels,
       ...(hasOverlap ? ["時間重複"] : []),
-      ...(dutyReview ? ["担当要確認"] : []),
+      ...(dutyReview ? ["適性外"] : []),
     ];
     return (
       <span className={`assignment-preview-person pref-${preference}`} key={`${slot.id}|${userEmail}|${index}`}>
@@ -1033,10 +1050,12 @@ export default function ShiftAdjustment({
             <div className="assignment-warning-filter-buttons">
               <button type="button" className={warningFilter === "all" ? "active" : ""} onClick={() => setWarningFilter("all")}>すべて {assignmentIssues.length + plannedBreakSummary.length}件</button>
               <button type="button" className={warningFilter === "warnings" ? "active" : ""} onClick={() => setWarningFilter("warnings")}>警告 {warningSummary.warnings}件</button>
+              <button type="button" className={warningFilter === "duty" ? "active" : ""} onClick={() => setWarningFilter("duty")}>適性外 {warningSummary.duty}件</button>
+              <button type="button" className={warningFilter === "coverage" ? "active" : ""} onClick={() => setWarningFilter("coverage")}>体制不足 {warningSummary.coverage}件</button>
               <button type="button" className={warningFilter === "labor" ? "active" : ""} onClick={() => setWarningFilter("labor")}>労務注意 {warningSummary.labor}件</button>
               <button type="button" className={warningFilter === "plannedBreak" ? "active" : ""} onClick={() => setWarningFilter("plannedBreak")}>予定休憩 {plannedBreakSummary.length}件</button>
             </div>
-            <span>未充足 {warningSummary.shortage}・過剰配置 {warningSummary.excess}・時間重複 {warningSummary.overlap}・労務注意 {warningSummary.labor}</span>
+            <span>未充足 {warningSummary.shortage}・過剰配置 {warningSummary.excess}・時間重複 {warningSummary.overlap}・適性外 {warningSummary.duty}・体制不足 {warningSummary.coverage}・労務注意 {warningSummary.labor}</span>
           </div>
           {warningFilter === "all" || warningFilter === "plannedBreak" ? plannedBreakSummary.length > 0 && (
             <div className="planned-break-summary">
@@ -1062,7 +1081,7 @@ export default function ShiftAdjustment({
           {filteredIssues.length > 0 && warningFilter !== "plannedBreak" && (
             <div className="assignment-warnings" role="alert">
               <strong>
-                {warningFilter === "labor" ? "労務注意を確認してください" : "割り当てを確認してください"}（{filteredIssues.length}件）
+                {warningFilter === "labor" ? "労務注意を確認してください" : warningFilter === "duty" ? "適性外の割り当てを確認してください" : warningFilter === "coverage" ? "体制不足を確認してください" : "割り当てを確認してください"}（{filteredIssues.length}件）
               </strong>
               <ul>
                 {renderedWarnings.map((warning) => (

@@ -10,7 +10,7 @@ import { createSystemMessagesAndPush } from "../../../notification-events";
 import { getDemoNow, jstDate } from "../../../demo-clock";
 import { buildLaborWarnings } from "../../../shift-labor-warnings";
 import { pruneInvalidShiftRequests } from "../../../shift-request-cleanup";
-import { buildMemberDutyMap, memberCanTakeDuty } from "../../../duty-validation";
+import { buildDutyCoverageWarnings, buildMemberDutyMap, memberCanTakeDuty } from "../../../duty-validation";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +54,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const memberAvailability = canManage ? await db.select().from(shiftAvailability).where(eq(shiftAvailability.groupId, plan.groupId)) : [];
   const requests = canManage && requestPeriod ? await db.select().from(shiftRequests).where(eq(shiftRequests.periodId, requestPeriod.id)) : [];
   const requestSubmissions = canManage && requestPeriod ? await db.select().from(shiftRequestSubmissions).where(eq(shiftRequestSubmissions.periodId, requestPeriod.id)) : [];
-  return Response.json({ currentEmail: user.email, plan, slots, assignments, members: membersWithDuties, closedDates, requestPeriod: requestPeriod ?? null, memberPreferences, memberAvailability, requests, requestSubmissions, autoBreakSuggestion: group?.autoBreakSuggestion !== false, laborRules: group ? { plannedBreakWarning: group.laborPlannedBreakWarning, dailyHoursWarning: group.laborDailyHoursWarning, weeklyHoursWarning: group.laborWeeklyHoursWarning, restIntervalWarning: group.laborRestIntervalWarning, consecutiveDaysWarning: group.laborConsecutiveDaysWarning, weeklyRestWarning: group.laborWeeklyRestWarning, dailyHoursLimitMinutes: group.laborDailyHoursLimitMinutes, weeklyHoursLimitMinutes: group.laborWeeklyHoursLimitMinutes, restIntervalMinutes: group.laborRestIntervalMinutes, consecutiveDaysLimit: group.laborConsecutiveDaysLimit, weeklyRestDaysRequired: group.laborWeeklyRestDaysRequired, fourWeekRestDaysRequired: group.laborFourWeekRestDaysRequired } : undefined });
+  const coverageWarnings = buildDutyCoverageWarnings({ slots, assignments, members: membersWithDuties });
+  return Response.json({ currentEmail: user.email, plan, slots, assignments, members: membersWithDuties, coverageWarnings, closedDates, requestPeriod: requestPeriod ?? null, memberPreferences, memberAvailability, requests, requestSubmissions, autoBreakSuggestion: group?.autoBreakSuggestion !== false, laborRules: group ? { plannedBreakWarning: group.laborPlannedBreakWarning, dailyHoursWarning: group.laborDailyHoursWarning, weeklyHoursWarning: group.laborWeeklyHoursWarning, restIntervalWarning: group.laborRestIntervalWarning, consecutiveDaysWarning: group.laborConsecutiveDaysWarning, weeklyRestWarning: group.laborWeeklyRestWarning, dailyHoursLimitMinutes: group.laborDailyHoursLimitMinutes, weeklyHoursLimitMinutes: group.laborWeeklyHoursLimitMinutes, restIntervalMinutes: group.laborRestIntervalMinutes, consecutiveDaysLimit: group.laborConsecutiveDaysLimit, weeklyRestDaysRequired: group.laborWeeklyRestDaysRequired, fourWeekRestDaysRequired: group.laborFourWeekRestDaysRequired } : undefined });
 }
 
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
@@ -177,12 +178,18 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     planStartDate: plan.startDate,
     planEndDate: plan.endDate,
   });
+  const coverageWarnings = buildDutyCoverageWarnings({
+    slots: currentSlots,
+    assignments: allRows,
+    members: members.map((member) => ({ ...member, dutyIds: [...(memberDutyMap.get(member.userEmail) ?? new Set<string>())] })),
+  });
   const warnings: string[] = [
     ...currentSlots.flatMap((slot) => {
       const count = new Set(requested[slot.id] ?? []).size;
       return count < slot.requiredCount ? [`${slot.date} ${slot.startTime}：必要人数${slot.requiredCount}人に対して${count}人です`] : count > slot.requiredCount ? [`${slot.date} ${slot.startTime}：必要人数を${count - slot.requiredCount}人超えています`] : [];
     }),
     ...laborWarnings.map((warning) => warning.message),
+    ...coverageWarnings.map((warning) => warning.message),
   ];
   const beforeBySlot = new Map<string, Set<string>>();
   for (const row of beforeAssignments) {
@@ -230,5 +237,5 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const recipients = [...new Set(assignmentChanges.flatMap((change) => [...change.added, ...change.removed]))];
     await createSystemMessagesAndPush(db, { groupId: plan.groupId, recipients, eventId: `shift-change:${id}:${nextVersion}`, eventType: "published_shift_changed", body: "公開済みシフトが更新されました。シフト一覧を確認してください。", pushTitle: "KINBAN", pushBody: "公開済みシフトが更新されました", url: `/?group=${encodeURIComponent(plan.groupId)}&view=roster` });
   }
-  return Response.json({ ok: true, status, warnings, laborWarnings });
+  return Response.json({ ok: true, status, warnings, laborWarnings, coverageWarnings });
 }

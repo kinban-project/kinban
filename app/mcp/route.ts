@@ -49,7 +49,7 @@ import {
 } from "../../db/schema";
 import { requireApiIdentity } from "../api/api-auth";
 import { canViewAdminNote, toPublicMember } from "../api/groups/member-dto";
-import { buildMemberDutyMap, memberCanTakeDuty, validateDutyAssignments } from "../duty-validation";
+import { buildDutyCoverageWarnings, buildMemberDutyMap, memberCanTakeDuty, validateDutyAssignments } from "../duty-validation";
 import { shiftRequestDeadlinePassed } from "../shift-request-deadline";
 import { pruneInvalidShiftRequests } from "../shift-request-cleanup";
 import { isPreferenceStatus, preferenceStatuses } from "../preference-status";
@@ -398,9 +398,15 @@ function validateCandidate(context: PlanningContext, candidate: Record<string, s
   }
   const laborWarnings = buildLaborWarnings({ slots: context.slots, assignments: assignedRows, members: context.members, rules: context.laborRules, planStartDate: context.plan.startDate, planEndDate: context.plan.endDate });
   for (const warning of laborWarnings) issues.push({ type: warning.kind, severity: "warning", memberEmail: warning.memberEmail, memberName: warning.memberName, dates: warning.dates, slotIds: warning.slotIds, message: warning.message });
+  const coverageWarnings = buildDutyCoverageWarnings({
+    slots: context.slots,
+    assignments: assignedRows,
+    members: context.members.map((member) => ({ ...member, dutyIds: [...(context.memberDutyMap.get(member.userEmail) ?? new Set<string>())] })),
+  });
+  for (const warning of coverageWarnings) issues.push({ type: "coverage_missing", severity: "warning", slotIds: warning.slotIds, missingDutyIds: warning.missingDutyIds, missingDutyNames: warning.missingDutyNames, message: warning.message });
   const changed = context.slots.filter((slot) => JSON.stringify(saved[slot.id] ?? []) !== JSON.stringify(candidate[slot.id] ?? [])).map((slot) => ({ slotId: slot.id, saved: saved[slot.id] ?? [], candidate: candidate[slot.id] ?? [] }));
   const errors = issues.filter((issue) => issue.severity === "error"), warnings = issues.filter((issue) => issue.severity === "warning");
-  return { ok: errors.length === 0, canPublish: errors.length === 0, summary: { slotCount: context.slots.length, assignmentCount: assignedRows.length, errorCount: errors.length, warningCount: warnings.length, changedSlotCount: changed.length }, errors, warnings, changed };
+  return { ok: errors.length === 0, canPublish: errors.length === 0, summary: { slotCount: context.slots.length, assignmentCount: assignedRows.length, errorCount: errors.length, warningCount: warnings.length, changedSlotCount: changed.length }, errors, warnings, coverageWarnings, changed };
 }
 
 function generateCandidate(context: PlanningContext, seed = "", rawSettings?: unknown) {
@@ -3079,16 +3085,26 @@ export async function POST(request: Request) {
         ),
       );
       const allAssignments = assignmentChunks.flat();
+      const members = await db.select().from(groupMembers).where(eq(groupMembers.groupId, found.plan.groupId));
+      const memberDutyRows = await db.select().from(memberDuties).where(eq(memberDuties.groupId, found.plan.groupId));
+      const memberDutyMap = buildMemberDutyMap(memberDutyRows);
+      const visibleAssignments = identity.tokenType === "personal"
+        ? allAssignments.filter((assignment) => assignment.userEmail === identity.email)
+        : allAssignments;
+      const coverageWarnings = buildDutyCoverageWarnings({
+        slots,
+        assignments: visibleAssignments,
+        members: members.filter((member) => member.status === "active").map((member) => ({
+          userEmail: member.userEmail,
+          dutyIds: [...(memberDutyMap.get(member.userEmail) ?? new Set<string>())],
+        })),
+      });
       return rpc(payload.id, {
         demoTime: await getDemoTimeContext(found.plan.groupId),
         plan: found.plan,
         slots,
-        assignments:
-          identity.tokenType === "personal"
-            ? allAssignments.filter(
-                (assignment) => assignment.userEmail === identity.email,
-              )
-            : allAssignments,
+        assignments: visibleAssignments,
+        coverageWarnings,
       });
     }
     if (name === "get_shift_planning_context") {
