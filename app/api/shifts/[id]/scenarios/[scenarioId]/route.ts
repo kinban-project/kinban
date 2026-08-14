@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { getChatGPTUser } from "../../../../../chatgpt-auth";
 import { getDb } from "../../../../../../db";
 import { getMembership } from "../../../../groups/group-access";
-import { groupMembers, memberDuties, shiftAssignmentScenarios, shiftPlans, shiftSlots } from "../../../../../../db/schema";
+import { groupDuties, groupMembers, memberDuties, shiftAssignmentScenarios, shiftPlans, shiftSlots } from "../../../../../../db/schema";
 import { buildDutyCoverageWarnings, buildMemberDutyMap, validateDutyAssignments } from "../../../../../duty-validation";
 import { proposalMeta, proposalSettings } from "../../../../../shift-assignment-proposals";
 
@@ -38,12 +38,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const storedSettings = proposalSettings(currentSettings, { proposalStatus: "candidate" });
   const slots = await result.db.select().from(shiftSlots).where(eq(shiftSlots.planId, id));
   const members = await result.db.select().from(groupMembers).where(eq(groupMembers.groupId, result.plan.groupId));
+  const duties = await result.db.select({ id: groupDuties.id, name: groupDuties.name }).from(groupDuties).where(eq(groupDuties.groupId, result.plan.groupId));
   const dutyRows = await result.db.select({ userEmail: memberDuties.userEmail, dutyId: memberDuties.dutyId }).from(memberDuties).where(eq(memberDuties.groupId, result.plan.groupId));
   const memberDutyMap = buildMemberDutyMap(dutyRows);
   const assignmentRows = Object.entries(assignments as Record<string, unknown>).flatMap(([slotId, users]) => Array.isArray(users) ? users.filter((email): email is string => typeof email === "string").map((userEmail) => ({ slotId, userEmail })) : []);
   const dutyErrors = validateDutyAssignments(slots, assignmentRows, memberDutyMap);
   if (dutyErrors.length) return Response.json({ error: "担当可能ではないメンバーが割り当てられています", dutyErrors }, { status: 409 });
-  const coverageWarnings = buildDutyCoverageWarnings({ slots, assignments: assignmentRows, members: members.filter((member) => member.status === "active").map((member) => ({ userEmail: member.userEmail, dutyIds: [...(memberDutyMap.get(member.userEmail) ?? new Set<string>())] })) });
+  const coverageWarnings = buildDutyCoverageWarnings({ slots, assignments: assignmentRows, members: members.filter((member) => member.status === "active").map((member) => ({ userEmail: member.userEmail, dutyIds: [...(memberDutyMap.get(member.userEmail) ?? new Set<string>())] })), duties });
   const [updated] = await result.db.update(shiftAssignmentScenarios).set({ name, description: typeof body.description === "string" ? body.description.trim() : scenario.description, settingsJson: JSON.stringify(storedSettings), assignmentsJson: JSON.stringify(assignments), updatedAt: new Date().toISOString() }).where(eq(shiftAssignmentScenarios.id, scenarioId)).returning();
   return Response.json({ scenario: { ...updated, settings: storedSettings, ...proposalMeta(storedSettings), assignments }, coverageWarnings });
 }

@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { getChatGPTUser } from "../../../../../../chatgpt-auth";
 import { getDb } from "../../../../../../../db";
-import { accountProfiles, events, groupMembers, groups, memberDuties, shiftAssignmentScenarios, shiftAssignments, shiftPlans, shiftSlots } from "../../../../../../../db/schema";
+import { accountProfiles, events, groupDuties, groupMembers, groups, memberDuties, shiftAssignmentScenarios, shiftAssignments, shiftPlans, shiftSlots } from "../../../../../../../db/schema";
 import { getMembership } from "../../../../../groups/group-access";
 import { recordAudit } from "../../../../../../audit-log";
 import { createSystemMessagesAndPush } from "../../../../../../notification-events";
@@ -55,6 +55,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const validMembers = new Set(members.map((member) => member.userEmail));
   const validSlots = new Set(slots.map((slot) => slot.id));
   const dutyRows = await result.db.select({ userEmail: memberDuties.userEmail, dutyId: memberDuties.dutyId }).from(memberDuties).where(eq(memberDuties.groupId, result.plan.groupId));
+  const duties = await result.db.select({ id: groupDuties.id, name: groupDuties.name }).from(groupDuties).where(eq(groupDuties.groupId, result.plan.groupId));
   const rows = slots.flatMap((slot) => {
     const users = Array.isArray(assignments[slot.id]) ? [...new Set(assignments[slot.id])] : [];
     return users.filter((email) => validMembers.has(email)).map((userEmail) => ({ id: crypto.randomUUID(), slotId: slot.id, userEmail }));
@@ -67,6 +68,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     slots,
     assignments: rows,
     members: members.map((member) => ({ ...member, dutyIds: [...(dutyMap.get(member.userEmail) ?? new Set<string>())] })),
+    duties,
   });
   if (dutyErrors.length) return Response.json({ error: "担当可能ではないメンバーが割り当てられています。既存の公開版は変更されていません。", dutyErrors }, { status: 409 });
   const [currentPublished] = (await result.db.select().from(shiftAssignmentScenarios).where(eq(shiftAssignmentScenarios.planId, id))).filter((item) => {

@@ -25,6 +25,11 @@ export type DutyMemberLike = {
   status?: string | null;
 };
 
+export type DutyNameLike = {
+  id: string;
+  name: string;
+};
+
 export type DutyCoverageWarning = {
   id: string;
   date: string;
@@ -59,10 +64,12 @@ export function buildDutyCoverageWarnings({
   slots,
   assignments,
   members,
+  duties = [],
 }: {
   slots: DutySlotLike[];
   assignments: DutyAssignmentLike[];
   members: DutyMemberLike[];
+  duties?: DutyNameLike[];
 }): DutyCoverageWarning[] {
   const validSlots = slots.filter((slot) => Number.isFinite(timeToMinutes(slot.startTime)) && Number.isFinite(timeToMinutes(slot.endTime)));
   const assignmentMap = new Map<string, Set<string>>();
@@ -72,6 +79,7 @@ export function buildDutyCoverageWarnings({
     assignmentMap.set(row.slotId, users);
   }
   const memberByEmail = new Map(members.map((member) => [member.userEmail, member]));
+  const dutyNameById = new Map(duties.map((duty) => [duty.id, duty.name]));
   const warnings: DutyCoverageWarning[] = [];
   const slotsByDate = new Map<string, DutySlotLike[]>();
   for (const slot of validSlots) {
@@ -91,7 +99,7 @@ export function buildDutyCoverageWarnings({
       const requiredByDuty = new Map<string, string>();
       for (const slot of activeSlots) {
         for (const dutyId of parseCoverageDutyIds(slot.coverageDutyIds)) {
-          requiredByDuty.set(dutyId, dutyId);
+          requiredByDuty.set(dutyId, dutyNameById.get(dutyId) ?? dutyId);
         }
       }
       if (!requiredByDuty.size) continue;

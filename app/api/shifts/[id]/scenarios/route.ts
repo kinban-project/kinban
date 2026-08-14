@@ -4,7 +4,7 @@ import { getDb } from "../../../../../db";
 import { getMembership } from "../../../groups/group-access";
 import { buildLaborWarnings } from "../../../../shift-labor-warnings";
 import { shiftTimeToMinutes } from "../../../../shift-time";
-import { groupMembers, memberDuties, shiftAssignmentScenarios, shiftAssignments, shiftPlans, shiftSlots, shiftAvailability, groupPreferences, shiftRequestPeriods, shiftRequests, groups } from "../../../../../db/schema";
+import { groupDuties, groupMembers, memberDuties, shiftAssignmentScenarios, shiftAssignments, shiftPlans, shiftSlots, shiftAvailability, groupPreferences, shiftRequestPeriods, shiftRequests, groups } from "../../../../../db/schema";
 import { buildDutyCoverageWarnings, buildMemberDutyMap, memberCanTakeDuty } from "../../../../duty-validation";
 import { proposalMeta, proposalSettings, proposalSlotSignature } from "../../../../shift-assignment-proposals";
 import { pruneInvalidShiftRequests } from "../../../../shift-request-cleanup";
@@ -101,6 +101,7 @@ async function generateAssignments(db: ReturnType<typeof getDb>, planId: string,
   const members = await db.select().from(groupMembers).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.status, "active")));
   const availability = await db.select().from(shiftAvailability).where(eq(shiftAvailability.groupId, groupId));
   const dutyRows = await db.select({ userEmail: memberDuties.userEmail, dutyId: memberDuties.dutyId }).from(memberDuties).where(eq(memberDuties.groupId, groupId));
+  const duties = await db.select({ id: groupDuties.id, name: groupDuties.name }).from(groupDuties).where(eq(groupDuties.groupId, groupId));
   const memberDutyMap = buildMemberDutyMap(dutyRows);
   const preferences = await db.select().from(groupPreferences).where(eq(groupPreferences.groupId, groupId));
   const [group] = await db.select().from(groups).where(eq(groups.id, groupId)).limit(1);
@@ -152,6 +153,7 @@ async function generateAssignments(db: ReturnType<typeof getDb>, planId: string,
       slots,
       assignments: existingRows,
       members: members.map((member) => ({ ...member, dutyIds: [...(memberDutyMap.get(member.userEmail) ?? new Set<string>())] })),
+      duties,
     });
     for (const warning of existingCoverageWarnings) for (const slotId of warning.slotIds) problemSlotIds.add(slotId);
     for (let index = 0; index < slots.length; index += 1) {
@@ -240,6 +242,7 @@ async function generateAssignments(db: ReturnType<typeof getDb>, planId: string,
     slots,
     assignments: slots.flatMap((slot) => (assignments[slot.id] ?? []).map((userEmail) => ({ slotId: slot.id, userEmail }))),
     members: members.map((member) => ({ ...member, dutyIds: [...(memberDutyMap.get(member.userEmail) ?? new Set<string>())] })),
+    duties,
   });
   return { assignments, settings, seed, warnings: [...warnings.map((warning) => warning.message), ...dutyWarnings, ...coverageWarnings.map((warning) => warning.message)], coverageWarnings, unfilled: slots.filter((slot) => (assignments[slot.id] ?? []).length < slot.requiredCount).length };
 }

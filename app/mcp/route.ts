@@ -256,6 +256,7 @@ type PlanningContext = {
   period: typeof shiftRequestPeriods.$inferSelect | null;
   requests: Array<typeof shiftRequests.$inferSelect>;
   submissions: Array<typeof shiftRequestSubmissions.$inferSelect>;
+  duties: Array<typeof groupDuties.$inferSelect>;
   laborRules: Parameters<typeof buildLaborWarnings>[0]["rules"];
   memberDutyMap: Map<string, Set<string>>;
 };
@@ -271,6 +272,7 @@ async function readPlanningContext(
   ))).flat();
   const members = await db.select().from(groupMembers).where(eq(groupMembers.groupId, plan.groupId));
   const memberDutyRows = await db.select().from(memberDuties).where(eq(memberDuties.groupId, plan.groupId));
+  const duties = await db.select().from(groupDuties).where(eq(groupDuties.groupId, plan.groupId));
   const memberEmails = members.map((member) => member.userEmail);
   const [period] = await db.select().from(shiftRequestPeriods)
     .where(and(eq(shiftRequestPeriods.groupId, plan.groupId), eq(shiftRequestPeriods.planId, plan.id)))
@@ -297,7 +299,7 @@ async function readPlanningContext(
     weeklyRestDaysRequired: group[0].laborWeeklyRestDaysRequired,
     fourWeekRestDaysRequired: group[0].laborFourWeekRestDaysRequired,
   } : undefined;
-  return { plan, slots, assignments: assignmentRows, members, preferences, availability, period: period ?? null, requests, submissions, laborRules: rules, memberDutyMap: buildMemberDutyMap(memberDutyRows) };
+  return { plan, slots, assignments: assignmentRows, members, preferences, availability, period: period ?? null, requests, submissions, laborRules: rules, duties, memberDutyMap: buildMemberDutyMap(memberDutyRows) };
 }
 
 function assignmentObjectFromRows(rows: Array<typeof shiftAssignments.$inferSelect>) {
@@ -407,6 +409,7 @@ function validateCandidate(context: PlanningContext, candidate: Record<string, s
     slots: context.slots,
     assignments: assignedRows,
     members: context.members.map((member) => ({ ...member, dutyIds: [...(context.memberDutyMap.get(member.userEmail) ?? new Set<string>())] })),
+    duties: context.duties,
   });
   for (const warning of coverageWarnings) issues.push({ type: "coverage_missing", severity: "warning", slotIds: warning.slotIds, missingDutyIds: warning.missingDutyIds, missingDutyNames: warning.missingDutyNames, message: warning.message });
   const changed = context.slots.filter((slot) => JSON.stringify(saved[slot.id] ?? []) !== JSON.stringify(candidate[slot.id] ?? [])).map((slot) => ({ slotId: slot.id, saved: saved[slot.id] ?? [], candidate: candidate[slot.id] ?? [] }));
@@ -3116,6 +3119,7 @@ export async function POST(request: Request) {
           userEmail: member.userEmail,
           dutyIds: [...(memberDutyMap.get(member.userEmail) ?? new Set<string>())],
         })),
+        duties: await db.select({ id: groupDuties.id, name: groupDuties.name }).from(groupDuties).where(eq(groupDuties.groupId, found.plan.groupId)),
       });
       return rpc(payload.id, {
         demoTime: await getDemoTimeContext(found.plan.groupId),

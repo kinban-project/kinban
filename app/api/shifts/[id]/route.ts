@@ -36,6 +36,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     .where(eq(groups.id, plan.groupId))
     .limit(1);
   const slots = await db.select().from(shiftSlots).where(eq(shiftSlots.planId, id));
+  const duties = await db.select({ id: groupDuties.id, name: groupDuties.name }).from(groupDuties).where(eq(groupDuties.groupId, plan.groupId));
   await pruneInvalidShiftRequests(db, id);
   const [requestPeriod] = await db.select().from(shiftRequestPeriods).where(eq(shiftRequestPeriods.planId, id)).limit(1);
   const assignmentChunks = await Promise.all(chunk(slots.map((slot) => slot.id), 50).map((slotIds) => db.select().from(shiftAssignments).where(inArray(shiftAssignments.slotId, slotIds))));
@@ -54,8 +55,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const memberAvailability = canManage ? await db.select().from(shiftAvailability).where(eq(shiftAvailability.groupId, plan.groupId)) : [];
   const requests = canManage && requestPeriod ? await db.select().from(shiftRequests).where(eq(shiftRequests.periodId, requestPeriod.id)) : [];
   const requestSubmissions = canManage && requestPeriod ? await db.select().from(shiftRequestSubmissions).where(eq(shiftRequestSubmissions.periodId, requestPeriod.id)) : [];
-  const coverageWarnings = buildDutyCoverageWarnings({ slots, assignments, members: membersWithDuties });
-  return Response.json({ currentEmail: user.email, plan, slots, assignments, members: membersWithDuties, coverageWarnings, closedDates, requestPeriod: requestPeriod ?? null, memberPreferences, memberAvailability, requests, requestSubmissions, autoBreakSuggestion: group?.autoBreakSuggestion !== false, laborRules: group ? { plannedBreakWarning: group.laborPlannedBreakWarning, dailyHoursWarning: group.laborDailyHoursWarning, weeklyHoursWarning: group.laborWeeklyHoursWarning, restIntervalWarning: group.laborRestIntervalWarning, consecutiveDaysWarning: group.laborConsecutiveDaysWarning, weeklyRestWarning: group.laborWeeklyRestWarning, dailyHoursLimitMinutes: group.laborDailyHoursLimitMinutes, weeklyHoursLimitMinutes: group.laborWeeklyHoursLimitMinutes, restIntervalMinutes: group.laborRestIntervalMinutes, consecutiveDaysLimit: group.laborConsecutiveDaysLimit, weeklyRestDaysRequired: group.laborWeeklyRestDaysRequired, fourWeekRestDaysRequired: group.laborFourWeekRestDaysRequired } : undefined });
+  const coverageWarnings = buildDutyCoverageWarnings({ slots, assignments, members: membersWithDuties, duties });
+  return Response.json({ currentEmail: user.email, plan, slots, assignments, members: membersWithDuties, duties, coverageWarnings, closedDates, requestPeriod: requestPeriod ?? null, memberPreferences, memberAvailability, requests, requestSubmissions, autoBreakSuggestion: group?.autoBreakSuggestion !== false, laborRules: group ? { plannedBreakWarning: group.laborPlannedBreakWarning, dailyHoursWarning: group.laborDailyHoursWarning, weeklyHoursWarning: group.laborWeeklyHoursWarning, restIntervalWarning: group.laborRestIntervalWarning, consecutiveDaysWarning: group.laborConsecutiveDaysWarning, weeklyRestWarning: group.laborWeeklyRestWarning, dailyHoursLimitMinutes: group.laborDailyHoursLimitMinutes, weeklyHoursLimitMinutes: group.laborWeeklyHoursLimitMinutes, restIntervalMinutes: group.laborRestIntervalMinutes, consecutiveDaysLimit: group.laborConsecutiveDaysLimit, weeklyRestDaysRequired: group.laborWeeklyRestDaysRequired, fourWeekRestDaysRequired: group.laborFourWeekRestDaysRequired } : undefined });
 }
 
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
@@ -182,6 +183,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     slots: currentSlots,
     assignments: allRows,
     members: members.map((member) => ({ ...member, dutyIds: [...(memberDutyMap.get(member.userEmail) ?? new Set<string>())] })),
+    duties,
   });
   const warnings: string[] = [
     ...currentSlots.flatMap((slot) => {

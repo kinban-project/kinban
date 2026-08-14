@@ -14,6 +14,8 @@
 1. `db/schema.ts`を変更する。
 2. `npm run db:generate`でmigrationを生成し、SQLをレビューする。
 3. ローカルD1でmigration・seed・主要APIを確認する。
+
+ローカルD1を新しく作成・リセットした場合は、seedの前に `npm run db:migrate:local` を実行してください。特に `shift_slots.coverage_duty_ids` を追加する `0052` 以降は、migration未適用のDBでは体制カバー条件を読み取れません。
 4. 既存データに対するNULL、既定値、再実行性、ロールバック方針を確認する。
 5. 本番・公開デモへは、対象環境を明示してから適用する。
 

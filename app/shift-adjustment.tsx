@@ -55,6 +55,7 @@ type Detail = {
   slots: Slot[];
   assignments: Array<{ slotId: string; userEmail: string }>;
   members: Member[];
+  duties?: Array<{ id: string; name: string }>;
   memberAvailability?: MemberAvailability[];
   requests?: RequestRow[];
   requestSubmissions?: RequestSubmission[];
@@ -292,6 +293,7 @@ export default function ShiftAdjustment({
       slots: detail.slots,
       assignments: detail.assignments,
       members: detail.members,
+      duties: detail.duties,
       autoBreakSuggestion: detail.autoBreakSuggestion,
       rules: detail.laborRules,
       planStartDate: detail.plan.startDate,
