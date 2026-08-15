@@ -121,8 +121,13 @@ WITH RECURSIVE dates(date) AS (
   ('1400-hall', '14:00', '17:00', 1, 1, 'ホール接客', 'duty-yakiniku-hall', 'ホール接客', '["duty-yakiniku-hall"]'),
   ('1400-kitchen', '14:00', '17:00', 1, 1, '肉場', 'duty-yakiniku-meat', '肉場', '["duty-yakiniku-meat"]'),
   ('1700-hall', '17:00', '18:00', 2, 3, 'ホール接客', 'duty-yakiniku-hall', 'ホール接客', '["duty-yakiniku-hall","duty-yakiniku-waiting"]'),
+  ('1700-kitchen', '17:00', '18:00', 1, 1, '肉場', 'duty-yakiniku-meat', '肉場', '["duty-yakiniku-meat"]'),
+  ('1800-hall', '18:00', '19:00', 2, 3, 'ホール接客', 'duty-yakiniku-hall', 'ホール接客', '["duty-yakiniku-hall","duty-yakiniku-waiting","duty-yakiniku-drink"]'),
+  ('1800-kitchen', '18:00', '19:00', 2, 3, 'サラダ場・スープ場', 'duty-yakiniku-salad-soup', 'サラダ場・スープ場', '["duty-yakiniku-meat","duty-yakiniku-salad-soup"]'),
   ('1900-hall', '19:00', '21:00', 3, 4, 'ホール接客', 'duty-yakiniku-hall', 'ホール接客', '["duty-yakiniku-hall","duty-yakiniku-waiting","duty-yakiniku-drink"]'),
-  ('1900-kitchen', '19:00', '21:00', 2, 3, 'サラダ場・スープ場', 'duty-yakiniku-salad-soup', 'サラダ場・スープ場', '["duty-yakiniku-meat","duty-yakiniku-salad-soup"]')
+  ('1900-kitchen', '19:00', '21:00', 2, 3, 'サラダ場・スープ場', 'duty-yakiniku-salad-soup', 'サラダ場・スープ場', '["duty-yakiniku-meat","duty-yakiniku-salad-soup"]'),
+  ('2100-hall', '21:00', '24:00', 2, 3, 'ホール接客', 'duty-yakiniku-hall', 'ホール接客', '["duty-yakiniku-hall","duty-yakiniku-waiting"]'),
+  ('2100-kitchen', '21:00', '24:00', 2, 3, 'サラダ場・スープ場', 'duty-yakiniku-salad-soup', 'サラダ場・スープ場', '["duty-yakiniku-meat","duty-yakiniku-salad-soup"]')
 )
 INSERT INTO shift_slots (id, plan_id, date, start_time, end_time, required_count, role, duty_id, duty_name_snapshot, coverage_duty_ids)
 SELECT 'yakiniku-slot-' || dates.date || '-' || templates.suffix,
@@ -137,10 +142,16 @@ INSERT OR IGNORE INTO shift_assignments (id, slot_id, user_email) VALUES
   ('yakiniku-assignment-0801-1400-kitchen', 'yakiniku-slot-2026-08-01-1400-kitchen', 'yakiniku-kitchen-a@local.test'),
   ('yakiniku-assignment-0801-1700-hall-a', 'yakiniku-slot-2026-08-01-1700-hall', 'yakiniku-hall-a@local.test'),
   ('yakiniku-assignment-0801-1700-hall-b', 'yakiniku-slot-2026-08-01-1700-hall', 'yakiniku-hall-b@local.test'),
+  ('yakiniku-assignment-0801-1800-hall-a', 'yakiniku-slot-2026-08-01-1800-hall', 'yakiniku-hall-a@local.test'),
+  ('yakiniku-assignment-0801-1800-hall-b', 'yakiniku-slot-2026-08-01-1800-hall', 'yakiniku-hall-b@local.test'),
+  ('yakiniku-assignment-0801-1800-kitchen-a', 'yakiniku-slot-2026-08-01-1800-kitchen', 'yakiniku-kitchen-a@local.test'),
+  ('yakiniku-assignment-0801-1800-kitchen-b', 'yakiniku-slot-2026-08-01-1800-kitchen', 'yakiniku-kitchen-b@local.test'),
   ('yakiniku-assignment-0801-1900-hall-a', 'yakiniku-slot-2026-08-01-1900-hall', 'yakiniku-hall-a@local.test'),
   ('yakiniku-assignment-0801-1900-hall-b', 'yakiniku-slot-2026-08-01-1900-hall', 'yakiniku-hall-b@local.test'),
   ('yakiniku-assignment-0801-1900-kitchen-a', 'yakiniku-slot-2026-08-01-1900-kitchen', 'yakiniku-kitchen-a@local.test'),
   ('yakiniku-assignment-0801-1900-kitchen-b', 'yakiniku-slot-2026-08-01-1900-kitchen', 'yakiniku-kitchen-b@local.test'),
+  ('yakiniku-assignment-0801-2100-hall-a', 'yakiniku-slot-2026-08-01-2100-hall', 'yakiniku-hall-a@local.test'),
+  ('yakiniku-assignment-0801-2100-kitchen-a', 'yakiniku-slot-2026-08-01-2100-kitchen', 'yakiniku-kitchen-a@local.test'),
   ('yakiniku-assignment-0808-1400-hall-c', 'yakiniku-slot-2026-08-08-1400-hall', 'yakiniku-hall-c@local.test'),
   ('yakiniku-assignment-0808-1900-hall-a', 'yakiniku-slot-2026-08-08-1900-hall', 'yakiniku-hall-a@local.test'),
   ('yakiniku-assignment-0808-1900-hall-b', 'yakiniku-slot-2026-08-08-1900-hall', 'yakiniku-hall-b@local.test'),
@@ -148,6 +159,20 @@ INSERT OR IGNORE INTO shift_assignments (id, slot_id, user_email) VALUES
 
 INSERT OR IGNORE INTO shift_request_periods (id, group_id, plan_id, name, opens_on, closes_on, status, created_by) VALUES
   ('seed-yakiniku-request-august-first', 'seed-group-yakiniku', 'seed-yakiniku-plan-august-first', '焼肉店 8月前半希望', '2026-07-20', '2026-07-30', 'open', 'yakiniku-manager@local.test');
+INSERT OR IGNORE INTO shift_request_submissions (id, period_id, user_email, saved_at, request_comment) VALUES
+  ('seed-yakiniku-submission-hall-a', 'seed-yakiniku-request-august-first', 'yakiniku-hall-a@local.test', '2026-07-21T09:00:00+09:00', '土日のピークは可能ですが、8月8日は休み希望です。'),
+  ('seed-yakiniku-submission-hall-b', 'seed-yakiniku-request-august-first', 'yakiniku-hall-b@local.test', '2026-07-21T09:10:00+09:00', '夕方以降を中心に希望します。'),
+  ('seed-yakiniku-submission-kitchen-a', 'seed-yakiniku-request-august-first', 'yakiniku-kitchen-a@local.test', '2026-07-21T09:20:00+09:00', '仕込み時間帯は出勤可能です。'),
+  ('seed-yakiniku-submission-flex-a', 'seed-yakiniku-request-august-first', 'yakiniku-flex-a@local.test', '2026-07-21T09:30:00+09:00', '不足時はホール・洗い場の兼任が可能です。');
+INSERT OR IGNORE INTO shift_requests (id, period_id, user_email, date, start_time, end_time, preference, note) VALUES
+  ('seed-yakiniku-request-hall-a-want', 'seed-yakiniku-request-august-first', 'yakiniku-hall-a@local.test', '2026-08-01', '17:00', '18:00', 'want', '営業開始から希望。'),
+  ('seed-yakiniku-request-hall-a-off', 'seed-yakiniku-request-august-first', 'yakiniku-hall-a@local.test', '2026-08-08', '19:00', '21:00', 'off', '家庭の予定で休み希望。'),
+  ('seed-yakiniku-request-hall-b-possible', 'seed-yakiniku-request-august-first', 'yakiniku-hall-b@local.test', '2026-08-01', '18:00', '19:00', 'possible', '必要なら出勤可能。'),
+  ('seed-yakiniku-request-hall-b-unavailable', 'seed-yakiniku-request-august-first', 'yakiniku-hall-b@local.test', '2026-08-09', '19:00', '21:00', 'unavailable', '終日予定あり。'),
+  ('seed-yakiniku-request-kitchen-a-want', 'seed-yakiniku-request-august-first', 'yakiniku-kitchen-a@local.test', '2026-08-01', '14:00', '17:00', 'want', '仕込みから希望。'),
+  ('seed-yakiniku-request-kitchen-a-off', 'seed-yakiniku-request-august-first', 'yakiniku-kitchen-a@local.test', '2026-08-02', '21:00', '24:00', 'off', '夜遅い時間帯は休み希望。'),
+  ('seed-yakiniku-request-flex-a-possible', 'seed-yakiniku-request-august-first', 'yakiniku-flex-a@local.test', '2026-08-08', '21:00', '24:00', 'possible', '不足時のみ調整可能。'),
+  ('seed-yakiniku-request-flex-a-want', 'seed-yakiniku-request-august-first', 'yakiniku-flex-a@local.test', '2026-08-09', '18:00', '19:00', 'want', 'ドリンク担当を希望。');
 
 INSERT OR IGNORE INTO knowledge_folders (id, group_id, name, created_by) VALUES
   ('knowledge-folder-yakiniku-guide', 'seed-group-yakiniku', '業務ガイド', 'yakiniku-manager@local.test');

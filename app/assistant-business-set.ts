@@ -1,7 +1,7 @@
 // GENERATED FILE. Do not edit manually. Run: npm run generate:assistant-business-set
 export const assistantBusinessSet = {
-  "packageVersion": "2026.08.14",
-  "releasedAt": "2026-08-14",
+  "packageVersion": "2026.08.15",
+  "releasedAt": "2026-08-15",
   "summary": "KINBAN運営支援AIの運用方針・Skill・runbookを、kinban-manager-agentから生成した業務関連セットです。",
   "minimumKinbanVersion": "0.1.0",
   "source": "kinban-manager-agent",

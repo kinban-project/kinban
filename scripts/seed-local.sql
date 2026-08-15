@@ -380,21 +380,29 @@ UPDATE work_records SET
 WHERE scheduled_date = '2026-06-30' AND user_email = 'member02@local.test';
 
 WITH assignees(start_time, role, user_email) AS (VALUES
-  ('09:30', 'ホール', 'tanaka@local.test'), ('09:30', 'ホール', 'member04@local.test'),
-  ('09:30', '厨房', 'member01@local.test'), ('09:30', '厨房', 'member05@local.test'),
-  ('17:00', 'ホール', 'member02@local.test'), ('17:00', '厨房', 'member03@local.test'))
+  ('09:30', 'ホール', 'tanaka@local.test'), ('09:30', 'ホール', 'member04@local.test'), ('09:30', '厨房', 'member01@local.test'))
+INSERT INTO work_records (id, group_id, plan_id, slot_id, user_email, scheduled_date, scheduled_start_time, scheduled_end_time, started_at, ended_at, claimed_start_at, claimed_end_at, claimed_break_minutes, status, employee_note, manager_note, approved_by, approved_at)
+SELECT 'wr-june-' || lower(hex(randomblob(8))), 'seed-group-store', slots.plan_id, slots.id, assignees.user_email, slots.date, slots.start_time, slots.end_time,
+  slots.date || 'T' || slots.start_time || ':00+09:00', CASE WHEN assignees.user_email = 'member04@local.test' THEN NULL ELSE slots.date || 'T' || slots.end_time || ':00+09:00' END,
+  slots.date || 'T' || slots.start_time || ':00+09:00', CASE WHEN assignees.user_email = 'member04@local.test' THEN NULL ELSE slots.date || 'T' || slots.end_time || ':00+09:00' END,
+  CASE WHEN assignees.user_email = 'member01@local.test' THEN 45 ELSE 0 END,
+  CASE WHEN assignees.user_email = 'member04@local.test' THEN 'unsubmitted' ELSE 'approved' END, '', '',
+  CASE WHEN assignees.user_email = 'member01@local.test' THEN 'member01@local.test' WHEN assignees.user_email = 'tanaka@local.test' THEN 'tanaka@local.test' ELSE NULL END,
+  CASE WHEN assignees.user_email = 'member01@local.test' THEN '2026-07-01T12:00:00.000Z' WHEN assignees.user_email = 'tanaka@local.test' THEN '2026-07-01T12:10:00.000Z' ELSE NULL END
+FROM shift_slots slots JOIN assignees ON assignees.start_time = slots.start_time AND assignees.role = slots.role
+WHERE slots.plan_id = 'seed-plan-june';
+
+WITH assignees(start_time, role, user_email) AS (VALUES
+  ('09:30', '厨房', 'member05@local.test'), ('17:00', 'ホール', 'member02@local.test'), ('17:00', '厨房', 'member03@local.test'))
 INSERT INTO work_records (id, group_id, plan_id, slot_id, user_email, scheduled_date, scheduled_start_time, scheduled_end_time, started_at, ended_at, claimed_start_at, claimed_end_at, claimed_break_minutes, status, employee_note, manager_note, approved_by, approved_at)
 SELECT 'wr-june-' || lower(hex(randomblob(8))), 'seed-group-store', slots.plan_id, slots.id, assignees.user_email, slots.date, slots.start_time, slots.end_time,
   CASE WHEN assignees.user_email = 'member05@local.test' THEN slots.date || 'T09:42:00+09:00' ELSE slots.date || 'T' || slots.start_time || ':00+09:00' END,
-  CASE WHEN assignees.user_email = 'member04@local.test' THEN NULL ELSE slots.date || 'T' || slots.end_time || ':00+09:00' END,
+  slots.date || 'T' || slots.end_time || ':00+09:00',
   CASE WHEN assignees.user_email IN ('member02@local.test', 'member03@local.test') THEN slots.date || 'T' || slots.start_time || ':05:00+09:00' ELSE slots.date || 'T' || slots.start_time || ':00+09:00' END,
-  CASE WHEN assignees.user_email = 'member04@local.test' THEN NULL ELSE slots.date || 'T' || slots.end_time || ':00+09:00' END,
-  CASE WHEN assignees.user_email = 'member01@local.test' THEN 45 ELSE 0 END,
-  CASE assignees.user_email WHEN 'member02@local.test' THEN 'submitted' WHEN 'member03@local.test' THEN 'rejected' WHEN 'member04@local.test' THEN 'unsubmitted' WHEN 'member05@local.test' THEN 'working' ELSE 'approved' END,
-  CASE assignees.user_email WHEN 'member03@local.test' THEN '開始時刻を確認して再申告してください。' WHEN 'member04@local.test' THEN '' ELSE '' END,
-  CASE assignees.user_email WHEN 'member03@local.test' THEN '申告時間を確認してください。' ELSE '' END,
-  CASE assignees.user_email WHEN 'member01@local.test' THEN 'member01@local.test' WHEN 'tanaka@local.test' THEN 'tanaka@local.test' ELSE NULL END,
-  CASE assignees.user_email WHEN 'member01@local.test' THEN '2026-07-01T12:00:00.000Z' WHEN 'tanaka@local.test' THEN '2026-07-01T12:10:00.000Z' ELSE NULL END
+  slots.date || 'T' || slots.end_time || ':00+09:00', 0,
+  CASE assignees.user_email WHEN 'member02@local.test' THEN 'submitted' WHEN 'member03@local.test' THEN 'rejected' ELSE 'working' END,
+  CASE WHEN assignees.user_email = 'member03@local.test' THEN '開始時刻を確認して再申告してください。' ELSE '' END,
+  CASE WHEN assignees.user_email = 'member03@local.test' THEN '申告時間を確認してください。' ELSE '' END, NULL, NULL
 FROM shift_slots slots JOIN assignees ON assignees.start_time = slots.start_time AND assignees.role = slots.role
 WHERE slots.plan_id = 'seed-plan-june';
 
@@ -902,6 +910,9 @@ INSERT INTO shift_request_submissions (id, period_id, user_email, saved_at, requ
 
 -- The final monthly schedule above is the source of truth for the demo
 -- attendance records. Keep these writes after the schedule rebuild.
+/* Obsolete nightclub attendance fixture. The final fixture below rebuilds these
+   records after the July/August plans are recreated; keep this block disabled
+   to avoid SQLite's statement-size limit during full local seed import.
 INSERT INTO work_records (
   id, group_id, plan_id, slot_id, user_email, scheduled_date,
   scheduled_start_time, scheduled_end_time, started_at, ended_at,
@@ -1149,6 +1160,7 @@ FROM work_records records
 WHERE records.group_id IN ('seed-group-night-staff', 'seed-group-night-cast')
   AND records.user_email IN ('night-staff-a@local.test', 'night-cast-a@local.test')
   AND records.scheduled_end_time = '26:00';
+*/
 
 INSERT OR IGNORE INTO memo_folders (id, group_id, name, created_by) VALUES
   ('memo-folder-night-staff-daily', 'seed-group-night-staff', '日報', 'night-manager@local.test'),
@@ -1460,26 +1472,22 @@ INSERT INTO shift_plans (id, group_id, name, start_date, end_date, opening_time,
   ('seed-yakiniku-plan-august-first', 'seed-group-yakiniku', '焼肉店 8月前半シフト', '2026-08-01', '2026-08-15', '11:00', '23:00', 60, 1,
    '店長は配置対象外。平日は昼2名・夜3名の計5名、土日は昼3名・夜4名の計7名。肉場・サラダ場・スープ場・洗い場・ホール・ドリンクの適性を考慮して割り当てる。', 'draft', 'yakiniku-manager@local.test');
 
-WITH RECURSIVE dates(date) AS (
-  SELECT '2026-08-01'
-  UNION ALL SELECT date(date, '+1 day') FROM dates WHERE date < '2026-08-15'
-)
-INSERT INTO shift_slots (id, plan_id, date, start_time, end_time, required_count, role)
-SELECT 'yakiniku-slot-' || date || '-lunch-hall', 'seed-yakiniku-plan-august-first', date, '11:00', '15:00',
-  CASE WHEN strftime('%w', date) IN ('0', '6') THEN 2 ELSE 1 END, 'ホール'
-FROM dates
-UNION ALL SELECT 'yakiniku-slot-' || date || '-lunch-kitchen', 'seed-yakiniku-plan-august-first', date, '11:00', '15:00', 1, '厨房'
-FROM dates
-UNION ALL SELECT 'yakiniku-slot-' || date || '-dinner-hall', 'seed-yakiniku-plan-august-first', date, '17:00', '23:00',
-  CASE WHEN strftime('%w', date) IN ('0', '6') THEN 2 ELSE 1 END, 'ホール'
-FROM dates
-UNION ALL SELECT 'yakiniku-slot-' || date || '-dinner-kitchen', 'seed-yakiniku-plan-august-first', date, '17:00', '23:00', 1, '厨房'
-FROM dates
-UNION ALL SELECT 'yakiniku-slot-' || date || '-dinner-wash', 'seed-yakiniku-plan-august-first', date, '17:00', '23:00', 1, '洗い場'
-FROM dates;
-
 INSERT INTO shift_request_periods (id, group_id, plan_id, name, opens_on, closes_on, status, created_by) VALUES
   ('seed-yakiniku-request-august-first', 'seed-group-yakiniku', 'seed-yakiniku-plan-august-first', '焼肉店 8月前半希望', '2026-07-20', '2026-07-30', 'open', 'yakiniku-manager@local.test');
+INSERT INTO shift_request_submissions (id, period_id, user_email, saved_at, request_comment) VALUES
+  ('seed-yakiniku-submission-hall-a', 'seed-yakiniku-request-august-first', 'yakiniku-hall-a@local.test', '2026-07-21T09:00:00+09:00', '土日のピークは可能ですが、8月8日は休み希望です。'),
+  ('seed-yakiniku-submission-hall-b', 'seed-yakiniku-request-august-first', 'yakiniku-hall-b@local.test', '2026-07-21T09:10:00+09:00', '夕方以降を中心に希望します。'),
+  ('seed-yakiniku-submission-kitchen-a', 'seed-yakiniku-request-august-first', 'yakiniku-kitchen-a@local.test', '2026-07-21T09:20:00+09:00', '仕込み時間帯は出勤可能です。'),
+  ('seed-yakiniku-submission-flex-a', 'seed-yakiniku-request-august-first', 'yakiniku-flex-a@local.test', '2026-07-21T09:30:00+09:00', '不足時はホール・洗い場の兼任が可能です。');
+INSERT INTO shift_requests (id, period_id, user_email, date, start_time, end_time, preference, note) VALUES
+  ('seed-yakiniku-request-hall-a-want', 'seed-yakiniku-request-august-first', 'yakiniku-hall-a@local.test', '2026-08-01', '17:00', '18:00', 'want', '営業開始から希望。'),
+  ('seed-yakiniku-request-hall-a-off', 'seed-yakiniku-request-august-first', 'yakiniku-hall-a@local.test', '2026-08-08', '19:00', '21:00', 'off', '家庭の予定で休み希望。'),
+  ('seed-yakiniku-request-hall-b-possible', 'seed-yakiniku-request-august-first', 'yakiniku-hall-b@local.test', '2026-08-01', '18:00', '19:00', 'possible', '必要なら出勤可能。'),
+  ('seed-yakiniku-request-hall-b-unavailable', 'seed-yakiniku-request-august-first', 'yakiniku-hall-b@local.test', '2026-08-09', '19:00', '21:00', 'unavailable', '終日予定あり。'),
+  ('seed-yakiniku-request-kitchen-a-want', 'seed-yakiniku-request-august-first', 'yakiniku-kitchen-a@local.test', '2026-08-01', '14:00', '17:00', 'want', '仕込みから希望。'),
+  ('seed-yakiniku-request-kitchen-a-off', 'seed-yakiniku-request-august-first', 'yakiniku-kitchen-a@local.test', '2026-08-02', '21:00', '24:00', 'off', '夜遅い時間帯は休み希望。'),
+  ('seed-yakiniku-request-flex-a-possible', 'seed-yakiniku-request-august-first', 'yakiniku-flex-a@local.test', '2026-08-08', '21:00', '24:00', 'possible', '不足時のみ調整可能。'),
+  ('seed-yakiniku-request-flex-a-want', 'seed-yakiniku-request-august-first', 'yakiniku-flex-a@local.test', '2026-08-09', '18:00', '19:00', 'want', 'ドリンク担当を希望。');
 
 INSERT OR IGNORE INTO knowledge_folders (id, group_id, name, created_by) VALUES
   ('knowledge-folder-yakiniku-guide', 'seed-group-yakiniku', '業務ガイド', 'yakiniku-manager@local.test');
@@ -1562,11 +1570,13 @@ INSERT INTO group_members (id, group_id, user_email, display_name, admin_note, r
 INSERT INTO group_preferences (id, group_id, user_email, min_days, max_days, min_hours, max_hours, weekend_policy, free_comment) VALUES
   ('seed-yakiniku-pref-hall-c', 'seed-group-yakiniku', 'yakiniku-hall-c@local.test', 2, 5, 12, 32, 'prefer', '土日のピーク帯も可能。ホール接客を優先。'),
   ('seed-yakiniku-pref-flex-b', 'seed-group-yakiniku', 'yakiniku-flex-b@local.test', 1, 4, 8, 24, 'avoid', '平日中心。ドリンク・ウェイティング・洗い場の兼任候補。');
+WITH users(user_email) AS (VALUES
+  ('yakiniku-hall-c@local.test'), ('yakiniku-flex-b@local.test')
+), days(day_of_week) AS (VALUES (0), (1), (2), (3), (4), (5), (6))
 INSERT INTO shift_availability (id, group_id, user_email, day_of_week, status, start_time, end_time, note)
-SELECT 'yakiniku-availability-' || lower(hex(randomblob(8))), 'seed-group-yakiniku', user_email,
-  day_of_week, 'possible', '14:00', '24:00', 'ポジション枠に合わせて調整可能。'
-FROM (SELECT 'yakiniku-hall-c@local.test' AS user_email UNION ALL SELECT 'yakiniku-flex-b@local.test') users
-CROSS JOIN (SELECT 0 AS day_of_week UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6) days;
+SELECT 'yakiniku-availability-' || lower(hex(randomblob(8))), 'seed-group-yakiniku', users.user_email,
+  days.day_of_week, 'possible', '14:00', '24:00', 'ポジション枠に合わせて調整可能。'
+FROM users CROSS JOIN days;
 INSERT OR IGNORE INTO member_duties (id, group_id, user_email, duty_id) VALUES
   ('member-duty-yakiniku-hall-c', 'seed-group-yakiniku', 'yakiniku-hall-c@local.test', 'duty-yakiniku-hall'),
   ('member-duty-yakiniku-hall-c-waiting', 'seed-group-yakiniku', 'yakiniku-hall-c@local.test', 'duty-yakiniku-waiting'),
@@ -1580,18 +1590,23 @@ DELETE FROM shift_slots WHERE plan_id = 'seed-yakiniku-plan-august-first';
 WITH RECURSIVE dates(date) AS (
   SELECT '2026-08-01'
   UNION ALL SELECT date(date, '+1 day') FROM dates WHERE date < '2026-08-15'
+), templates(suffix, start_time, end_time, weekday_count, weekend_count, role, duty_id, duty_name_snapshot, coverage_duty_ids) AS (VALUES
+  ('1400-hall', '14:00', '17:00', 1, 1, 'ホール接客', 'duty-yakiniku-hall', 'ホール接客', '["duty-yakiniku-hall"]'),
+  ('1400-kitchen', '14:00', '17:00', 1, 1, '肉場', 'duty-yakiniku-meat', '肉場', '["duty-yakiniku-meat"]'),
+  ('1700-hall', '17:00', '18:00', 2, 3, 'ホール接客', 'duty-yakiniku-hall', 'ホール接客', '["duty-yakiniku-hall","duty-yakiniku-waiting"]'),
+  ('1700-kitchen', '17:00', '18:00', 1, 1, '肉場', 'duty-yakiniku-meat', '肉場', '["duty-yakiniku-meat"]'),
+  ('1800-hall', '18:00', '19:00', 2, 3, 'ホール接客', 'duty-yakiniku-hall', 'ホール接客', '["duty-yakiniku-hall","duty-yakiniku-waiting","duty-yakiniku-drink"]'),
+  ('1800-kitchen', '18:00', '19:00', 2, 3, 'サラダ場・スープ場', 'duty-yakiniku-salad-soup', 'サラダ場・スープ場', '["duty-yakiniku-meat","duty-yakiniku-salad-soup"]'),
+  ('1900-hall', '19:00', '21:00', 3, 4, 'ホール接客', 'duty-yakiniku-hall', 'ホール接客', '["duty-yakiniku-hall","duty-yakiniku-waiting","duty-yakiniku-drink"]'),
+  ('1900-kitchen', '19:00', '21:00', 2, 3, 'サラダ場・スープ場', 'duty-yakiniku-salad-soup', 'サラダ場・スープ場', '["duty-yakiniku-meat","duty-yakiniku-salad-soup"]'),
+  ('2100-hall', '21:00', '24:00', 2, 3, 'ホール接客', 'duty-yakiniku-hall', 'ホール接客', '["duty-yakiniku-hall","duty-yakiniku-waiting"]'),
+  ('2100-kitchen', '21:00', '24:00', 2, 3, 'サラダ場・スープ場', 'duty-yakiniku-salad-soup', 'サラダ場・スープ場', '["duty-yakiniku-meat","duty-yakiniku-salad-soup"]')
 )
 INSERT INTO shift_slots (id, plan_id, date, start_time, end_time, required_count, role, duty_id, duty_name_snapshot, coverage_duty_ids)
-SELECT 'yakiniku-slot-' || date || '-1400-hall', 'seed-yakiniku-plan-august-first', date, '14:00', '17:00', 1, 'ホール接客', 'duty-yakiniku-hall', 'ホール接客', '["duty-yakiniku-hall"]' FROM dates
-UNION ALL SELECT 'yakiniku-slot-' || date || '-1400-kitchen', 'seed-yakiniku-plan-august-first', date, '14:00', '17:00', 1, '肉場', 'duty-yakiniku-meat', '肉場', '["duty-yakiniku-meat"]' FROM dates
-UNION ALL SELECT 'yakiniku-slot-' || date || '-1700-hall', 'seed-yakiniku-plan-august-first', date, '17:00', '18:00', CASE WHEN strftime('%w', date) IN ('0','6') THEN 3 ELSE 2 END, 'ホール接客', 'duty-yakiniku-hall', 'ホール接客', '["duty-yakiniku-hall","duty-yakiniku-waiting"]' FROM dates
-UNION ALL SELECT 'yakiniku-slot-' || date || '-1700-kitchen', 'seed-yakiniku-plan-august-first', date, '17:00', '18:00', 1, '肉場', 'duty-yakiniku-meat', '肉場', '["duty-yakiniku-meat"]' FROM dates
-UNION ALL SELECT 'yakiniku-slot-' || date || '-1800-hall', 'seed-yakiniku-plan-august-first', date, '18:00', '19:00', CASE WHEN strftime('%w', date) IN ('0','6') THEN 3 ELSE 2 END, 'ホール接客', 'duty-yakiniku-hall', 'ホール接客', '["duty-yakiniku-hall","duty-yakiniku-waiting","duty-yakiniku-drink"]' FROM dates
-UNION ALL SELECT 'yakiniku-slot-' || date || '-1800-kitchen', 'seed-yakiniku-plan-august-first', date, '18:00', '19:00', CASE WHEN strftime('%w', date) IN ('0','6') THEN 3 ELSE 2 END, 'サラダ場・スープ場', 'duty-yakiniku-salad-soup', 'サラダ場・スープ場', '["duty-yakiniku-meat","duty-yakiniku-salad-soup"]' FROM dates
-UNION ALL SELECT 'yakiniku-slot-' || date || '-1900-hall', 'seed-yakiniku-plan-august-first', date, '19:00', '21:00', CASE WHEN strftime('%w', date) IN ('0','6') THEN 4 ELSE 3 END, 'ホール接客', 'duty-yakiniku-hall', 'ホール接客', '["duty-yakiniku-hall","duty-yakiniku-waiting","duty-yakiniku-drink"]' FROM dates
-UNION ALL SELECT 'yakiniku-slot-' || date || '-1900-kitchen', 'seed-yakiniku-plan-august-first', date, '19:00', '21:00', CASE WHEN strftime('%w', date) IN ('0','6') THEN 3 ELSE 2 END, 'サラダ場・スープ場', 'duty-yakiniku-salad-soup', 'サラダ場・スープ場', '["duty-yakiniku-meat","duty-yakiniku-salad-soup"]' FROM dates
-UNION ALL SELECT 'yakiniku-slot-' || date || '-2100-hall', 'seed-yakiniku-plan-august-first', date, '21:00', '24:00', CASE WHEN strftime('%w', date) IN ('0','6') THEN 3 ELSE 2 END, 'ホール接客', 'duty-yakiniku-hall', 'ホール接客', '["duty-yakiniku-hall","duty-yakiniku-waiting"]' FROM dates
-UNION ALL SELECT 'yakiniku-slot-' || date || '-2100-kitchen', 'seed-yakiniku-plan-august-first', date, '21:00', '24:00', CASE WHEN strftime('%w', date) IN ('0','6') THEN 3 ELSE 2 END, 'サラダ場・スープ場', 'duty-yakiniku-salad-soup', 'サラダ場・スープ場', '["duty-yakiniku-meat","duty-yakiniku-salad-soup"]' FROM dates;
+SELECT 'yakiniku-slot-' || dates.date || '-' || templates.suffix, 'seed-yakiniku-plan-august-first', dates.date, templates.start_time, templates.end_time,
+  CASE WHEN strftime('%w', dates.date) IN ('0','6') THEN templates.weekend_count ELSE templates.weekday_count END,
+  templates.role, templates.duty_id, templates.duty_name_snapshot, templates.coverage_duty_ids
+FROM dates CROSS JOIN templates;
 
 -- 代表例：通常充足、土日ピークの体制不足、担当不可の割当を混在させる。
 INSERT INTO shift_assignments (id, slot_id, user_email) VALUES

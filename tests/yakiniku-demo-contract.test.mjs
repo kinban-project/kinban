@@ -11,7 +11,9 @@ test("yakiniku assignment demo is discoverable and seeded with position coverage
   assert.match(seed, /焼肉店（ポジション割当デモ）/);
   assert.match(seed, /duty-yakiniku-waiting/);
   assert.match(seed, /coverage_duty_ids/);
-  assert.match(seed, /yakiniku-slot-\' \|\| date \|\| \'-1900-hall/);
+  assert.match(seed, /templates\(suffix, start_time, end_time, weekday_count, weekend_count, role, duty_id, duty_name_snapshot, coverage_duty_ids\) AS \(VALUES/);
+  assert.match(seed, /\('2100-kitchen', '21:00', '24:00'/);
+  assert.match(seed, /seed-yakiniku-request-hall-a-off/);
   assert.match(seed, /yakiniku-assignment-0808-1900-kitchen-wrong/);
   assert.match(seed, /yakiniku-hall-c@local\.test/);
   assert.match(standalone, /yakiniku-hall-c@local\.test/);
@@ -20,8 +22,11 @@ test("yakiniku assignment demo is discoverable and seeded with position coverage
   assert.match(standalone, /member-duty-yakiniku-flex-b-wash/);
   assert.match(standalone, /coverage_duty_ids/);
   assert.match(standalone, /yakiniku-assignment-0808-1900-kitchen-wrong/);
+  assert.match(standalone, /shift_request_submissions/);
+  assert.match(standalone, /seed-yakiniku-request-hall-a-off/);
+  assert.match(standalone, /'unavailable'/);
   assert.match(standalone, /templates\(suffix, start_time, end_time, weekday_count, weekend_count, role, duty_id, duty_name_snapshot, coverage_duty_ids\) AS \(VALUES/);
-  assert.equal((standalone.match(/\('(?:1400|1700|1900)-[^']+', '[0-9]{2}:[0-9]{2}', '[0-9]{2}:[0-9]{2}',/g) ?? []).length, 5);
+  assert.equal((standalone.match(/\('(?:1400|1700|1800|1900|2100)-[^']+', '[0-9]{2}:[0-9]{2}', '[0-9]{2}:[0-9]{2}',/g) ?? []).length, 10);
   assert.doesNotMatch(standalone, /UNION ALL SELECT 'yakiniku-slot-/);
   assert.match(demo, /detail: "yakiniku"/);
   assert.match(demo, /焼肉店（ポジション割当デモ）/);
