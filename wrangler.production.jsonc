@@ -5,6 +5,13 @@
   "keep_vars": true,
   "compatibility_date": "2026-08-04",
   "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "DEMO_MODE": "true",
+    "DEMO_DEFAULT_USER_ID": "tanaka",
+    "NEXT_PUBLIC_DEMO_MODE": "true",
+    "NEXT_PUBLIC_DEMO_DEFAULT_USER_ID": "tanaka",
+    "PUBLIC_APP_URL": "https://kinban-prod.kinban.workers.dev"
+  },
   "assets": {
     "directory": "./dist/client",
     "not_found_handling": "none",
