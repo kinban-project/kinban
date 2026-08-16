@@ -355,6 +355,7 @@ export default function ShiftAdjustment({
       slots: detail.slots,
       assignments: detail.assignments,
       members: detail.members,
+      duties: detail.duties,
     })) {
       issues.set(warning.id, {
         id: warning.id,
