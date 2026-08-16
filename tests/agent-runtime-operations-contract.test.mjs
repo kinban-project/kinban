@@ -29,3 +29,13 @@ test("operations runtime requires a separate confirmation for high-impact tools"
   assert.match(ui, /KINBAN 運営支援AI/);
   assert.match(ui, /管理者向け/);
 });
+
+test("runtime UI keeps session-only conversation history and does not offer role escalation", () => {
+  assert.match(ui, /id="messages"/);
+  assert.match(ui, /function renderMessages\(/);
+  assert.match(ui, /新しい相談/);
+  assert.match(ui, /もう一度送信/);
+  assert.match(ui, /history = \[\]/);
+  assert.match(ui, /sessionMode === 'operations'/);
+  assert.doesNotMatch(ui, /<select[^>]*mode/i);
+});
