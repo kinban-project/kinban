@@ -2,6 +2,7 @@ export type DutySlotLike = {
   id: string;
   dutyId?: string | null;
   dutyNameSnapshot?: string | null;
+  dutyScopeIds?: string[] | string | null;
   coverageDutyIds?: string[] | string | null;
   date?: string;
   startTime?: string;
@@ -57,6 +58,24 @@ function parseCoverageDutyIds(value: DutySlotLike["coverageDutyIds"]): string[] 
   } catch {
     return [];
   }
+}
+
+export function parseDutyScopeIds(value: DutySlotLike["dutyScopeIds"]): string[] {
+  if (Array.isArray(value)) return value.filter((id): id is string => typeof id === "string" && id.trim().length > 0);
+  if (typeof value !== "string" || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string" && id.trim().length > 0) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** When both are specified, the primary duty must be part of the one-person scope. */
+export function validateDutyScopeConfiguration(dutyId: string | null | undefined, dutyScopeIds: DutySlotLike["dutyScopeIds"]): string | null {
+  const scopeIds = parseDutyScopeIds(dutyScopeIds);
+  if (!dutyId || scopeIds.length === 0 || scopeIds.includes(dutyId)) return null;
+  return "主担当は担当範囲に含めてください";
 }
 
 /** Reports missing capabilities for each actual simultaneous time interval. */
@@ -140,7 +159,10 @@ export function buildMemberDutyMap(rows: Array<{ userEmail: string; dutyId: stri
 }
 
 export function memberCanTakeDuty(slot: DutySlotLike, userEmail: string, memberDuties: Map<string, Set<string>>) {
-  return !slot.dutyId || memberDuties.get(userEmail)?.has(slot.dutyId) === true;
+  const memberDutiesForUser = memberDuties.get(userEmail);
+  const scopeIds = parseDutyScopeIds(slot.dutyScopeIds);
+  if (scopeIds.length) return scopeIds.every((dutyId) => memberDutiesForUser?.has(dutyId) === true);
+  return !slot.dutyId || memberDutiesForUser?.has(slot.dutyId) === true;
 }
 
 export function validateDutyAssignments(slots: DutySlotLike[], assignments: DutyAssignmentLike[], memberDuties: Map<string, Set<string>>) {
@@ -148,12 +170,12 @@ export function validateDutyAssignments(slots: DutySlotLike[], assignments: Duty
   const errors: DutyValidationError[] = [];
   for (const assignment of assignments) {
     const slot = slotById.get(assignment.slotId);
-    if (!slot?.dutyId || memberCanTakeDuty(slot, assignment.userEmail, memberDuties)) continue;
+    if ((!slot?.dutyId && parseDutyScopeIds(slot?.dutyScopeIds).length === 0) || memberCanTakeDuty(slot, assignment.userEmail, memberDuties)) continue;
     const dutyName = slot.dutyNameSnapshot?.trim() || "担当";
     errors.push({
       slotId: slot.id,
       userEmail: assignment.userEmail,
-      dutyId: slot.dutyId,
+      dutyId: slot.dutyId ?? parseDutyScopeIds(slot.dutyScopeIds)[0] ?? "",
       dutyName,
       message: `${assignment.userEmail}は${dutyName}を担当可能として登録されていません`,
     });

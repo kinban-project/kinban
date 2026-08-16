@@ -4,6 +4,7 @@ import { getDb } from "../../../../../db";
 import { getMembership } from "../../../groups/group-access";
 import { buildLaborWarnings } from "../../../../shift-labor-warnings";
 import { shiftTimeToMinutes } from "../../../../shift-time";
+import { doesNotCreateSplitShift } from "../../../../shift-cluster";
 import { groupDuties, groupMembers, memberDuties, shiftAssignmentScenarios, shiftAssignments, shiftPlans, shiftSlots, shiftAvailability, groupPreferences, shiftRequestPeriods, shiftRequests, groups } from "../../../../../db/schema";
 import { buildDutyCoverageWarnings, buildMemberDutyMap, memberCanTakeDuty } from "../../../../duty-validation";
 import { proposalMeta, proposalSettings, proposalSlotSignature } from "../../../../shift-assignment-proposals";
@@ -176,6 +177,7 @@ async function generateAssignments(db: ReturnType<typeof getDb>, planId: string,
       : [...(existingAssignments[slot.id] ?? [])];
   }
   const assignedFor = (email: string) => slots.filter((slot) => (assignments[slot.id] ?? []).includes(email));
+  const clusterPlacement = (email: string, slot: typeof slots[number]) => doesNotCreateSplitShift(assignedFor(email), slot);
   const laborCost = (email: string, slot: typeof slots[number]) => {
     if (settings.laborMode === "allow") return 0;
     const candidateRows = slots.flatMap((item) => (assignments[item.id] ?? []).includes(email) || item.id === slot.id
@@ -218,7 +220,8 @@ async function generateAssignments(db: ReturnType<typeof getDb>, planId: string,
       if (!memberCanTakeDuty(slot, member.userEmail, memberDutyMap)) return false;
       const availabilityResult = canWork(member.userEmail, slot);
       if (!availabilityResult.allowed) return false;
-      return !assignedFor(member.userEmail).some((other) => overlaps(slot, other));
+      if (assignedFor(member.userEmail).some((other) => overlaps(slot, other))) return false;
+      return clusterPlacement(member.userEmail, slot).allowed;
     }).sort((a, b) => {
       const av = canWork(a.userEmail, slot).status;
       const bv = canWork(b.userEmail, slot).status;
@@ -229,7 +232,8 @@ async function generateAssignments(db: ReturnType<typeof getDb>, planId: string,
       const fairnessOrder = settings.priority === "fairness" ? aCount - bCount : 0;
       const minimalOrder = settings.priority === "minimal" ? bCount - aCount : 0;
       const laborOrder = settings.priority === "labor" ? laborCost(a.userEmail, slot) - laborCost(b.userEmail, slot) : 0;
-      return laborOrder || preferenceOrder || fairnessOrder || minimalOrder || seededScore(seed, `${slot.id}|${a.userEmail}`) - seededScore(seed, `${slot.id}|${b.userEmail}`);
+      const clusterOrder = clusterPlacement(a.userEmail, slot).delta - clusterPlacement(b.userEmail, slot).delta;
+      return clusterOrder || laborOrder || preferenceOrder || fairnessOrder || minimalOrder || seededScore(seed, `${slot.id}|${a.userEmail}`) - seededScore(seed, `${slot.id}|${b.userEmail}`);
     });
     for (const candidate of candidates) {
       if ((assignments[slot.id] ?? []).length >= slot.requiredCount) break;

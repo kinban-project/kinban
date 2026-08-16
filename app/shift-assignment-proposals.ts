@@ -17,6 +17,7 @@ export type AssignmentProposalSlot = {
   role: string;
   dutyId?: string | null;
   dutyNameSnapshot?: string | null;
+  dutyScopeIds?: string | null;
   coverageDutyIds?: string | null;
 };
 
@@ -30,6 +31,7 @@ export function proposalSlotSignature(slots: Array<AssignmentProposalSlot>): Ass
     role: slot.role ?? "",
     dutyId: slot.dutyId ?? null,
     dutyNameSnapshot: slot.dutyNameSnapshot ?? null,
+    dutyScopeIds: slot.dutyScopeIds ?? null,
     coverageDutyIds: slot.coverageDutyIds ?? null,
   })).sort((a, b) => a.id.localeCompare(b.id));
 }

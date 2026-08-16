@@ -32,6 +32,7 @@ type Slot = {
   role: string;
   dutyId?: string | null;
   dutyNameSnapshot?: string | null;
+  dutyScopeIds?: string[] | string | null;
   coverageDutyIds?: string[] | string | null;
 };
 type Member = { userEmail: string; displayName?: string | null; role: string };
@@ -59,7 +60,7 @@ type Detail = {
   closedDates?: string[];
   requestPeriod?: RequestPeriod | null;
 };
-type SlotRule = { role: string; requiredCount: string; dutyId: string; coverageDutyIds: string[] };
+type SlotRule = { role: string; requiredCount: string; dutyId: string; dutyScopeIds: string[]; coverageDutyIds: string[] };
 type InputMode = "standard" | "custom";
 
 function defaultRequestCloseDate(startDate: string) {
@@ -143,7 +144,7 @@ export default function ShiftBuilder({
   });
   const [notes, setNotes] = useState("");
   const [slotRules, setSlotRules] = useState<SlotRule[]>([
-    { role: "", requiredCount: "2", dutyId: "", coverageDutyIds: [] },
+    { role: "", requiredCount: "2", dutyId: "", dutyScopeIds: [], coverageDutyIds: [] },
   ]);
   const [duties, setDuties] = useState<Duty[]>([]);
   const [inputMode, setInputMode] = useState<InputMode>("standard");
@@ -279,11 +280,11 @@ export default function ShiftBuilder({
         slotMinutes: Number(form.slotMinutes),
         slotRules:
           inputMode === "standard"
-            ? slotRules.map((rule) => ({
-                role: rule.role,
+              ? slotRules.map((rule) => ({
+                role: rule.dutyId ? (duties.find((duty) => duty.id === rule.dutyId)?.name ?? rule.role) : rule.role,
                 requiredCount: Number(rule.requiredCount),
                 ...(rule.dutyId ? { dutyId: rule.dutyId } : {}),
-                ...(rule.coverageDutyIds.length ? { coverageDutyIds: rule.coverageDutyIds } : {}),
+                ...(rule.dutyId || rule.dutyScopeIds.length ? { dutyScopeIds: [...new Set([rule.dutyId, ...rule.dutyScopeIds].filter(Boolean))] } : {}),
               }))
             : undefined,
         customSlots: inputMode === "custom" ? customSlots : undefined,
@@ -602,39 +603,29 @@ export default function ShiftBuilder({
                   </div>
                   {slotRules.map((rule, index) => (
                     <div className="slot-rule-row" key={index}>
-                      <input
-                        value={rule.role}
-                        onChange={(event) =>
-                          updateSlotRule(index, { role: event.target.value })
-                        }
-                        placeholder="担当・ポジション（例：厨房）"
-                      />
-                      <input
-                        type="number"
-                        min="1"
-                        max="50"
-                        value={rule.requiredCount}
-                        onChange={(event) =>
-                          updateSlotRule(index, {
-                            requiredCount: event.target.value,
-                          })
-                        }
-                        aria-label="必要人数"
-                      />
-                      <span>名</span>
-                      <select value={rule.dutyId} onChange={(event) => updateSlotRule(index, { dutyId: event.target.value })} aria-label="担当">
+                      <label className="slot-duty-field">
+                        <span>担当（主担当）</span>
+                        <select value={rule.dutyId} onChange={(event) => { const nextDutyId = event.target.value; updateSlotRule(index, { dutyId: nextDutyId, role: event.target.selectedOptions[0]?.textContent ?? rule.role, dutyScopeIds: nextDutyId ? [nextDutyId, ...rule.dutyScopeIds.filter((dutyId) => dutyId !== rule.dutyId && dutyId !== nextDutyId)] : [] }); }} aria-label="担当（主担当）">
                         <option value="">担当なし（既存運用）</option>
                         {duties.filter((duty) => duty.status === "active").map((duty) => <option key={duty.id} value={duty.id}>{duty.name}</option>)}
-                      </select>
-                      <select
-                        multiple
-                        size={Math.min(3, Math.max(1, duties.filter((duty) => duty.status === "active").length))}
-                        value={rule.coverageDutyIds}
-                        onChange={(event) => updateSlotRule(index, { coverageDutyIds: [...event.target.selectedOptions].map((option) => option.value) })}
-                        aria-label="Coverage duties"
-                      >
-                        {duties.filter((duty) => duty.status === "active").map((duty) => <option key={duty.id} value={duty.id}>{duty.name}</option>)}
-                      </select>
+                        </select>
+                      </label>
+                      <label className="slot-duty-field slot-count-field">
+                        <span>必要人数</span>
+                        <span className="slot-count-inline"><input type="number" min="1" max="50" value={rule.requiredCount} onChange={(event) => updateSlotRule(index, { requiredCount: event.target.value })} aria-label="必要人数" />名</span>
+                      </label>
+                      <label className="slot-duty-field">
+                        <span>兼任担当（任意）</span>
+                        <select
+                          multiple
+                          size={Math.min(3, Math.max(1, duties.filter((duty) => duty.status === "active").length))}
+                          value={rule.dutyScopeIds.filter((dutyId) => dutyId !== rule.dutyId)}
+                          onChange={(event) => updateSlotRule(index, { dutyScopeIds: [rule.dutyId, ...[...event.target.selectedOptions].map((option) => option.value)].filter(Boolean) })}
+                          aria-label="兼任担当（任意）"
+                        >
+                          {duties.filter((duty) => duty.status === "active").map((duty) => <option key={duty.id} value={duty.id}>{duty.name}</option>)}
+                        </select>
+                      </label>
                       {slotRules.length > 1 && (
                         <button
                           type="button"
@@ -658,7 +649,7 @@ export default function ShiftBuilder({
                     onClick={() =>
                       setSlotRules((current) => [
                         ...current,
-                        { role: "", requiredCount: "1", dutyId: "", coverageDutyIds: [] },
+                        { role: "", requiredCount: "1", dutyId: "", dutyScopeIds: [], coverageDutyIds: [] },
                       ])
                     }
                   >
@@ -896,22 +887,30 @@ export default function ShiftBuilder({
                               <td key={`${date}|${time}`}>
                                 {cells.length ? (
                                   cells.map((slot) => (
-                                    <div
+                                    <details
                                       className="shift-grid-slot"
                                       key={slot.id}
                                     >
-                                      <strong className="shift-grid-role">
-                                        {slot.role || "共通"}
-                                      </strong>
-                                      <select
+                                      <summary className="shift-grid-slot-summary">
+                                        <strong>{slot.role || duties.find((duty) => duty.id === slot.dutyId)?.name || "共通"}</strong>
+                                        <span>{(() => { const scopeIds = Array.isArray(slot.dutyScopeIds) ? slot.dutyScopeIds : (() => { try { return slot.dutyScopeIds ? JSON.parse(slot.dutyScopeIds) as string[] : []; } catch { return []; } })(); return scopeIds.length > 1 ? `＋${scopeIds.length - 1}業務` : ""; })()}</span>
+                                        <span>{slot.requiredCount}名</span>
+                                      </summary>
+                                      <label className="slot-duty-field">
+                                        <span>担当（主担当）</span>
+                                        <select
                                         className="slot-duty-select"
                                         value={slot.dutyId ?? ""}
-                                        onChange={(event) =>
+                                        onChange={(event) => {
+                                          const nextDutyId = event.target.value || null;
+                                          const currentScopeIds = Array.isArray(slot.dutyScopeIds) ? slot.dutyScopeIds : (() => { try { return slot.dutyScopeIds ? JSON.parse(slot.dutyScopeIds) as string[] : []; } catch { return []; } })();
                                           updateSlot(slot.id, {
-                                            dutyId: event.target.value || null,
-                                          })
-                                        }
-                                        aria-label="担当"
+                                            dutyId: nextDutyId,
+                                            role: event.target.selectedOptions[0]?.textContent ?? slot.role,
+                                            dutyScopeIds: nextDutyId ? [nextDutyId, ...currentScopeIds.filter((dutyId) => dutyId !== slot.dutyId && dutyId !== nextDutyId)] : [],
+                                          });
+                                        }}
+                                        aria-label="担当（主担当）"
                                       >
                                         <option value="">担当なし</option>
                                         {duties
@@ -921,32 +920,34 @@ export default function ShiftBuilder({
                                               {duty.name}
                                             </option>
                                           ))}
-                                      </select>
-                                      <select
-                                        className="slot-coverage-duty-select"
-                                        multiple
-                                        size={Math.min(3, Math.max(1, duties.filter((duty) => duty.status === "active").length))}
-                                        value={Array.isArray(slot.coverageDutyIds) ? slot.coverageDutyIds : (() => { try { return slot.coverageDutyIds ? JSON.parse(slot.coverageDutyIds) as string[] : []; } catch { return []; } })()}
-                                        onChange={(event) => updateSlot(slot.id, { coverageDutyIds: [...event.target.selectedOptions].map((option) => option.value) })}
-                                        aria-label="Coverage duties"
-                                      >
-                                        {duties.filter((duty) => duty.status === "active").map((duty) => <option key={duty.id} value={duty.id}>{duty.name}</option>)}
-                                      </select>
-                                      <input
-                                        className="slot-count-input"
-                                        type="number"
-                                        min="1"
-                                        max="50"
-                                        value={slot.requiredCount}
-                                        onChange={(event) =>
-                                          updateSlot(slot.id, {
-                                            requiredCount: Number(
-                                              event.target.value,
-                                            ),
-                                          })
-                                        }
-                                      />
-                                    </div>
+                                        </select>
+                                      </label>
+                                      <label className="slot-duty-field">
+                                        <span>兼任担当（任意）</span>
+                                        <select
+                                          className="slot-duty-scope-select"
+                                          multiple
+                                          size={Math.min(3, Math.max(1, duties.filter((duty) => duty.status === "active").length))}
+                                          value={(Array.isArray(slot.dutyScopeIds) ? slot.dutyScopeIds : (() => { try { return slot.dutyScopeIds ? JSON.parse(slot.dutyScopeIds) as string[] : []; } catch { return []; } })()).filter((dutyId) => dutyId !== slot.dutyId)}
+                                          onChange={(event) => updateSlot(slot.id, { dutyScopeIds: [slot.dutyId, ...[...event.target.selectedOptions].map((option) => option.value)].filter(Boolean) })}
+                                          aria-label="兼任担当（任意）"
+                                        >
+                                          {duties.filter((duty) => duty.status === "active").map((duty) => <option key={duty.id} value={duty.id}>{duty.name}</option>)}
+                                        </select>
+                                      </label>
+                                      <label className="slot-duty-field slot-count-field">
+                                        <span>必要人数</span>
+                                        <input
+                                          className="slot-count-input"
+                                          type="number"
+                                          min="1"
+                                          max="50"
+                                          value={slot.requiredCount}
+                                          onChange={(event) => updateSlot(slot.id, { requiredCount: Number(event.target.value) })}
+                                          aria-label="必要人数"
+                                        />
+                                      </label>
+                                    </details>
                                   ))
                                 ) : (
                                   <span className="shift-grid-empty">—</span>

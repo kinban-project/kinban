@@ -49,7 +49,7 @@ import {
 } from "../../db/schema";
 import { requireApiIdentity } from "../api/api-auth";
 import { canViewAdminNote, toPublicMember } from "../api/groups/member-dto";
-import { buildDutyCoverageWarnings, buildMemberDutyMap, memberCanTakeDuty, validateDutyAssignments } from "../duty-validation";
+import { buildDutyCoverageWarnings, buildMemberDutyMap, memberCanTakeDuty, parseDutyScopeIds, validateDutyAssignments, validateDutyScopeConfiguration } from "../duty-validation";
 import { shiftRequestDeadlinePassed } from "../shift-request-deadline";
 import { pruneInvalidShiftRequests } from "../shift-request-cleanup";
 import { isPreferenceStatus, preferenceStatuses } from "../preference-status";
@@ -61,6 +61,7 @@ import {
   shiftTimeToMinutes,
 } from "../shift-time";
 import { buildLaborWarnings } from "../shift-labor-warnings";
+import { doesNotCreateSplitShift } from "../shift-cluster";
 import {
   getMcpWorkRecords,
   mcpClock,
@@ -89,6 +90,7 @@ type McpCustomSlot = {
   requiredCount: number;
   role: string;
   dutyId?: string | null;
+  dutyScopeIds?: string | null;
   coverageDutyIds?: string | null;
 };
 
@@ -117,6 +119,9 @@ function parseMcpCustomSlots(input: unknown, planId: string, startDate: string, 
     if (!Number.isInteger(requiredCount) || requiredCount < 1 || requiredCount > 50)
       throw new Error(`custom slot ${index + 1} has an invalid requiredCount`);
     const dutyId = typeof item.dutyId === "string" && item.dutyId.trim() ? item.dutyId.trim() : null;
+    const dutyScopeIds = Array.isArray(item.dutyScopeIds)
+      ? JSON.stringify(item.dutyScopeIds.filter((value): value is string => typeof value === "string" && value.trim().length > 0))
+      : null;
     const coverageDutyIds = Array.isArray(item.coverageDutyIds)
       ? JSON.stringify(item.coverageDutyIds.filter((value): value is string => typeof value === "string" && value.trim().length > 0))
       : null;
@@ -132,6 +137,7 @@ function parseMcpCustomSlots(input: unknown, planId: string, startDate: string, 
       requiredCount,
       role,
       dutyId,
+      dutyScopeIds,
       coverageDutyIds,
     };
   }) as Array<McpCustomSlot & { id: string; planId: string }>;
@@ -422,6 +428,8 @@ function generateCandidate(context: PlanningContext, seed = "", rawSettings?: un
   const existing = assignmentObjectFromRows(context.assignments);
   const assignedFor = (candidate: Record<string, string[]>, email: string) =>
     context.slots.filter((slot) => (candidate[slot.id] ?? []).includes(email));
+  const clusterPlacement = (candidate: Record<string, string[]>, email: string, slot: typeof context.slots[number]) =>
+    doesNotCreateSplitShift(assignedFor(candidate, email), slot);
   const problemSlotIds = new Set<string>();
   if (settings.allocationScope === "problems") {
     for (const slot of context.slots) {
@@ -493,7 +501,8 @@ function generateCandidate(context: PlanningContext, seed = "", rawSettings?: un
       if (current.includes(member.userEmail)) return false;
       if (!memberCanTakeDuty(slot, member.userEmail, context.memberDutyMap)) return false;
       if (!canWork(member.userEmail, slot).allowed) return false;
-      return !assignedFor(candidate, member.userEmail).some((other) => slotsOverlap(slot, other));
+      if (assignedFor(candidate, member.userEmail).some((other) => slotsOverlap(slot, other))) return false;
+      return clusterPlacement(candidate, member.userEmail, slot).allowed;
     }).sort((left, right) => {
       const leftStatus = canWork(left.userEmail, slot).status;
       const rightStatus = canWork(right.userEmail, slot).status;
@@ -504,7 +513,8 @@ function generateCandidate(context: PlanningContext, seed = "", rawSettings?: un
       const fairnessOrder = settings.priority === "fairness" ? leftCount - rightCount : 0;
       const minimalOrder = settings.priority === "minimal" ? rightCount - leftCount : 0;
       const laborOrder = settings.priority === "labor" ? laborCost(left.userEmail, slot) - laborCost(right.userEmail, slot) : 0;
-      return laborOrder || preferenceOrder || fairnessOrder || minimalOrder || seededScore(seed, `${slot.id}|${left.userEmail}`) - seededScore(seed, `${slot.id}|${right.userEmail}`);
+      const clusterOrder = clusterPlacement(candidate, left.userEmail, slot).delta - clusterPlacement(candidate, right.userEmail, slot).delta;
+      return clusterOrder || laborOrder || preferenceOrder || fairnessOrder || minimalOrder || seededScore(seed, `${slot.id}|${left.userEmail}`) - seededScore(seed, `${slot.id}|${right.userEmail}`);
     });
     for (const member of candidates) {
       if (candidate[slot.id].length >= slot.requiredCount) break;
@@ -1198,13 +1208,14 @@ const tools = [
         reason: { type: "string" },
         slotRules: {
           type: "array",
-          description: "Regular slots. coverageDutyIds explicitly lists the active duties that must be covered during the slot; primary dutyId is not implicitly required.",
+          description: "Regular slots. dutyScopeIds lists every active duty a person in this slot must be capable of; coverageDutyIds is a separate aggregate coverage warning setting.",
           items: {
             type: "object",
             properties: {
               role: { type: "string" },
               requiredCount: { type: "integer", minimum: 1, maximum: 50 },
               dutyId: { type: "string", description: "Optional primary active duty ID." },
+              dutyScopeIds: { type: "array", items: { type: "string" }, description: "Optional active duty IDs; one assigned member must be capable of every listed duty." },
               coverageDutyIds: { type: "array", items: { type: "string" }, description: "Optional active duty IDs required simultaneously." },
             },
           },
@@ -1223,6 +1234,7 @@ const tools = [
               requiredCount: { type: "integer", minimum: 1, maximum: 50 },
               role: { type: "string", maxLength: 100 },
               dutyId: { type: "string", description: "Optional active duty master ID for this slot." },
+              dutyScopeIds: { type: "array", items: { type: "string" }, description: "Optional active duty IDs; one assigned member must be capable of every listed duty." },
               coverageDutyIds: { type: "array", items: { type: "string" }, description: "Optional active duty IDs required simultaneously." },
             },
           },
@@ -3584,12 +3596,17 @@ export async function POST(request: Request) {
                 requiredCount: Math.max(1, Number(rule.requiredCount ?? 1)),
                 dutyId: text(rule.dutyId) || null,
                 dutyNameSnapshot: text(rule.dutyId) ? dutyById.get(text(rule.dutyId))?.name ?? null : null,
+                dutyScopeIds: Array.isArray(rule.dutyScopeIds) ? JSON.stringify(rule.dutyScopeIds.filter((value) => typeof value === "string" && value.trim())) : null,
                 coverageDutyIds: Array.isArray(rule.coverageDutyIds) ? JSON.stringify(rule.coverageDutyIds.filter((value) => typeof value === "string" && value.trim())) : null,
               });
       }
       if (!rows.length) return rpcError(payload.id, "No slots were provided");
       const invalidDuty = rows.find((row) => row.dutyId && (!dutyById.has(row.dutyId) || dutyById.get(row.dutyId)?.status !== "active"));
       if (invalidDuty) return rpcError(payload.id, "勤務枠に無効または存在しない担当が指定されています");
+      const invalidDutyScope = rows.find((row) => parseDutyScopeIds(row.dutyScopeIds).some((dutyId) => !dutyById.has(dutyId) || dutyById.get(dutyId)?.status !== "active"));
+      if (invalidDutyScope) return rpcError(payload.id, "勤務枠の担当範囲に無効または存在しない担当が指定されています");
+      const invalidDutyScopeConfiguration = rows.find((row) => validateDutyScopeConfiguration(row.dutyId, row.dutyScopeIds));
+      if (invalidDutyScopeConfiguration) return rpcError(payload.id, "主担当は担当範囲に含めてください");
       await db.batch([
         db.insert(shiftPlans).values({
           id: planId,

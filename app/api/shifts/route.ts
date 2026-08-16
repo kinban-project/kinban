@@ -14,6 +14,7 @@ import { getMembership } from "../groups/group-access";
 import { isValidShiftTime, minutesToShiftTime, shiftTimeToMinutes } from "../../shift-time";
 import { recordAudit } from "../../audit-log";
 import { getDemoNow, jstDate } from "../../demo-clock";
+import { validateDutyScopeConfiguration } from "../../duty-validation";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,7 @@ type CustomSlot = {
   role: string;
   dutyId: string | null;
   dutyNameSnapshot: string | null;
+  dutyScopeIds: string | null;
   coverageDutyIds: string | null;
 };
 function parseCustomSlots(
@@ -80,6 +82,9 @@ function parseCustomSlots(
       .trim()
       .slice(0, 100);
     const dutyId = typeof item.dutyId === "string" && item.dutyId.trim() ? item.dutyId.trim() : null;
+    const dutyScopeIds = Array.isArray(item.dutyScopeIds)
+      ? JSON.stringify(item.dutyScopeIds.filter((value): value is string => typeof value === "string" && value.trim().length > 0))
+      : null;
     const coverageDutyIds = Array.isArray(item.coverageDutyIds)
       ? JSON.stringify(item.coverageDutyIds.filter((value): value is string => typeof value === "string" && value.trim().length > 0))
       : null;
@@ -115,6 +120,7 @@ function parseCustomSlots(
       role,
       dutyId,
       dutyNameSnapshot: null,
+      dutyScopeIds,
       coverageDutyIds,
     };
   }) as CustomSlot[] & Array<{ id: string; planId: string }>;
@@ -227,7 +233,7 @@ export async function POST(request: Request) {
     slotMinutes?: number;
     requiredCount?: number;
     role?: string;
-    slotRules?: Array<{ role?: string; requiredCount?: number; dutyId?: string | null; coverageDutyIds?: string[] }>;
+    slotRules?: Array<{ role?: string; requiredCount?: number; dutyId?: string | null; dutyScopeIds?: string[]; coverageDutyIds?: string[] }>;
     customSlots?: unknown;
   };
   const groupId = body.groupId ?? "";
@@ -259,6 +265,7 @@ export async function POST(request: Request) {
       role: rule.role?.trim() ?? "",
       requiredCount: Math.max(1, Number(rule.requiredCount ?? 1)),
       dutyId: rule.dutyId ?? null,
+      dutyScopeIds: Array.isArray(rule.dutyScopeIds) ? JSON.stringify(rule.dutyScopeIds.filter((id) => typeof id === "string" && id.trim())) : null,
       coverageDutyIds: Array.isArray(rule.coverageDutyIds) ? JSON.stringify(rule.coverageDutyIds.filter((id) => typeof id === "string" && id.trim())) : null,
     }))
     .filter((rule) => rule.requiredCount > 0);
@@ -289,6 +296,7 @@ export async function POST(request: Request) {
     role: string;
     dutyId: string | null;
     dutyNameSnapshot: string | null;
+    dutyScopeIds: string | null;
     coverageDutyIds: string | null;
   }>;
   let effectiveOpeningTime = openingTime;
@@ -297,6 +305,14 @@ export async function POST(request: Request) {
   const duties = await db.select().from(groupDuties).where(eq(groupDuties.groupId, groupId));
   const dutyById = new Map(duties.map((duty) => [duty.id, duty]));
   for (const rule of rules) {
+    if (rule.dutyScopeIds) {
+      const scopeIds = JSON.parse(rule.dutyScopeIds) as unknown;
+      if (!Array.isArray(scopeIds) || scopeIds.some((dutyId) => typeof dutyId !== "string" || dutyById.get(dutyId)?.status !== "active")) {
+        return Response.json({ error: "dutyScopeIds must contain active duty IDs" }, { status: 400 });
+      }
+      const scopeError = validateDutyScopeConfiguration(rule.dutyId, scopeIds as string[]);
+      if (scopeError) return Response.json({ error: scopeError }, { status: 400 });
+    }
     if (rule.coverageDutyIds) {
       const coverageIds = JSON.parse(rule.coverageDutyIds) as unknown;
       if (!Array.isArray(coverageIds) || coverageIds.some((dutyId) => typeof dutyId !== "string" || dutyById.get(dutyId)?.status !== "active")) {
@@ -310,6 +326,10 @@ export async function POST(request: Request) {
       slots = parseCustomSlots(body.customSlots, id, startDate, endDate);
       for (const slot of slots) {
         if (slot.dutyId && (!dutyById.get(slot.dutyId) || dutyById.get(slot.dutyId)?.status !== "active")) throw new Error("有効な担当を指定してください");
+        const scopeIds = slot.dutyScopeIds ? JSON.parse(slot.dutyScopeIds) as unknown : [];
+        if (!Array.isArray(scopeIds) || scopeIds.some((dutyId) => typeof dutyId !== "string" || dutyById.get(dutyId)?.status !== "active")) throw new Error("dutyScopeIds must contain active duty IDs");
+        const scopeError = validateDutyScopeConfiguration(slot.dutyId, scopeIds as string[]);
+        if (scopeError) throw new Error(scopeError);
         const coverageIds = slot.coverageDutyIds ? JSON.parse(slot.coverageDutyIds) as unknown : [];
         if (!Array.isArray(coverageIds) || coverageIds.some((dutyId) => typeof dutyId !== "string" || dutyById.get(dutyId)?.status !== "active")) {
           throw new Error("coverageDutyIds must contain active duty IDs");
@@ -352,6 +372,8 @@ export async function POST(request: Request) {
         role: string;
         dutyId: string | null;
         dutyNameSnapshot: string | null;
+        dutyScopeIds: string | null;
+        coverageDutyIds: string | null;
       }> = [];
       for (
         let current = minutes(openingTime);
@@ -369,6 +391,7 @@ export async function POST(request: Request) {
             role: rule.role,
             dutyId: rule.dutyId,
             dutyNameSnapshot: rule.dutyId ? dutyById.get(rule.dutyId)?.name ?? null : null,
+            dutyScopeIds: rule.dutyScopeIds,
             coverageDutyIds: rule.coverageDutyIds,
           });
       return rows;

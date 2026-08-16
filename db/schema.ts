@@ -527,6 +527,7 @@ export const shiftSlots = sqliteTable("shift_slots", {
   role: text("role").notNull().default(""),
   dutyId: text("duty_id"),
   dutyNameSnapshot: text("duty_name_snapshot"),
+  dutyScopeIds: text("duty_scope_ids"),
   coverageDutyIds: text("coverage_duty_ids"),
 });
 

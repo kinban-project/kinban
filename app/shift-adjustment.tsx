@@ -6,7 +6,7 @@ import { getShiftDisplayLabel, getShiftDisplayStatus } from "./shift-status";
 import { displayShiftTime, shiftTimeToMinutes } from "./shift-time";
 import { buildLaborWarnings, type LaborRules, type LaborWarning } from "./shift-labor-warnings";
 import { proposalMatchesSlots, proposalMeta, type AssignmentProposalSlot } from "./shift-assignment-proposals";
-import { buildDutyCoverageWarnings } from "./duty-validation";
+import { buildDutyCoverageWarnings, memberCanTakeDuty, parseDutyScopeIds } from "./duty-validation";
 
 type Group = { id: string; name: string; membership: { role: string } };
 type Plan = {
@@ -28,6 +28,7 @@ type Slot = {
   role: string;
   dutyId?: string | null;
   dutyNameSnapshot?: string | null;
+  dutyScopeIds?: string | null;
 };
 type Member = { userEmail: string; displayName?: string | null; dutyIds?: string[] };
 type MemberAvailability = {
@@ -190,6 +191,8 @@ export default function ShiftAdjustment({
     unavailable: false,
     duty: false,
   });
+  const [dutyDirectoryOpen, setDutyDirectoryOpen] = useState(false);
+  const [dutyDirectoryScope, setDutyDirectoryScope] = useState<"visible" | "all">("all");
   const [viewMode, setViewMode] = useState<"preview" | "list" | "calendar">("preview");
   const [scenarios, setScenarios] = useState<AssignmentScenario[]>([]);
   const [selectedScenarioId, setSelectedScenarioId] = useState("");
@@ -337,12 +340,13 @@ export default function ShiftAdjustment({
     const assignedSlots = detail.slots.flatMap((slot) =>
       [...new Set(assignments[slot.id] ?? [])].map((userEmail) => ({ slot, userEmail })),
     );
+    const memberDutyMap = new Map(detail.members.map((member) => [member.userEmail, new Set(member.dutyIds ?? [])]));
     for (const { slot, userEmail } of assignedSlots) {
-      if (!slot.dutyId) continue;
+      if (!slot.dutyId && parseDutyScopeIds(slot.dutyScopeIds).length === 0) continue;
       const member = detail.members.find((row) => row.userEmail === userEmail);
-      if (member?.dutyIds?.includes(slot.dutyId)) continue;
+      if (memberCanTakeDuty(slot, userEmail, memberDutyMap)) continue;
       const memberName = member?.displayName || userEmail.split("@")[0];
-      const dutyName = slot.dutyNameSnapshot || "担当";
+      const dutyName = slot.dutyNameSnapshot || "担当範囲";
       issues.set(`duty:${slot.id}:${userEmail}`, {
         id: `duty:${slot.id}:${userEmail}`,
         kind: "duty",
@@ -584,10 +588,27 @@ export default function ShiftAdjustment({
   function candidateIsVisible(slot: Slot, member: Member, assigned: boolean) {
     if (assigned) return true;
     const preference = preferenceFor(slot, member.userEmail);
-    const isDutyMismatch = Boolean(slot.dutyId) && !member.dutyIds?.includes(slot.dutyId!);
+    const scopeIds = parseDutyScopeIds(slot.dutyScopeIds);
+    const isDutyMismatch = scopeIds.length > 0
+      ? !scopeIds.every((dutyId) => member.dutyIds?.includes(dutyId))
+      : Boolean(slot.dutyId) && !member.dutyIds?.includes(slot.dutyId!);
     const preferenceVisible = candidateFilters[preference as CandidateFilter] ?? false;
     if (isDutyMismatch) return candidateFilters.duty;
     return preferenceVisible;
+  }
+  const dutyDirectoryMembers = useMemo(() => {
+    if (!detail) return [];
+    if (dutyDirectoryScope === "all") return detail.members;
+    return detail.members.filter((member) =>
+      visibleSlots.some((slot) =>
+        candidateIsVisible(slot, member, (assignments[slot.id] ?? []).includes(member.userEmail)),
+      ),
+    );
+  }, [detail, dutyDirectoryScope, visibleSlots, assignments, candidateFilters]);
+  const dutyDirectoryDuties = detail?.duties ?? [];
+  function memberDutyNames(member: Member) {
+    const ids = new Set(member.dutyIds ?? []);
+    return dutyDirectoryDuties.filter((duty) => ids.has(duty.id)).map((duty) => duty.name);
   }
   function renderMember(slot: Slot, member: Member) {
     const assigned = (assignments[slot.id] ?? []).includes(member.userEmail);
@@ -604,7 +625,14 @@ export default function ShiftAdjustment({
         .filter((warning) => warning.memberEmail === member.userEmail && warning.slotIds.includes(slot.id))
         .map((warning) => laborWarningLabel(warning.kind)))]
       : [];
-    const dutyReview = Boolean(slot.dutyId) && !member.dutyIds?.includes(slot.dutyId!);
+    const scopeIds = parseDutyScopeIds(slot.dutyScopeIds);
+    const dutyReview = scopeIds.length > 0
+      ? !scopeIds.every((dutyId) => member.dutyIds?.includes(dutyId))
+      : Boolean(slot.dutyId) && !member.dutyIds?.includes(slot.dutyId!);
+    const dutyNames = memberDutyNames(member);
+    const dutySummary = dutyNames.length > 2
+      ? `${dutyNames.slice(0, 2).join("、")} +${dutyNames.length - 2}`
+      : dutyNames.join("、");
     return (
       <label
         className={`${assigned ? "assigned " : ""}pref-${preference}`}
@@ -620,6 +648,7 @@ export default function ShiftAdjustment({
           {hasMemberOverlap && <small className="assignment-overlap-badge">（時間重複）</small>}
           {dutyReview && <small className="assignment-duty-badge">適性外</small>}
         </span>
+        {dutySummary && <small className="assignment-duty-summary">担当可能: {dutySummary}</small>}
         {plannedBreakMinutes > 0 && (
           <small className="assignment-break-badge">休憩{plannedBreakMinutes}分</small>
         )}
@@ -637,7 +666,10 @@ export default function ShiftAdjustment({
     const hasOverlap = assignmentIssues.some(
       (issue) => issue.kind === "overlap" && issue.memberEmail === userEmail && issue.slotIds.includes(slot.id),
     );
-    const dutyReview = Boolean(slot.dutyId) && !member?.dutyIds?.includes(slot.dutyId);
+    const scopeIds = parseDutyScopeIds(slot.dutyScopeIds);
+    const dutyReview = scopeIds.length > 0
+      ? !scopeIds.every((dutyId) => member?.dutyIds?.includes(dutyId))
+      : Boolean(slot.dutyId) && !member?.dutyIds?.includes(slot.dutyId);
     const labels = [
       ...(minutes > 0 ? [`予定休憩${minutes}分`] : []),
       ...laborLabels,
@@ -651,6 +683,12 @@ export default function ShiftAdjustment({
       </span>
     );
   }
+  function dutyScopeLabel(slot: Slot) {
+    const scopeIds = parseDutyScopeIds(slot.dutyScopeIds);
+    if (!scopeIds.length) return "";
+    const names = new Map((detail?.duties ?? []).map((duty) => [duty.id, duty.name]));
+    return scopeIds.map((dutyId) => names.get(dutyId) ?? dutyId).join("・");
+  }
   function renderSlot(slot: Slot) {
     const assignedCount = new Set(assignments[slot.id] ?? []).size;
     const isShortage = assignedCount < slot.requiredCount;
@@ -661,6 +699,7 @@ export default function ShiftAdjustment({
           {slot.role || "共通"}
           <small>{assignedCount}/{slot.requiredCount}人</small>
         </strong>
+        {dutyScopeLabel(slot) && <small className="assignment-duty-scope">担当範囲：{dutyScopeLabel(slot)}</small>}
         <div className="assignment-members">
           {detail?.members.map((member) => renderMember(slot, member))}
         </div>
@@ -1122,6 +1161,9 @@ export default function ShiftAdjustment({
                 {label}
               </label>
             ))}
+            <button type="button" className="ghost-button duty-directory-button" onClick={() => setDutyDirectoryOpen(true)}>
+              担当可能一覧
+            </button>
             <small>表示のみの絞り込みです。割当済みのメンバーは常に表示されます。</small>
           </div>
           {!filterHasContent ? (
@@ -1138,7 +1180,7 @@ export default function ShiftAdjustment({
                     ...emails.map((email) => ({ email, unassigned: false })),
                     ...Array.from({ length: Math.max(0, slot.requiredCount - assignedCount) }, () => ({ email: "", unassigned: true })),
                   ];
-                  return <div className={`assignment-preview-slot ${assignedCount < slot.requiredCount ? "is-shortage" : ""} ${assignedCount > slot.requiredCount ? "is-excess" : ""}`} key={slot.id}><div><strong>{slot.role || "共通"}</strong><span>{assignedCount}/{slot.requiredCount}人</span></div><div className="assignment-preview-people">{people.length > 0 ? people.map((person, index) => person.unassigned ? <span className="assignment-preview-person is-unassigned" key={`${slot.id}|unassigned|${index}`}>未割当</span> : renderPreviewPerson(slot, person.email, index)) : <span className="assignment-preview-person is-unassigned">未割当</span>}</div></div>;
+                  return <div className={`assignment-preview-slot ${assignedCount < slot.requiredCount ? "is-shortage" : ""} ${assignedCount > slot.requiredCount ? "is-excess" : ""}`} key={slot.id}><div><strong>{slot.role || "共通"}</strong><span>{assignedCount}/{slot.requiredCount}人</span></div>{dutyScopeLabel(slot) && <small className="assignment-duty-scope">担当範囲：{dutyScopeLabel(slot)}</small>}<div className="assignment-preview-people">{people.length > 0 ? people.map((person, index) => person.unassigned ? <span className="assignment-preview-person is-unassigned" key={`${slot.id}|unassigned|${index}`}>未割当</span> : renderPreviewPerson(slot, person.email, index)) : <span className="assignment-preview-person is-unassigned">未割当</span>}</div></div>;
                 })}</td>)}</tr>)}</tbody>
               </table>
             </div>
@@ -1164,7 +1206,7 @@ export default function ShiftAdjustment({
                         {displayShiftTime(slot.startTime)}〜
                         {displayShiftTime(slot.endTime)}
                       </td>
-                      <td>{slot.role || "共通"}</td>
+                      <td>{slot.role || "共通"}{dutyScopeLabel(slot) && <small className="assignment-duty-scope">担当範囲：{dutyScopeLabel(slot)}</small>}</td>
                       <td><span className={assignedCount < slot.requiredCount ? "assignment-count shortage" : assignedCount > slot.requiredCount ? "assignment-count excess" : "assignment-count"}>{assignedCount}/{slot.requiredCount}人</span></td>
                       <td className={assignedCount < slot.requiredCount ? "assignment-members-cell shortage" : "assignment-members-cell"}>
                         <div className="assignment-members">
@@ -1273,6 +1315,42 @@ export default function ShiftAdjustment({
             </>}
           </div>
         </>
+      )}
+      {dutyDirectoryOpen && (
+        <div className="approval-detail-overlay duty-directory-overlay" role="dialog" aria-modal="true" aria-labelledby="duty-directory-title" onClick={(event) => { if (event.target === event.currentTarget) setDutyDirectoryOpen(false); }}>
+          <div className="approval-detail-panel duty-directory-panel">
+            <div className="duty-directory-header">
+              <div>
+                <span className="eyebrow">DUTY DIRECTORY</span>
+                <h3 id="duty-directory-title">担当可能一覧</h3>
+                <p>担当マスタとメンバーごとの担当可能設定を表示します。割当や候補判定は変更しません。</p>
+              </div>
+              <button type="button" className="duty-directory-close" onClick={() => setDutyDirectoryOpen(false)} aria-label="担当可能一覧を閉じる">×</button>
+            </div>
+            <div className="duty-directory-scope" role="group" aria-label="表示対象">
+              <button type="button" className={dutyDirectoryScope === "visible" ? "active" : ""} onClick={() => setDutyDirectoryScope("visible")}>現在表示中の候補</button>
+              <button type="button" className={dutyDirectoryScope === "all" ? "active" : ""} onClick={() => setDutyDirectoryScope("all")}>全メンバー</button>
+            </div>
+            {dutyDirectoryDuties.length === 0 ? (
+              <p className="duty-directory-empty">担当業務はまだ登録されていません。</p>
+            ) : (
+              <div className="duty-directory-table-wrap">
+                <table className="duty-directory-table">
+                  <thead><tr><th>メンバー</th>{dutyDirectoryDuties.map((duty) => <th key={duty.id}>{duty.name}</th>)}</tr></thead>
+                  <tbody>
+                    {dutyDirectoryMembers.map((member) => {
+                      const names = new Set(memberDutyNames(member));
+                      return <tr key={member.userEmail}>
+                        <th>{member.displayName || member.userEmail.split("@")[0]}</th>
+                        {dutyDirectoryDuties.map((duty) => <td className={names.has(duty.name) ? "is-capable" : "is-unavailable"} key={duty.id} aria-label={`${duty.name}: ${names.has(duty.name) ? "担当可能" : "担当不可または未設定"}`}>{names.has(duty.name) ? "✓ 可能" : "—"}</td>)}
+                      </tr>;
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
       )}
       {notice && (
         <p className="group-notice" role="status">
