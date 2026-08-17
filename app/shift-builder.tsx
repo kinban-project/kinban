@@ -305,22 +305,6 @@ export default function ShiftBuilder({
     };
   }
 
-  function copyPreviousBand() {
-    setArbitraryBands((current) => {
-      const previous = current[current.length - 1];
-      if (!previous) return current;
-      const start = shiftTimeToMinutes(previous.endTime);
-      const duration = Math.max(30, shiftTimeToMinutes(previous.endTime) - shiftTimeToMinutes(previous.startTime));
-      const end = start + duration;
-      if (end > 30 * 60) return current;
-      return [...current, {
-        startTime: minutesToShiftTime(start),
-        endTime: minutesToShiftTime(end),
-        rules: previous.rules.map((rule) => ({ ...rule, dutyScopeIds: [...rule.dutyScopeIds], coverageDutyIds: [...rule.coverageDutyIds] })),
-      }];
-    });
-  }
-
   function addNextBand() {
     setArbitraryBands((current) => {
       const previous = current[current.length - 1];
@@ -332,7 +316,9 @@ export default function ShiftBuilder({
       return [...current, {
         startTime: minutesToShiftTime(start),
         endTime: minutesToShiftTime(end),
-        rules: [{ ...emptySlotRule() }],
+        rules: previous
+          ? previous.rules.map((rule) => ({ ...rule, dutyScopeIds: [...rule.dutyScopeIds], coverageDutyIds: [...rule.coverageDutyIds] }))
+          : [{ ...emptySlotRule() }],
       }];
     });
   }
@@ -353,25 +339,11 @@ export default function ShiftBuilder({
       : band));
   }
 
-  function moveBandRule(bandIndex: number, ruleIndex: number, offset: -1 | 1) {
-    setArbitraryBands((current) => current.map((band, index) => {
-      if (index !== bandIndex) return band;
-      const target = ruleIndex + offset;
-      if (target < 0 || target >= band.rules.length) return band;
-      const rules = [...band.rules];
-      [rules[ruleIndex], rules[target]] = [rules[target], rules[ruleIndex]];
-      return { ...band, rules };
-    }));
-  }
-
-  function moveBand(index: number, offset: -1 | 1) {
-    setArbitraryBands((current) => {
-      const target = index + offset;
-      if (target < 0 || target >= current.length) return current;
-      const next = [...current];
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
-    });
+  function removeBand(index: number) {
+    if (!window.confirm("この時間帯と担当枠を削除しますか？")) return;
+    setArbitraryBands((current) => current.length <= 1
+      ? current
+      : current.filter((_, bandIndex) => bandIndex !== index));
   }
 
   async function createPlan(event: React.FormEvent) {
@@ -805,8 +777,7 @@ export default function ShiftBuilder({
                           {shiftTimeOptions.slice(1).map((time) => <option key={time} value={time}>{displayShiftTime(time)}</option>)}
                         </select>
                       </label>
-                      <button type="button" className="small-action" disabled={bandIndex === 0} onClick={() => moveBand(bandIndex, -1)}>↑</button>
-                      <button type="button" className="small-action" disabled={bandIndex === arbitraryBands.length - 1} onClick={() => moveBand(bandIndex, 1)}>↓</button>
+                      <button type="button" className="small-action danger" disabled={arbitraryBands.length <= 1} onClick={() => removeBand(bandIndex)}>この時間帯を削除</button>
                     </div>
                     {band.rules.map((rule, ruleIndex) => (
                       <div className="slot-rule-row" key={ruleIndex}>
@@ -827,15 +798,12 @@ export default function ShiftBuilder({
                             {duties.filter((duty) => duty.status === "active").map((duty) => <option key={duty.id} value={duty.id}>{duty.name}</option>)}
                           </select>
                         </label>
-                        <button type="button" className="small-action" disabled={ruleIndex === 0} onClick={() => moveBandRule(bandIndex, ruleIndex, -1)}>↑</button>
-                        <button type="button" className="small-action" disabled={ruleIndex === band.rules.length - 1} onClick={() => moveBandRule(bandIndex, ruleIndex, 1)}>↓</button>
                         {band.rules.length > 1 && <button type="button" className="small-action danger" onClick={() => setArbitraryBands((current) => current.map((currentBand, index) => index === bandIndex ? { ...currentBand, rules: currentBand.rules.filter((_, currentRuleIndex) => currentRuleIndex !== ruleIndex) } : currentBand))}>削除</button>}
                       </div>
                     ))}
                     <button type="button" className="small-action" onClick={() => addBandRule(bandIndex)}>＋この時間帯に担当枠を追加</button>
                   </div>
                 ))}
-                <button type="button" className="small-action" onClick={copyPreviousBand}>＋前の時間帯を複製</button>
                 <button type="button" className="small-action" onClick={addNextBand}>＋次の時間帯を追加</button>
               </div>
             ) : (

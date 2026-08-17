@@ -16,10 +16,11 @@ test("arbitrary slot creation expands time bands and child duty rows across the 
   assert.match(source, /const \[arbitraryBands, setArbitraryBands\]/);
   assert.match(source, /band\.rules\.map/);
   assert.match(source, /function arbitrarySlots\(\)/);
-  assert.match(source, /function copyPreviousBand\(\)/);
   assert.match(source, /function addNextBand\(\)/);
+  assert.match(source, /function removeBand\(index: number\)/);
   assert.match(source, /function addBandRule\(bandIndex: number\)/);
   assert.match(source, /＋この時間帯に担当枠を追加/);
-  assert.match(source, /＋前の時間帯を複製/);
+  assert.match(source, /この時間帯を削除/);
+  assert.doesNotMatch(source, /copyPreviousBand|moveBandRule|function moveBand\(/);
   assert.match(source, /customSlots:\s*\n\s*inputMode === "json"/);
 });
