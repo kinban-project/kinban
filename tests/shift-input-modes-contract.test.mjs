@@ -11,10 +11,15 @@ test("shift builder exposes the three creation modes in the documented order", (
   assert.ok(source.indexOf("勤務枠の方針・メモ") < source.indexOf("勤務枠の作り方"));
 });
 
-test("arbitrary slot creation expands rows across the plan and supports sequence helpers", () => {
+test("arbitrary slot creation expands time bands and child duty rows across the plan", () => {
+  assert.match(source, /type TimeBand =/);
+  assert.match(source, /const \[arbitraryBands, setArbitraryBands\]/);
+  assert.match(source, /band\.rules\.map/);
   assert.match(source, /function arbitrarySlots\(\)/);
-  assert.match(source, /function copyPreviousRule\(\)/);
-  assert.match(source, /function addNextRule\(\)/);
-  assert.match(source, /function moveSlotRule\(index: number, offset: -1 \| 1\)/);
+  assert.match(source, /function copyPreviousBand\(\)/);
+  assert.match(source, /function addNextBand\(\)/);
+  assert.match(source, /function addBandRule\(bandIndex: number\)/);
+  assert.match(source, /＋この時間帯に担当枠を追加/);
+  assert.match(source, /＋前の時間帯を複製/);
   assert.match(source, /customSlots:\s*\n\s*inputMode === "json"/);
 });

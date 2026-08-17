@@ -63,7 +63,12 @@ type Detail = {
   demoTime?: DemoTime;
 };
 type SlotRule = { startTime: string; endTime: string; role: string; requiredCount: string; dutyId: string; dutyScopeIds: string[]; coverageDutyIds: string[] };
+type TimeBand = { startTime: string; endTime: string; rules: SlotRule[] };
 type InputMode = "simple" | "arbitrary" | "json";
+
+function emptySlotRule(): SlotRule {
+  return { startTime: "09:00", endTime: "10:00", role: "", requiredCount: "1", dutyId: "", dutyScopeIds: [], coverageDutyIds: [] };
+}
 
 function defaultRequestCloseDate(startDate: string) {
   const minimum = new Date();
@@ -150,6 +155,9 @@ export default function ShiftBuilder({
   ]);
   const [duties, setDuties] = useState<Duty[]>([]);
   const [inputMode, setInputMode] = useState<InputMode>("simple");
+  const [arbitraryBands, setArbitraryBands] = useState<TimeBand[]>([
+    { startTime: "09:00", endTime: "18:00", rules: [{ ...emptySlotRule() }] },
+  ]);
   const [customSlots, setCustomSlots] = useState(customSlotExample);
   const [closedDates, setClosedDates] = useState<string[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
@@ -285,30 +293,36 @@ export default function ShiftBuilder({
   function arbitrarySlots() {
     return {
       slots: dateKeys(form.startDate, form.endDate).flatMap((date) =>
-        slotRules.map((rule) => ({
-          date,
-          startTime: rule.startTime,
-          endTime: rule.endTime,
-          ...dutyPayload(rule),
-        })),
+        arbitraryBands.flatMap((band) =>
+          band.rules.map((rule) => ({
+            date,
+            startTime: band.startTime,
+            endTime: band.endTime,
+            ...dutyPayload(rule),
+          })),
+        ),
       ),
     };
   }
 
-  function copyPreviousRule() {
-    setSlotRules((current) => {
+  function copyPreviousBand() {
+    setArbitraryBands((current) => {
       const previous = current[current.length - 1];
       if (!previous) return current;
       const start = shiftTimeToMinutes(previous.endTime);
       const duration = Math.max(30, shiftTimeToMinutes(previous.endTime) - shiftTimeToMinutes(previous.startTime));
       const end = start + duration;
       if (end > 30 * 60) return current;
-      return [...current, { ...previous, startTime: minutesToShiftTime(start), endTime: minutesToShiftTime(end), dutyScopeIds: [...previous.dutyScopeIds], coverageDutyIds: [...previous.coverageDutyIds] }];
+      return [...current, {
+        startTime: minutesToShiftTime(start),
+        endTime: minutesToShiftTime(end),
+        rules: previous.rules.map((rule) => ({ ...rule, dutyScopeIds: [...rule.dutyScopeIds], coverageDutyIds: [...rule.coverageDutyIds] })),
+      }];
     });
   }
 
-  function addNextRule() {
-    setSlotRules((current) => {
+  function addNextBand() {
+    setArbitraryBands((current) => {
       const previous = current[current.length - 1];
       const start = previous ? shiftTimeToMinutes(previous.endTime) : shiftTimeToMinutes("09:00");
       const duration = previous
@@ -318,17 +332,40 @@ export default function ShiftBuilder({
       return [...current, {
         startTime: minutesToShiftTime(start),
         endTime: minutesToShiftTime(end),
-        role: "",
-        requiredCount: "1",
-        dutyId: "",
-        dutyScopeIds: [],
-        coverageDutyIds: [],
+        rules: [{ ...emptySlotRule() }],
       }];
     });
   }
 
-  function moveSlotRule(index: number, offset: -1 | 1) {
-    setSlotRules((current) => {
+  function updateBand(index: number, patch: Partial<TimeBand>) {
+    setArbitraryBands((current) => current.map((band, bandIndex) => bandIndex === index ? { ...band, ...patch } : band));
+  }
+
+  function updateBandRule(bandIndex: number, ruleIndex: number, patch: Partial<SlotRule>) {
+    setArbitraryBands((current) => current.map((band, index) => index === bandIndex
+      ? { ...band, rules: band.rules.map((rule, currentRuleIndex) => currentRuleIndex === ruleIndex ? { ...rule, ...patch } : rule) }
+      : band));
+  }
+
+  function addBandRule(bandIndex: number) {
+    setArbitraryBands((current) => current.map((band, index) => index === bandIndex
+      ? { ...band, rules: [...band.rules, { ...emptySlotRule(), startTime: band.startTime, endTime: band.endTime }] }
+      : band));
+  }
+
+  function moveBandRule(bandIndex: number, ruleIndex: number, offset: -1 | 1) {
+    setArbitraryBands((current) => current.map((band, index) => {
+      if (index !== bandIndex) return band;
+      const target = ruleIndex + offset;
+      if (target < 0 || target >= band.rules.length) return band;
+      const rules = [...band.rules];
+      [rules[ruleIndex], rules[target]] = [rules[target], rules[ruleIndex]];
+      return { ...band, rules };
+    }));
+  }
+
+  function moveBand(index: number, offset: -1 | 1) {
+    setArbitraryBands((current) => {
       const target = index + offset;
       if (target < 0 || target >= current.length) return current;
       const next = [...current];
@@ -752,38 +789,54 @@ export default function ShiftBuilder({
                   <strong>時間枠を順番に設定</strong>
                   <small>期間全体へ同じ枠を作成します。日別調整は作成後に行えます。</small>
                 </div>
-                {slotRules.map((rule, index) => (
-                  <div className="slot-rule-row" key={index}>
-                    <label className="slot-duty-field">
-                      <span>開始</span>
-                      <select value={rule.startTime} onChange={(event) => updateSlotRule(index, { startTime: event.target.value })}>
-                        {shiftTimeOptions.slice(0, -1).map((time) => <option key={time} value={time}>{displayShiftTime(time)}</option>)}
-                      </select>
-                    </label>
-                    <label className="slot-duty-field">
-                      <span>終了</span>
-                      <select value={rule.endTime} onChange={(event) => updateSlotRule(index, { endTime: event.target.value })}>
-                        {shiftTimeOptions.slice(1).map((time) => <option key={time} value={time}>{displayShiftTime(time)}</option>)}
-                      </select>
-                    </label>
-                    <label className="slot-duty-field">
-                      <span>担当（主担当）</span>
-                      <select value={rule.dutyId} onChange={(event) => { const nextDutyId = event.target.value; updateSlotRule(index, { dutyId: nextDutyId, role: event.target.selectedOptions[0]?.textContent ?? rule.role, dutyScopeIds: nextDutyId ? [nextDutyId, ...rule.dutyScopeIds.filter((dutyId) => dutyId !== rule.dutyId && dutyId !== nextDutyId)] : [] }); }}>
-                        <option value="">担当なし</option>
-                        {duties.filter((duty) => duty.status === "active").map((duty) => <option key={duty.id} value={duty.id}>{duty.name}</option>)}
-                      </select>
-                    </label>
-                    <label className="slot-duty-field slot-count-field">
-                      <span>必要人数</span>
-                      <span className="slot-count-inline"><input type="number" min="1" max="50" value={rule.requiredCount} onChange={(event) => updateSlotRule(index, { requiredCount: event.target.value })} />名</span>
-                    </label>
-                    <button type="button" className="small-action" disabled={index === 0} onClick={() => moveSlotRule(index, -1)}>↑</button>
-                    <button type="button" className="small-action" disabled={index === slotRules.length - 1} onClick={() => moveSlotRule(index, 1)}>↓</button>
-                    {slotRules.length > 1 && <button type="button" className="small-action danger" onClick={() => setSlotRules((current) => current.filter((_, ruleIndex) => ruleIndex !== index))}>削除</button>}
+                {arbitraryBands.map((band, bandIndex) => (
+                  <div className="slot-band" key={bandIndex}>
+                    <div className="slot-band-head">
+                      <label className="slot-duty-field">
+                        <span>開始</span>
+                        <select value={band.startTime} onChange={(event) => updateBand(bandIndex, { startTime: event.target.value })}>
+                          {shiftTimeOptions.slice(0, -1).map((time) => <option key={time} value={time}>{displayShiftTime(time)}</option>)}
+                        </select>
+                      </label>
+                      <span>〜</span>
+                      <label className="slot-duty-field">
+                        <span>終了</span>
+                        <select value={band.endTime} onChange={(event) => updateBand(bandIndex, { endTime: event.target.value })}>
+                          {shiftTimeOptions.slice(1).map((time) => <option key={time} value={time}>{displayShiftTime(time)}</option>)}
+                        </select>
+                      </label>
+                      <button type="button" className="small-action" disabled={bandIndex === 0} onClick={() => moveBand(bandIndex, -1)}>↑</button>
+                      <button type="button" className="small-action" disabled={bandIndex === arbitraryBands.length - 1} onClick={() => moveBand(bandIndex, 1)}>↓</button>
+                    </div>
+                    {band.rules.map((rule, ruleIndex) => (
+                      <div className="slot-rule-row" key={ruleIndex}>
+                        <label className="slot-duty-field">
+                          <span>担当（主担当）</span>
+                          <select value={rule.dutyId} onChange={(event) => { const nextDutyId = event.target.value; updateBandRule(bandIndex, ruleIndex, { dutyId: nextDutyId, role: event.target.selectedOptions[0]?.textContent ?? rule.role, dutyScopeIds: nextDutyId ? [nextDutyId, ...rule.dutyScopeIds.filter((dutyId) => dutyId !== rule.dutyId && dutyId !== nextDutyId)] : [] }); }}>
+                            <option value="">担当なし</option>
+                            {duties.filter((duty) => duty.status === "active").map((duty) => <option key={duty.id} value={duty.id}>{duty.name}</option>)}
+                          </select>
+                        </label>
+                        <label className="slot-duty-field slot-count-field">
+                          <span>必要人数</span>
+                          <span className="slot-count-inline"><input type="number" min="1" max="50" value={rule.requiredCount} onChange={(event) => updateBandRule(bandIndex, ruleIndex, { requiredCount: event.target.value })} />名</span>
+                        </label>
+                        <label className="slot-duty-field">
+                          <span>兼任担当（任意）</span>
+                          <select multiple size={Math.min(3, Math.max(1, duties.filter((duty) => duty.status === "active").length))} value={rule.dutyScopeIds.filter((dutyId) => dutyId !== rule.dutyId)} onChange={(event) => updateBandRule(bandIndex, ruleIndex, { dutyScopeIds: [rule.dutyId, ...[...event.target.selectedOptions].map((option) => option.value)].filter(Boolean) })}>
+                            {duties.filter((duty) => duty.status === "active").map((duty) => <option key={duty.id} value={duty.id}>{duty.name}</option>)}
+                          </select>
+                        </label>
+                        <button type="button" className="small-action" disabled={ruleIndex === 0} onClick={() => moveBandRule(bandIndex, ruleIndex, -1)}>↑</button>
+                        <button type="button" className="small-action" disabled={ruleIndex === band.rules.length - 1} onClick={() => moveBandRule(bandIndex, ruleIndex, 1)}>↓</button>
+                        {band.rules.length > 1 && <button type="button" className="small-action danger" onClick={() => setArbitraryBands((current) => current.map((currentBand, index) => index === bandIndex ? { ...currentBand, rules: currentBand.rules.filter((_, currentRuleIndex) => currentRuleIndex !== ruleIndex) } : currentBand))}>削除</button>}
+                      </div>
+                    ))}
+                    <button type="button" className="small-action" onClick={() => addBandRule(bandIndex)}>＋この時間帯に担当枠を追加</button>
                   </div>
                 ))}
-                <button type="button" className="small-action" onClick={copyPreviousRule}>＋前の枠を複製</button>
-                <button type="button" className="small-action" onClick={addNextRule}>＋次の時間枠を追加</button>
+                <button type="button" className="small-action" onClick={copyPreviousBand}>＋前の時間帯を複製</button>
+                <button type="button" className="small-action" onClick={addNextBand}>＋次の時間帯を追加</button>
               </div>
             ) : (
               <label className="plan-notes custom-slots-input">
