@@ -198,7 +198,9 @@ export async function GET(request: Request) {
   const periodByPlan = new Map(
     periods.map((period) => [period.planId, period]),
   );
+  const demoNow = await getDemoNow(groupId);
   return Response.json({
+    demoTime: { currentAt: demoNow.toISOString(), today: jstDate(demoNow), timezone: "Asia/Tokyo" },
     plans: plans.map((plan) => {
       const period = periodByPlan.get(plan.id);
       const savedUsers = new Set(
