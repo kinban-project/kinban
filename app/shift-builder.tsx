@@ -202,7 +202,6 @@ export default function ShiftBuilder({
       const nextPlans = data.plans;
       setDemoToday(data.demoTime?.today);
       setPlans(nextPlans);
-      if (!notes && nextPlans[0]?.notes) setNotes(nextPlans[0].notes);
     }
   }
 
