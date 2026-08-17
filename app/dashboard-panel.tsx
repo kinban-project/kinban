@@ -143,7 +143,7 @@ export default function DashboardPanel({ groupId, onNavigate }: Props) {
           </div>
 
           <h3>直近のシフト</h3>
-          <div className="dashboard-plans">{plans.slice(0, 5).map((plan) => <div key={plan.id}><strong>{plan.name}</strong><span>{shortDate(plan.startDate)}〜{shortDate(plan.endDate)}</span>{getShiftDisplayStatus(plan) === "request-open" && <small>提出 {plan.requestSavedCount ?? 0}/{plan.requestMemberCount ?? dashboard?.members ?? 0}人</small>}{plan.status === "published" && (plan.shortageSlotCount ?? 0) > 0 && <small className="dashboard-plan-shortage">不足 {plan.shortageSlotCount}枠（{plan.shortageMemberCount}人）</small>}<em className={getShiftDisplayStatus(plan)}>{getShiftDisplayLabel(getShiftDisplayStatus(plan))}</em></div>)}</div>
+          <div className="dashboard-plans">{plans.slice(0, 5).map((plan) => <div key={plan.id}><strong>{plan.name}</strong><span>{shortDate(plan.startDate)}〜{shortDate(plan.endDate)}</span>{getShiftDisplayStatus(plan, dashboard?.today) === "request-open" && <small>提出 {plan.requestSavedCount ?? 0}/{plan.requestMemberCount ?? dashboard?.members ?? 0}人</small>}{plan.status === "published" && (plan.shortageSlotCount ?? 0) > 0 && <small className="dashboard-plan-shortage">不足 {plan.shortageSlotCount}枠（{plan.shortageMemberCount}人）</small>}<em className={getShiftDisplayStatus(plan, dashboard?.today)}>{getShiftDisplayLabel(getShiftDisplayStatus(plan, dashboard?.today))}</em></div>)}</div>
         </>
       )}
     </section>

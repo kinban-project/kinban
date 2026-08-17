@@ -45,12 +45,13 @@ type RequestPeriod = {
   closesOn: string;
   status: "pending" | "open" | "closed";
 };
+type DemoTime = { currentAt: string; today: string; timezone: string };
 
-function displayStatus(plan: Plan, requestPeriod?: RequestPeriod | null) {
+function displayStatus(plan: Plan, requestPeriod?: RequestPeriod | null, today?: string) {
   return getShiftDisplayStatus({
     ...plan,
     requestStatus: requestPeriod?.status ?? plan.requestStatus,
-  });
+  }, today);
 }
 type Detail = {
   plan: Plan;
@@ -59,6 +60,7 @@ type Detail = {
   members: Member[];
   closedDates?: string[];
   requestPeriod?: RequestPeriod | null;
+  demoTime?: DemoTime;
 };
 type SlotRule = { role: string; requiredCount: string; dutyId: string; dutyScopeIds: string[]; coverageDutyIds: string[] };
 type InputMode = "standard" | "custom";
@@ -153,6 +155,7 @@ export default function ShiftBuilder({
   const [notice, setNotice] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [demoToday, setDemoToday] = useState<string>();
 
   const editableGroups = useMemo(
     () =>
@@ -187,7 +190,9 @@ export default function ShiftBuilder({
       `/api/shifts?groupId=${encodeURIComponent(groupId)}`,
     );
     if (response.ok) {
-      const nextPlans = ((await response.json()) as { plans: Plan[] }).plans;
+      const data = (await response.json()) as { plans: Plan[]; demoTime?: DemoTime };
+      const nextPlans = data.plans;
+      setDemoToday(data.demoTime?.today);
       setPlans(nextPlans);
       if (!notes && nextPlans[0]?.notes) setNotes(nextPlans[0].notes);
     }
@@ -198,6 +203,7 @@ export default function ShiftBuilder({
     if (response.ok) {
       const next = (await response.json()) as Detail;
       setDetail(next);
+      setDemoToday(next.demoTime?.today);
       setClosedDates(next.closedDates ?? []);
     }
   }
@@ -712,8 +718,8 @@ export default function ShiftBuilder({
                     </small>
                   </span>
                   <span className="plan-open">
-                    <em className={displayStatus(plan)}>
-                      {getShiftDisplayLabel(displayStatus(plan))}
+                    <em className={displayStatus(plan, null, demoToday)}>
+                      {getShiftDisplayLabel(displayStatus(plan, null, demoToday))}
                     </em>
                     {plan.status === "draft" ? (
                       <button
@@ -748,9 +754,9 @@ export default function ShiftBuilder({
                 {displayShiftTime(detail.plan.closingTime)}
               </span>
             </div>
-            <span className={displayStatus(detail.plan, detail.requestPeriod)}>
+            <span className={displayStatus(detail.plan, detail.requestPeriod, detail.demoTime?.today ?? demoToday)}>
               {getShiftDisplayLabel(
-                displayStatus(detail.plan, detail.requestPeriod),
+                displayStatus(detail.plan, detail.requestPeriod, detail.demoTime?.today ?? demoToday),
               )}
             </span>
           </div>

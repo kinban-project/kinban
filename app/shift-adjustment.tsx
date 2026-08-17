@@ -63,6 +63,7 @@ type Detail = {
   memberPreferences?: Array<Preference & { userEmail: string }>;
   autoBreakSuggestion?: boolean;
   laborRules?: LaborRules;
+  demoTime?: { currentAt: string; today: string; timezone: string };
 };
 type AssignmentScenario = {
   id: string;
@@ -175,6 +176,7 @@ export default function ShiftAdjustment({
   const [groupId, setGroupId] = useState(initialGroupId ?? "");
   const [planId, setPlanId] = useState("");
   const [detail, setDetail] = useState<Detail | null>(null);
+  const [demoToday, setDemoToday] = useState<string>();
   const [baseAssignments, setBaseAssignments] = useState<Record<string, string[]>>({});
   const [preferences, setPreferences] = useState<Record<string, Preference>>(
     {},
@@ -241,7 +243,9 @@ export default function ShiftAdjustment({
       `/api/shifts?groupId=${encodeURIComponent(id)}`,
     );
     if (!response.ok) return;
-    const next = ((await response.json()) as { plans: Plan[] }).plans;
+    const data = (await response.json()) as { plans: Plan[]; demoTime?: { today: string } };
+    const next = data.plans;
+    setDemoToday(data.demoTime?.today);
     setPlans(next);
     if (!planId && next[0]) setPlanId(next[0].id);
   }
@@ -251,6 +255,7 @@ export default function ShiftAdjustment({
     if (response.ok) {
       const next = (await response.json()) as Detail;
       setDetail(next);
+      setDemoToday(next.demoTime?.today);
       const map: Record<string, string[]> = {};
       for (const row of next.assignments) (map[row.slotId] ??= []).push(row.userEmail);
       setBaseAssignments(map);
@@ -987,7 +992,7 @@ export default function ShiftAdjustment({
           {plans.map((plan) => (
             <option key={plan.id} value={plan.id}>
               {plan.name} ／ {plan.startDate}〜{plan.endDate} ／{" "}
-              {getShiftDisplayLabel(getShiftDisplayStatus(plan))}
+              {getShiftDisplayLabel(getShiftDisplayStatus(plan, detail?.demoTime?.today ?? demoToday))}
             </option>
           ))}
         </select>

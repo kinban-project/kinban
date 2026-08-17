@@ -9,8 +9,9 @@ type ShiftStatusInput = {
 
 export function getShiftDisplayStatus(
   plan: ShiftStatusInput,
+  todayOverride?: string,
 ): ShiftDisplayStatus {
-  const today = new Intl.DateTimeFormat("en-CA", {
+  const today = todayOverride ?? new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Tokyo",
   }).format(new Date());
   if (plan.endDate < today) return "ended";
