@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { localApiFetch } from "./local-api";
 import { getShiftDisplayLabel, getShiftDisplayStatus } from "./shift-status";
-import { displayShiftTime } from "./shift-time";
+import { displayShiftTime, minutesToShiftTime, shiftTimeToMinutes } from "./shift-time";
 import { toDateTimeLocal } from "./shift-request-deadline";
 
 type Group = { id: string; name: string; membership: { role: string } };
@@ -62,8 +62,8 @@ type Detail = {
   requestPeriod?: RequestPeriod | null;
   demoTime?: DemoTime;
 };
-type SlotRule = { role: string; requiredCount: string; dutyId: string; dutyScopeIds: string[]; coverageDutyIds: string[] };
-type InputMode = "standard" | "custom";
+type SlotRule = { startTime: string; endTime: string; role: string; requiredCount: string; dutyId: string; dutyScopeIds: string[]; coverageDutyIds: string[] };
+type InputMode = "simple" | "arbitrary" | "json";
 
 function defaultRequestCloseDate(startDate: string) {
   const minimum = new Date();
@@ -146,10 +146,10 @@ export default function ShiftBuilder({
   });
   const [notes, setNotes] = useState("");
   const [slotRules, setSlotRules] = useState<SlotRule[]>([
-    { role: "", requiredCount: "2", dutyId: "", dutyScopeIds: [], coverageDutyIds: [] },
+    { startTime: "09:00", endTime: "18:00", role: "", requiredCount: "2", dutyId: "", dutyScopeIds: [], coverageDutyIds: [] },
   ]);
   const [duties, setDuties] = useState<Duty[]>([]);
-  const [inputMode, setInputMode] = useState<InputMode>("standard");
+  const [inputMode, setInputMode] = useState<InputMode>("simple");
   const [customSlots, setCustomSlots] = useState(customSlotExample);
   const [closedDates, setClosedDates] = useState<string[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
@@ -269,6 +269,74 @@ export default function ShiftBuilder({
     void loadDuties(form.groupId);
   }, [form.groupId]);
 
+  function dutyPayload(rule: SlotRule) {
+    return {
+      role: rule.dutyId
+        ? duties.find((duty) => duty.id === rule.dutyId)?.name ?? rule.role
+        : rule.role,
+      requiredCount: Number(rule.requiredCount),
+      ...(rule.dutyId ? { dutyId: rule.dutyId } : {}),
+      ...(rule.dutyId || rule.dutyScopeIds.length
+        ? { dutyScopeIds: [...new Set([rule.dutyId, ...rule.dutyScopeIds].filter(Boolean))] }
+        : {}),
+    };
+  }
+
+  function arbitrarySlots() {
+    return {
+      slots: dateKeys(form.startDate, form.endDate).flatMap((date) =>
+        slotRules.map((rule) => ({
+          date,
+          startTime: rule.startTime,
+          endTime: rule.endTime,
+          ...dutyPayload(rule),
+        })),
+      ),
+    };
+  }
+
+  function copyPreviousRule() {
+    setSlotRules((current) => {
+      const previous = current[current.length - 1];
+      if (!previous) return current;
+      const start = shiftTimeToMinutes(previous.endTime);
+      const duration = Math.max(30, shiftTimeToMinutes(previous.endTime) - shiftTimeToMinutes(previous.startTime));
+      const end = start + duration;
+      if (end > 30 * 60) return current;
+      return [...current, { ...previous, startTime: minutesToShiftTime(start), endTime: minutesToShiftTime(end), dutyScopeIds: [...previous.dutyScopeIds], coverageDutyIds: [...previous.coverageDutyIds] }];
+    });
+  }
+
+  function addNextRule() {
+    setSlotRules((current) => {
+      const previous = current[current.length - 1];
+      const start = previous ? shiftTimeToMinutes(previous.endTime) : shiftTimeToMinutes("09:00");
+      const duration = previous
+        ? Math.max(30, shiftTimeToMinutes(previous.endTime) - shiftTimeToMinutes(previous.startTime))
+        : 60;
+      const end = Math.min(30 * 60, start + duration);
+      return [...current, {
+        startTime: minutesToShiftTime(start),
+        endTime: minutesToShiftTime(end),
+        role: "",
+        requiredCount: "1",
+        dutyId: "",
+        dutyScopeIds: [],
+        coverageDutyIds: [],
+      }];
+    });
+  }
+
+  function moveSlotRule(index: number, offset: -1 | 1) {
+    setSlotRules((current) => {
+      const target = index + offset;
+      if (target < 0 || target >= current.length) return current;
+      const next = [...current];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  }
+
   async function createPlan(event: React.FormEvent) {
     event.preventDefault();
     if (!form.name.trim()) {
@@ -284,16 +352,13 @@ export default function ShiftBuilder({
         ...form,
         notes,
         slotMinutes: Number(form.slotMinutes),
-        slotRules:
-          inputMode === "standard"
-              ? slotRules.map((rule) => ({
-                role: rule.dutyId ? (duties.find((duty) => duty.id === rule.dutyId)?.name ?? rule.role) : rule.role,
-                requiredCount: Number(rule.requiredCount),
-                ...(rule.dutyId ? { dutyId: rule.dutyId } : {}),
-                ...(rule.dutyId || rule.dutyScopeIds.length ? { dutyScopeIds: [...new Set([rule.dutyId, ...rule.dutyScopeIds].filter(Boolean))] } : {}),
-              }))
-            : undefined,
-        customSlots: inputMode === "custom" ? customSlots : undefined,
+        slotRules: inputMode === "simple" ? slotRules.map(dutyPayload) : undefined,
+        customSlots:
+          inputMode === "json"
+            ? customSlots
+            : inputMode === "arbitrary"
+              ? arbitrarySlots()
+              : undefined,
       }),
     });
     const raw = await response.text();
@@ -534,26 +599,44 @@ export default function ShiftBuilder({
                 開始日の15日前を初期値にし、現在日時から2日以内にならないようにしています。必要に応じて変更できます。
               </small>
             </label>
+            <label className="plan-notes">
+              勤務枠の方針・メモ
+              <textarea
+                rows={3}
+                maxLength={2000}
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+                placeholder="例：金土は混雑するため厚めに配置。祝日前は土曜扱い。"
+              />
+            </label>
             <fieldset className="slot-input-mode">
               <legend>勤務枠の作り方</legend>
               <label>
                 <input
                   type="radio"
-                  checked={inputMode === "standard"}
-                  onChange={() => setInputMode("standard")}
+                  checked={inputMode === "simple"}
+                  onChange={() => setInputMode("simple")}
                 />
-                通常設定
+                簡易設定
               </label>
               <label>
                 <input
                   type="radio"
-                  checked={inputMode === "custom"}
-                  onChange={() => setInputMode("custom")}
+                  checked={inputMode === "arbitrary"}
+                  onChange={() => setInputMode("arbitrary")}
                 />
-                カスタム入力
+                任意設定
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  checked={inputMode === "json"}
+                  onChange={() => setInputMode("json")}
+                />
+                JSON設定
               </label>
             </fieldset>
-            {inputMode === "standard" && (
+            {inputMode === "simple" && (
               <div className="form-row">
                 <label>
                   開店／開始
@@ -587,7 +670,7 @@ export default function ShiftBuilder({
                 </label>
               </div>
             )}
-            {inputMode === "standard" ? (
+            {inputMode === "simple" ? (
               <>
                 <label>
                   区切り時間
@@ -655,7 +738,7 @@ export default function ShiftBuilder({
                     onClick={() =>
                       setSlotRules((current) => [
                         ...current,
-                        { role: "", requiredCount: "1", dutyId: "", dutyScopeIds: [], coverageDutyIds: [] },
+                        { startTime: "09:00", endTime: "10:00", role: "", requiredCount: "1", dutyId: "", dutyScopeIds: [], coverageDutyIds: [] },
                       ])
                     }
                   >
@@ -663,9 +746,48 @@ export default function ShiftBuilder({
                   </button>
                 </div>
               </>
+            ) : inputMode === "arbitrary" ? (
+              <div className="slot-rules">
+                <div className="slot-rules-head">
+                  <strong>時間枠を順番に設定</strong>
+                  <small>期間全体へ同じ枠を作成します。日別調整は作成後に行えます。</small>
+                </div>
+                {slotRules.map((rule, index) => (
+                  <div className="slot-rule-row" key={index}>
+                    <label className="slot-duty-field">
+                      <span>開始</span>
+                      <select value={rule.startTime} onChange={(event) => updateSlotRule(index, { startTime: event.target.value })}>
+                        {shiftTimeOptions.slice(0, -1).map((time) => <option key={time} value={time}>{displayShiftTime(time)}</option>)}
+                      </select>
+                    </label>
+                    <label className="slot-duty-field">
+                      <span>終了</span>
+                      <select value={rule.endTime} onChange={(event) => updateSlotRule(index, { endTime: event.target.value })}>
+                        {shiftTimeOptions.slice(1).map((time) => <option key={time} value={time}>{displayShiftTime(time)}</option>)}
+                      </select>
+                    </label>
+                    <label className="slot-duty-field">
+                      <span>担当（主担当）</span>
+                      <select value={rule.dutyId} onChange={(event) => { const nextDutyId = event.target.value; updateSlotRule(index, { dutyId: nextDutyId, role: event.target.selectedOptions[0]?.textContent ?? rule.role, dutyScopeIds: nextDutyId ? [nextDutyId, ...rule.dutyScopeIds.filter((dutyId) => dutyId !== rule.dutyId && dutyId !== nextDutyId)] : [] }); }}>
+                        <option value="">担当なし</option>
+                        {duties.filter((duty) => duty.status === "active").map((duty) => <option key={duty.id} value={duty.id}>{duty.name}</option>)}
+                      </select>
+                    </label>
+                    <label className="slot-duty-field slot-count-field">
+                      <span>必要人数</span>
+                      <span className="slot-count-inline"><input type="number" min="1" max="50" value={rule.requiredCount} onChange={(event) => updateSlotRule(index, { requiredCount: event.target.value })} />名</span>
+                    </label>
+                    <button type="button" className="small-action" disabled={index === 0} onClick={() => moveSlotRule(index, -1)}>↑</button>
+                    <button type="button" className="small-action" disabled={index === slotRules.length - 1} onClick={() => moveSlotRule(index, 1)}>↓</button>
+                    {slotRules.length > 1 && <button type="button" className="small-action danger" onClick={() => setSlotRules((current) => current.filter((_, ruleIndex) => ruleIndex !== index))}>削除</button>}
+                  </div>
+                ))}
+                <button type="button" className="small-action" onClick={copyPreviousRule}>＋前の枠を複製</button>
+                <button type="button" className="small-action" onClick={addNextRule}>＋次の時間枠を追加</button>
+              </div>
             ) : (
               <label className="plan-notes custom-slots-input">
-                カスタム勤務枠（JSON）
+                高度な勤務枠（JSON）
                 <textarea
                   rows={12}
                   value={customSlots}
@@ -677,16 +799,6 @@ export default function ShiftBuilder({
                 </small>
               </label>
             )}
-            <label className="plan-notes">
-              勤務枠の方針・メモ
-              <textarea
-                rows={3}
-                maxLength={2000}
-                value={notes}
-                onChange={(event) => setNotes(event.target.value)}
-                placeholder="例：金土は混雑するため厚めに配置。祝日前は土曜扱い。"
-              />
-            </label>
             <button
               className="primary-button"
               disabled={busy || editableGroups.length === 0}
