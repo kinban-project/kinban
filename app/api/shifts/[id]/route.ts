@@ -19,6 +19,18 @@ const chunk = <T,>(items: T[], size: number) => {
   for (let index = 0; index < items.length; index += size) chunks.push(items.slice(index, index + size));
   return chunks;
 };
+type DutyIdInput = string[] | string | null | undefined;
+
+function normalizeDutyIds(value: DutyIdInput) {
+  if (Array.isArray(value)) return value.filter((dutyId): dutyId is string => typeof dutyId === "string");
+  if (typeof value !== "string" || !value.trim()) return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((dutyId): dutyId is string => typeof dutyId === "string") : [];
+  } catch {
+    return [];
+  }
+}
 function dateKeys(start: string, end: string) { const result: string[] = []; const cursor = new Date(`${start}T00:00:00Z`); const last = new Date(`${end}T00:00:00Z`); while (cursor <= last) { result.push(cursor.toISOString().slice(0, 10)); cursor.setUTCDate(cursor.getUTCDate() + 1); } return result; }
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
@@ -94,7 +106,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (!plan) return Response.json({ error: "シフト計画が見つかりません" }, { status: 404 });
   const membership = await getMembership(plan.groupId, user.email);
   if (!membership || (membership.role !== "owner" && membership.role !== "editor")) return Response.json({ error: "シフト編集にはグループの編集権限が必要です" }, { status: 403 });
-  let body: { action?: "start-requests"; name?: string; requestCloseDate?: string; reason?: string; expectedVersion?: number; layout?: { notes?: string; slots?: Array<{ id?: string; date: string; startTime: string; endTime: string; requiredCount: number; role?: string; dutyId?: string | null; dutyScopeIds?: string[]; coverageDutyIds?: string[] }>; closedDates?: string[] }; assignments?: Record<string, string[]>; status?: "draft" | "published" };
+  let body: { action?: "start-requests"; name?: string; requestCloseDate?: string; reason?: string; expectedVersion?: number; layout?: { notes?: string; slots?: Array<{ id?: string; date: string; startTime: string; endTime: string; requiredCount: number; role?: string; dutyId?: string | null; dutyScopeIds?: DutyIdInput; coverageDutyIds?: DutyIdInput }>; closedDates?: string[] }; assignments?: Record<string, string[]>; status?: "draft" | "published" };
   try {
     body = await request.json();
   } catch {
@@ -120,6 +132,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     }
     nextVersion = locked.version;
   }
+  const restoreVersionAfterFailure = async () => {
+    if (expectedVersion === undefined) return;
+    await db.update(shiftPlans)
+      .set({ version: expectedVersion })
+      .where(and(eq(shiftPlans.id, id), eq(shiftPlans.version, nextVersion)));
+  };
   const slots = await db.select().from(shiftSlots).where(eq(shiftSlots.planId, id));
   const duties = await db.select().from(groupDuties).where(eq(groupDuties.groupId, plan.groupId));
   const dutyById = new Map(duties.map((duty) => [duty.id, duty]));
@@ -132,12 +150,20 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (body.layout) {
     const closedDates = new Set(body.layout.closedDates ?? []);
     const invalidDuty = (body.layout.slots ?? []).find((slot) => {
+      const dutyScopeIds = normalizeDutyIds(slot.dutyScopeIds);
       if (slot.dutyId && (!dutyById.has(slot.dutyId) || dutyById.get(slot.dutyId)?.status !== "active")) return true;
-      if ((slot.dutyScopeIds ?? []).some((dutyId) => !dutyById.has(dutyId) || dutyById.get(dutyId)?.status !== "active")) return true;
-      return Boolean(validateDutyScopeConfiguration(slot.dutyId, slot.dutyScopeIds));
+      if (dutyScopeIds.some((dutyId) => !dutyById.has(dutyId) || dutyById.get(dutyId)?.status !== "active")) return true;
+      return Boolean(validateDutyScopeConfiguration(slot.dutyId, dutyScopeIds));
     });
-    if (invalidDuty) return Response.json({ error: "無効または存在しない担当が勤務枠に指定されています" }, { status: 400 });
-    const nextSlots = (body.layout.slots ?? []).filter((slot) => !closedDates.has(slot.date) && slot.date >= plan.startDate && slot.date <= plan.endDate && isValidShiftTime(slot.startTime) && isValidShiftTime(slot.endTime) && shiftTimeToMinutes(slot.startTime) < shiftTimeToMinutes(slot.endTime)).map((slot) => ({ id: slot.id ?? crypto.randomUUID(), planId: id, date: slot.date, startTime: slot.startTime, endTime: slot.endTime, requiredCount: Math.max(1, Math.min(50, Number(slot.requiredCount) || 1)), role: slot.role?.trim() ?? "", dutyId: slot.dutyId ?? null, dutyNameSnapshot: slot.dutyId ? dutyById.get(slot.dutyId)?.name ?? null : null, dutyScopeIds: Array.isArray(slot.dutyScopeIds) && slot.dutyScopeIds.length ? JSON.stringify(slot.dutyScopeIds.filter((dutyId) => dutyById.get(dutyId)?.status === "active")) : null, coverageDutyIds: Array.isArray(slot.coverageDutyIds) ? JSON.stringify(slot.coverageDutyIds.filter((dutyId) => dutyById.get(dutyId)?.status === "active")) : null }));
+    if (invalidDuty) {
+      await restoreVersionAfterFailure();
+      return Response.json({ error: "無効または存在しない担当が勤務枠に指定されています" }, { status: 400 });
+    }
+    const nextSlots = (body.layout.slots ?? []).filter((slot) => !closedDates.has(slot.date) && slot.date >= plan.startDate && slot.date <= plan.endDate && isValidShiftTime(slot.startTime) && isValidShiftTime(slot.endTime) && shiftTimeToMinutes(slot.startTime) < shiftTimeToMinutes(slot.endTime)).map((slot) => {
+      const dutyScopeIds = normalizeDutyIds(slot.dutyScopeIds);
+      const coverageDutyIds = normalizeDutyIds(slot.coverageDutyIds);
+      return { id: slot.id ?? crypto.randomUUID(), planId: id, date: slot.date, startTime: slot.startTime, endTime: slot.endTime, requiredCount: Math.max(1, Math.min(50, Number(slot.requiredCount) || 1)), role: slot.role?.trim() ?? "", dutyId: slot.dutyId ?? null, dutyNameSnapshot: slot.dutyId ? dutyById.get(slot.dutyId)?.name ?? null : null, dutyScopeIds: dutyScopeIds.length ? JSON.stringify(dutyScopeIds.filter((dutyId) => dutyById.get(dutyId)?.status === "active")) : null, coverageDutyIds: coverageDutyIds.length ? JSON.stringify(coverageDutyIds.filter((dutyId) => dutyById.get(dutyId)?.status === "active")) : null };
+    });
       const beforeLayout = new Map(slots.map((slot) => [slot.id, `${slot.date}|${slot.startTime}|${slot.endTime}|${slot.role}|${slot.requiredCount}|${slot.dutyId ?? ""}|${slot.dutyScopeIds ?? ""}|${slot.coverageDutyIds ?? ""}`]));
       const layoutChanges = nextSlots.flatMap((slot) => beforeLayout.get(slot.id) === `${slot.date}|${slot.startTime}|${slot.endTime}|${slot.role}|${slot.requiredCount}|${slot.dutyId ?? ""}|${slot.dutyScopeIds ?? ""}|${slot.coverageDutyIds ?? ""}` ? [] : [{ id: slot.id, date: slot.date, startTime: slot.startTime, endTime: slot.endTime, role: slot.role, requiredCount: slot.requiredCount, dutyId: slot.dutyId, dutyScopeIds: slot.dutyScopeIds ? JSON.parse(slot.dutyScopeIds) : [] }]);
     const statements = [
@@ -147,11 +173,16 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       db.update(shiftPlans).set({ ...(nextName !== undefined ? { name: nextName } : {}), notes: body.layout.notes?.trim().slice(0, 2000) ?? plan.notes, ...(expectedVersion === undefined ? { version: nextVersion } : {}) }).where(eq(shiftPlans.id, id)),
     ];
     if (body.requestCloseDate && requestPeriod?.status === "pending") statements.push(db.update(shiftRequestPeriods).set({ closesOn: body.requestCloseDate }).where(eq(shiftRequestPeriods.id, requestPeriod.id)));
-    await db.batch(statements);
-    const prunedRequestCount = await pruneInvalidShiftRequests(db, id);
-    await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: "shift.update", entityType: "shiftPlan", entityId: id, summary: `シフト枠を保存: ${plan.name}`, details: { slotCount: nextSlots.length, closedDates: body.layout.closedDates ?? [] } });
-    if (plan.status === "published") await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: "shift.update", entityType: "shiftPlan", entityId: id, summary: `公開済みシフトの枠を更新: ${plan.name}`, details: { changeType: "layout", reason: body.reason?.trim().slice(0, 300) ?? "", changedSlotCount: layoutChanges.length, changedSlots: layoutChanges.slice(0, 40), closedDates: body.layout.closedDates ?? [] } });
-    if (prunedRequestCount > 0) await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: "shift.request.prune", entityType: "shiftRequestPeriod", entityId: requestPeriod?.id ?? id, summary: "勤務枠変更で無効になった希望を自動破棄", details: { planId: id, count: prunedRequestCount } });
+    try {
+      await db.batch(statements);
+      const prunedRequestCount = await pruneInvalidShiftRequests(db, id);
+      await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: "shift.update", entityType: "shiftPlan", entityId: id, summary: `シフト枠を保存: ${plan.name}`, details: { slotCount: nextSlots.length, closedDates: body.layout.closedDates ?? [] } });
+      if (plan.status === "published") await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: "shift.update", entityType: "shiftPlan", entityId: id, summary: `公開済みシフトの枠を更新: ${plan.name}`, details: { changeType: "layout", reason: body.reason?.trim().slice(0, 300) ?? "", changedSlotCount: layoutChanges.length, changedSlots: layoutChanges.slice(0, 40), closedDates: body.layout.closedDates ?? [] } });
+      if (prunedRequestCount > 0) await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: "shift.request.prune", entityType: "shiftRequestPeriod", entityId: requestPeriod?.id ?? id, summary: "勤務枠変更で無効になった希望を自動破棄", details: { planId: id, count: prunedRequestCount } });
+    } catch {
+      await restoreVersionAfterFailure();
+      return Response.json({ error: "勤務枠の保存に失敗しました。内容を確認して再度お試しください。" }, { status: 500 });
+    }
     currentSlots = await db.select().from(shiftSlots).where(eq(shiftSlots.planId, id));
     if (body.action !== "start-requests" && body.assignments === undefined) return Response.json({ ok: true, slotCount: nextSlots.length });
   }

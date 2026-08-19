@@ -120,9 +120,10 @@ export async function POST(request: Request, context: Context) {
   const userEmail = await identity();
   if (!userEmail) return jsonError("ログインが必要です", 401);
   const { id: groupId } = await context.params;
-  const body = await request.json().catch(() => ({})) as { action?: string; month?: string; userEmail?: string; managerNote?: string };
+  const body = await request.json().catch(() => ({})) as { action?: string; month?: string; userEmail?: string; managerNote?: string; confirmRejected?: boolean };
   const month = body.month ?? "";
-  if (!monthBounds(month)) return jsonError("monthはYYYY-MM形式で指定してください", 400);
+  const bounds = monthBounds(month);
+  if (!bounds) return jsonError("monthはYYYY-MM形式で指定してください", 400);
   const membership = await getMembership(groupId, userEmail);
   if (!membership) return jsonError("グループのメンバーではありません", 403);
   const manager = membership.role === "owner" || membership.role === "editor";
@@ -133,6 +134,29 @@ export async function POST(request: Request, context: Context) {
   if (body.action === "submit") {
     if (targetEmail !== userEmail) return jsonError("本人の月次申告のみ実行できます", 403);
     if (existing?.status === "approved") return jsonError("月次承認済みのため変更できません", 409);
+    const rejectedRecords = await db.select().from(workRecords).where(and(
+      eq(workRecords.groupId, groupId),
+      eq(workRecords.userEmail, targetEmail),
+      gte(workRecords.scheduledDate, bounds.start),
+      lte(workRecords.scheduledDate, bounds.end),
+      eq(workRecords.status, "rejected"),
+    ));
+    if (rejectedRecords.length && body.confirmRejected !== true) {
+      return Response.json({
+        error: `差戻し中の勤務記録が${rejectedRecords.length}件あります。`,
+        warning: true,
+        requiresConfirmation: true,
+        rejectedCount: rejectedRecords.length,
+      }, { status: 409 });
+    }
+    if (rejectedRecords.length) {
+      await db.update(workRecords).set({
+        status: "unsubmitted",
+        approvedBy: null,
+        approvedAt: null,
+        updatedAt: now,
+      }).where(inArray(workRecords.id, rejectedRecords.map((record) => record.id)));
+    }
     if (existing) await db.update(monthlyWorkClaims).set({ status: "submitted", submittedAt: now, approvedAt: null, approvedBy: null, updatedAt: now }).where(eq(monthlyWorkClaims.id, existing.id));
     else await db.insert(monthlyWorkClaims).values({ id: crypto.randomUUID(), groupId, userEmail: targetEmail, monthKey: month, status: "submitted", submittedAt: now, managerNote: "" });
     return Response.json({ ok: true, status: "submitted" });
@@ -144,7 +168,18 @@ export async function POST(request: Request, context: Context) {
     if (body.action === "reopen" && existing.status !== "approved") return jsonError("月次承認済みの申告のみ解除できます", 400);
     const nextStatus = body.action === "approve" ? "approved" : body.action === "reject" ? "rejected" : "submitted";
     await db.update(monthlyWorkClaims).set({ status: nextStatus, approvedAt: body.action === "approve" ? now : null, approvedBy: body.action === "approve" ? userEmail : null, managerNote: body.managerNote?.trim().slice(0, 500) ?? existing.managerNote, updatedAt: now }).where(eq(monthlyWorkClaims.id, existing.id));
-    const bounds = monthBounds(month)!;
+    if (body.action === "approve") {
+      const records = await db.select().from(workRecords).where(and(
+        eq(workRecords.groupId, groupId),
+        eq(workRecords.userEmail, targetEmail),
+        gte(workRecords.scheduledDate, bounds.start),
+        lte(workRecords.scheduledDate, bounds.end),
+      ));
+      const submittedRecords = records.filter((record) => record.status === "submitted");
+      const rejectedRecords = records.filter((record) => record.status === "rejected");
+      if (submittedRecords.length) await db.update(workRecords).set({ status: "approved", approvedBy: userEmail, approvedAt: now, updatedAt: now }).where(inArray(workRecords.id, submittedRecords.map((record) => record.id)));
+      if (rejectedRecords.length) await db.update(workRecords).set({ status: "unsubmitted", approvedBy: null, approvedAt: null, updatedAt: now }).where(inArray(workRecords.id, rejectedRecords.map((record) => record.id)));
+    }
     await db.update(workRecords).set(
       body.action === "approve"
         ? { monthlyClosedAt: now, monthlyClosedBy: userEmail, updatedAt: now }

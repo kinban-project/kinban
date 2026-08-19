@@ -7,6 +7,7 @@ import {
   shiftAssignments,
   shiftPlans,
   shiftSlots,
+  monthlyWorkClaims,
   workBreaks,
   workRecords,
 } from "../../../../../db/schema";
@@ -122,6 +123,27 @@ async function contextData(groupId: string, email: string) {
       error: error("Active group membership is required.", 403),
     } as const;
   return { db, group, membership } as const;
+}
+
+async function hasApprovedMonthlyClaim(
+  db: ReturnType<typeof getDb>,
+  groupId: string,
+  userEmail: string,
+  scheduledDate: string,
+) {
+  const [claim] = await db
+    .select({ id: monthlyWorkClaims.id })
+    .from(monthlyWorkClaims)
+    .where(
+      and(
+        eq(monthlyWorkClaims.groupId, groupId),
+        eq(monthlyWorkClaims.userEmail, userEmail),
+        eq(monthlyWorkClaims.monthKey, scheduledDate.slice(0, 7)),
+        eq(monthlyWorkClaims.status, "approved"),
+      ),
+    )
+    .limit(1);
+  return Boolean(claim);
 }
 
 function clockMinutes(value: string) {
@@ -313,6 +335,21 @@ export async function GET(request: Request, context: Context) {
     .select()
     .from(workRecords)
     .where(and(...recordFilters));
+  const approvedMonthlyUserEmails =
+    manager && month
+      ? (
+          await db
+            .select({ userEmail: monthlyWorkClaims.userEmail })
+            .from(monthlyWorkClaims)
+            .where(
+              and(
+                eq(monthlyWorkClaims.groupId, groupId),
+                eq(monthlyWorkClaims.monthKey, month),
+                eq(monthlyWorkClaims.status, "approved"),
+              ),
+            )
+        ).map((claim) => claim.userEmail)
+      : [];
   const allRecordIds = recordRows.map((record) => record.id);
   const allBreaks = allRecordIds.length
     ? (
@@ -450,6 +487,7 @@ export async function GET(request: Request, context: Context) {
       breaks,
       schedule,
       members,
+      approvedMonthlyUserEmails,
       canManage: manager,
       pagination: { page, pageSize, hasNext, nextPage: hasNext ? page + 1 : null },
     },
@@ -492,6 +530,8 @@ export async function POST(request: Request, context: Context) {
       .where(eq(shiftSlots.id, firstSlotId))
       .limit(1);
     if (!slot) return error("Assigned shift slot not found.", 404);
+    if (await hasApprovedMonthlyClaim(db, groupId, user.email, slot.date))
+      return error("This month has been approved and cannot be changed until an administrator reopens it.", 409);
     const [plan] = await db
       .select()
       .from(shiftPlans)
@@ -635,6 +675,8 @@ export async function POST(request: Request, context: Context) {
   if (body.action === "create-manual-claim") {
     if (!body.scheduledDate)
       return error("scheduledDate is required.", 400);
+    if (await hasApprovedMonthlyClaim(db, groupId, user.email, body.scheduledDate))
+      return error("This month has been approved and cannot be changed until an administrator reopens it.", 409);
     const employeeNote = String(body.employeeNote ?? "").trim().slice(0, 500);
     if (!body.claimedStartAt && !body.claimedEndAt && !employeeNote)
       return error("claim times or employeeNote are required.", 400);
@@ -901,7 +943,7 @@ export async function PATCH(request: Request, context: Context) {
       )
       .limit(1);
     if (!record) return error("Work record not found.", 404);
-    if (record.monthlyClosedAt)
+    if (record.monthlyClosedAt || await hasApprovedMonthlyClaim(current.db, groupId, user.email, record.scheduledDate))
       return error(
         "This month has been approved and cannot be changed until an administrator reopens it.",
         409,
@@ -946,7 +988,7 @@ export async function PATCH(request: Request, context: Context) {
       )
       .limit(1);
     if (!record) return error("Work record not found.", 404);
-    if (record.monthlyClosedAt)
+    if (record.monthlyClosedAt || await hasApprovedMonthlyClaim(current.db, groupId, user.email, record.scheduledDate))
       return error(
         "This month has been closed and cannot be changed until an administrator reopens it.",
         409,
@@ -1018,7 +1060,7 @@ export async function PATCH(request: Request, context: Context) {
       )
       .limit(1);
     if (!record) return error("Work record not found.", 404);
-    if (record.monthlyClosedAt)
+    if (record.monthlyClosedAt || await hasApprovedMonthlyClaim(current.db, groupId, record.userEmail, record.scheduledDate))
       return error("This month has been approved and cannot be changed until an administrator reopens it.", 409);
     await current.db
       .update(workRecords)
@@ -1049,7 +1091,7 @@ export async function PATCH(request: Request, context: Context) {
       )
       .limit(1);
     if (!record) return error("Work record not found.", 404);
-    if (record.monthlyClosedAt)
+    if (record.monthlyClosedAt || await hasApprovedMonthlyClaim(current.db, groupId, user.email, record.scheduledDate))
       return error(
         "This month has been closed and cannot be changed until an administrator reopens it.",
         409,
@@ -1170,7 +1212,7 @@ export async function PATCH(request: Request, context: Context) {
       )
       .limit(1);
     if (!record) return error("Work record not found.", 404);
-    if (record.monthlyClosedAt)
+    if (record.monthlyClosedAt || await hasApprovedMonthlyClaim(db, groupId, user.email, record.scheduledDate))
       return error(
         "This month has been closed and cannot be changed until an administrator reopens it.",
         409,
@@ -1242,15 +1284,54 @@ export async function PATCH(request: Request, context: Context) {
     );
     if (!targets.length)
       return error("No work records exist for this month.", 404);
-    if (
-      body.action === "close-month" &&
-      targets.some((record) => record.status !== "approved")
-    )
-      return error(
-        "All records must be approved before closing the month.",
-        409,
-      );
     const now = nowIso;
+    if (body.action === "close-month") {
+      const rejectedTargets = targets.filter((record) => record.status === "rejected");
+      const unsupportedTargets = targets.filter(
+        (record) =>
+          !["approved", "submitted", "unsubmitted", "rejected"].includes(
+            record.status,
+          ),
+      );
+      if (unsupportedTargets.length)
+        return error(
+          "勤務中など未確定の勤務記録があるため、月次締めできません。先に日次処理を完了してください。",
+          409,
+        );
+      const submittedTargets = targets.filter(
+        (record) => record.status === "submitted",
+      );
+      if (submittedTargets.length)
+        await current.db
+          .update(workRecords)
+          .set({
+            status: "approved",
+            approvedBy: user.email,
+            approvedAt: now,
+            updatedAt: now,
+          })
+          .where(
+            inArray(
+              workRecords.id,
+              submittedTargets.map((record) => record.id),
+            ),
+          );
+      if (rejectedTargets.length)
+        await current.db
+          .update(workRecords)
+          .set({
+            status: "unsubmitted",
+            approvedBy: null,
+            approvedAt: null,
+            updatedAt: now,
+          })
+          .where(
+            inArray(
+              workRecords.id,
+              rejectedTargets.map((record) => record.id),
+            ),
+          );
+    }
     await current.db
       .update(workRecords)
       .set(
@@ -1295,7 +1376,7 @@ export async function PATCH(request: Request, context: Context) {
     )
     .limit(1);
   if (!record) return error("Work record not found.", 404);
-  if (record.monthlyClosedAt)
+  if (record.monthlyClosedAt || await hasApprovedMonthlyClaim(current.db, groupId, record.userEmail, record.scheduledDate))
     return error(
       "This month has been closed. Reopen it before changing records.",
       409,

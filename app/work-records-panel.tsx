@@ -370,6 +370,7 @@ export default function WorkRecordsPanel({
   const [breaks, setBreaks] = useState<BreakRow[]>([]);
   const [schedule, setSchedule] = useState<ScheduleRow[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
+  const [approvedMonthlyUserEmails, setApprovedMonthlyUserEmails] = useState<string[]>([]);
   const [currentUserEmail, setCurrentUserEmail] = useState("");
   const [claimDrafts, setClaimDrafts] = useState<Record<string, Draft>>({});
   const [manualDrafts, setManualDrafts] = useState<Record<string, Draft>>({});
@@ -389,6 +390,7 @@ export default function WorkRecordsPanel({
     difference: "all",
   });
   const [notice, setNotice] = useState("");
+  const monthlyLocked = !manager && monthlyStatus === "approved";
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   useEffect(() => {
     if (process.env.NEXT_PUBLIC_DEMO_MODE !== "true") {
@@ -435,6 +437,7 @@ export default function WorkRecordsPanel({
         breaks?: BreakRow[];
         schedule?: ScheduleRow[];
         members?: Member[];
+        approvedMonthlyUserEmails?: string[];
         currentUserEmail?: string;
         pagination?: { page?: number; hasNext?: boolean };
       };
@@ -445,6 +448,7 @@ export default function WorkRecordsPanel({
       setBreaks(nextBreaks);
       setSchedule(data.schedule ?? []);
       setMembers(data.members ?? []);
+      setApprovedMonthlyUserEmails(data.approvedMonthlyUserEmails ?? []);
       setCurrentUserEmail(data.currentUserEmail ?? "");
       setRecordHasNext(Boolean(data.pagination?.hasNext));
       setClaimDrafts(
@@ -491,14 +495,24 @@ export default function WorkRecordsPanel({
   useEffect(() => {
     void loadMonthlyStatus();
   }, [groupId, month]);
-  async function submitMonthly() {
+  async function submitMonthly(confirmRejected = false) {
     setMonthlyBusy(true);
     const response = await localApiFetch(`/api/groups/${groupId}/monthly-work`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "submit", month }),
+      body: JSON.stringify({ action: "submit", month, ...(confirmRejected ? { confirmRejected: true } : {}) }),
     });
-    const data = (await response.json().catch(() => ({}))) as { error?: string };
+    const data = (await response.json().catch(() => ({}))) as { error?: string; requiresConfirmation?: boolean; rejectedCount?: number };
+    if (!response.ok && data.requiresConfirmation && !confirmRejected) {
+      const count = data.rejectedCount ?? 0;
+      if (window.confirm(`${data.error ?? `差戻し中の勤務記録が${count}件あります。`}` + "\n\n差戻し分を取り下げ扱い（未申告）として月次申告を続けますか？")) {
+        await submitMonthly(true);
+      } else {
+        setNotice(data.error ?? "月次申告を提出できませんでした。");
+      }
+      setMonthlyBusy(false);
+      return;
+    }
     setNotice(
       response.ok
         ? "月次申告を提出しました。"
@@ -512,9 +526,7 @@ export default function WorkRecordsPanel({
     monthKeyValue: string,
   ) {
     const response = await patch({ action, monthKey: monthKeyValue });
-    const data = (await response.json().catch(() => ({}))) as {
-      error?: string;
-    };
+    const data = (await response.json().catch(() => ({}))) as { error?: string };
     setNotice(
       response.ok
         ? action === "close-month"
@@ -556,8 +568,10 @@ export default function WorkRecordsPanel({
   }
   const approvalLocked = (record: RecordRow) =>
     record.status === "submitted" || record.status === "approved";
+  const recordEditingLocked = (record: RecordRow) =>
+    monthlyLocked || Boolean(record.monthlyClosedAt);
   async function startClaimEdit(record: RecordRow) {
-    if (record.monthlyClosedAt) {
+    if (recordEditingLocked(record)) {
       setNotice("月次承認済みのため、先に管理者へ承認解除を依頼してください。");
       return;
     }
@@ -611,6 +625,7 @@ export default function WorkRecordsPanel({
     return response.ok;
   }
   async function saveClaim(record: RecordRow, draft = claimDrafts[record.id]) {
+    if (recordEditingLocked(record)) return;
     if (!draft || (!draft.start && !draft.end && !draft.note?.trim())) return;
     const response = await patch({
       action: "save-claim",
@@ -639,6 +654,10 @@ export default function WorkRecordsPanel({
     );
   }
   async function applySchedule(record: RecordRow, plannedSlots: PlannedSlot[]) {
+    if (recordEditingLocked(record)) {
+      setNotice("月次承認済みのため、申告内容は変更できません。");
+      return;
+    }
     const planned = summarizePlannedSlots(record.scheduledDate, plannedSlots);
     if (!planned) return;
     const response = await patch({
@@ -658,6 +677,10 @@ export default function WorkRecordsPanel({
     if (response.ok) await load();
   }
   async function createClaim(slots: PlannedSlot[]) {
+    if (monthlyLocked) {
+      setNotice("月次承認済みのため、勤務申告は作成できません。");
+      return;
+    }
     const planned = summarizePlannedSlots(slots[0]?.date ?? "", slots);
     if (!planned) return;
     const start = shiftDateTime(planned.slots[0].date, planned.startTime);
@@ -687,6 +710,10 @@ export default function WorkRecordsPanel({
     if (response.ok) await load();
   }
   async function createManualClaim(date: string, draft: Draft) {
+    if (monthlyLocked) {
+      setNotice("月次承認済みのため、勤務申告は作成できません。");
+      return;
+    }
     if ((!draft.start || !draft.end) && !draft.note?.trim()) return;
     const response = await localApiFetch(
       `/api/groups/${groupId}/work-records`,
@@ -924,6 +951,7 @@ export default function WorkRecordsPanel({
           review={review}
           reviewMany={reviewMany}
           savePlannedBreak={savePlannedBreak}
+          approvedMonthlyUserEmails={approvedMonthlyUserEmails}
           monthAction={monthAction}
           page={recordPage}
           hasNext={recordHasNext}
@@ -1028,9 +1056,9 @@ export default function WorkRecordsPanel({
               const needsAction = mobileNeedsAction(date);
               return <article className={`mobile-work-record-card${needsAction ? " needs-action" : ""}`} key={date}>
                 <div className="mobile-work-record-head"><strong>{dayLabel(date)}</strong>{record ? <span className={`work-status work-status-${record.status}`}>{statusLabel(record.status, Boolean(record.endedAt))}</span> : planned ? <span className="work-status work-status-unsubmitted">未申告</span> : <span className="work-status work-status-none">—</span>}</div>
-                <div className="mobile-work-schedule"><span>シフト予定</span>{planned ? <><div className="planned-slot-list">{planned.slots.map((slot) => <span key={slot.id}>{slot.startTime}〜{slot.endTime}{slot.role ? ` ／ ${slot.role}` : ""}</span>)}</div>{record ? !record.monthlyClosedAt && !approvalLocked(record) && <button className="small-action" disabled={busy} onClick={() => void applySchedule(record, planned.slots)}>シフト通り</button> : past && <button className="small-action" disabled={busy} onClick={() => void createClaim(planned.slots)}>シフト通り</button>}</> : <b>予定なし</b>}</div>
+                <div className="mobile-work-schedule"><span>シフト予定</span>{planned ? <><div className="planned-slot-list">{planned.slots.map((slot) => <span key={slot.id}>{slot.startTime}〜{slot.endTime}{slot.role ? ` ／ ${slot.role}` : ""}</span>)}</div>{record ? !recordEditingLocked(record) && !approvalLocked(record) && <button className="small-action" disabled={busy} onClick={() => void applySchedule(record, planned.slots)}>シフト通り</button> : past && !monthlyLocked && <button className="small-action" disabled={busy} onClick={() => void createClaim(planned.slots)}>シフト通り</button>}</> : <b>予定なし</b>}</div>
                 <div className="mobile-work-clock"><span>打刻</span><b>{record && (record.startedAt || record.endedAt) ? `${formatClock(record.startedAt)}〜${formatClock(record.endedAt)}` : "—"}</b></div>
-            {record || past ? <div className="mobile-work-edit">{record && approvalLocked(record) && !record.monthlyClosedAt && <button className="small-action mobile-work-edit-button" disabled={busy} onClick={() => void startClaimEdit(record)}>申告を修正</button>}<label className="mobile-work-time">申告時間<div className="claim-time-fields"><TimeSelect value={editDraft?.start ?? ""} date={date} label={`${date} 申告開始`} disabled={Boolean(record?.monthlyClosedAt) || Boolean(record && approvalLocked(record))} onChange={(value) => record ? updateDraft(record, { start: value, end: draft?.end ?? "" }) : updateManualDraft(date, { start: value, end: manual.end, breakMinutes: manual.breakMinutes, note: manual.note })} /><span>〜</span><TimeSelect value={editDraft?.end ?? ""} date={date} label={`${date} 申告終了`} disabled={Boolean(record?.monthlyClosedAt) || Boolean(record && approvalLocked(record))} onChange={(value) => record ? updateDraft(record, { start: draft?.start ?? "", end: value }) : updateManualDraft(date, { start: manual.start, end: value, breakMinutes: manual.breakMinutes, note: manual.note })} /></div></label><label className="mobile-work-break">休憩<input type="number" min={0} max={1440} value={editDraft?.breakMinutes ?? 0} disabled={Boolean(record?.monthlyClosedAt) || Boolean(record && approvalLocked(record))} onChange={(event) => record ? updateDraft(record, { breakMinutes: Math.max(0, Math.min(1440, Number(event.target.value) || 0)) }) : updateManualDraft(date, { start: manual.start, end: manual.end, breakMinutes: Math.max(0, Math.min(1440, Number(event.target.value) || 0)), note: manual.note })} />分</label><label className="mobile-work-note">備考<input value={editDraft?.note ?? ""} placeholder="理由・備考" disabled={Boolean(record?.monthlyClosedAt) || Boolean(record && approvalLocked(record))} onChange={(event) => record ? updateDraft(record, { note: event.target.value }) : updateManualDraft(date, { start: manual.start, end: manual.end, breakMinutes: manual.breakMinutes, note: event.target.value })} /></label>{record && <><div className="mobile-work-total">実働 {formatMinutes(claimedMinutes(draft))}</div>{record.status === "rejected" && record.managerNote && <p className="work-rejection-note">差戻し理由：{record.managerNote}</p>}{(["working", "unsubmitted", "rejected"].includes(record.status) || (record.status === "submitted" && hasDraftChanges(record, draft))) && (record.endedAt || draft?.end || draft?.note?.trim()) && <button className="primary-button mobile-work-submit" disabled={busy} onClick={() => void submit(record)}>申請</button>}</>}{!record && (manual.start || manual.end || manual.note?.trim()) && <button className="primary-button mobile-work-submit" disabled={busy} onClick={() => void createManualClaim(date, manual)}>申請</button>}</div> : <p className="mobile-work-future">過去日になると入力できます。</p>}
+            {record || (past && !monthlyLocked) ? <div className="mobile-work-edit">{record && approvalLocked(record) && !recordEditingLocked(record) && <button className="small-action mobile-work-edit-button" disabled={busy} onClick={() => void startClaimEdit(record)}>申告を修正</button>}<label className="mobile-work-time">申告時間<div className="claim-time-fields"><TimeSelect value={editDraft?.start ?? ""} date={date} label={`${date} 申告開始`} disabled={Boolean(record && recordEditingLocked(record)) || Boolean(record && approvalLocked(record))} onChange={(value) => record ? updateDraft(record, { start: value, end: draft?.end ?? "" }) : updateManualDraft(date, { start: value, end: manual.end, breakMinutes: manual.breakMinutes, note: manual.note })} /><span>〜</span><TimeSelect value={editDraft?.end ?? ""} date={date} label={`${date} 申告終了`} disabled={Boolean(record && recordEditingLocked(record)) || Boolean(record && approvalLocked(record))} onChange={(value) => record ? updateDraft(record, { start: draft?.start ?? "", end: value }) : updateManualDraft(date, { start: manual.start, end: value, breakMinutes: manual.breakMinutes, note: manual.note })} /></div></label><label className="mobile-work-break">休憩<input type="number" min={0} max={1440} value={editDraft?.breakMinutes ?? 0} disabled={Boolean(record && recordEditingLocked(record)) || Boolean(record && approvalLocked(record))} onChange={(event) => record ? updateDraft(record, { breakMinutes: Math.max(0, Math.min(1440, Number(event.target.value) || 0)) }) : updateManualDraft(date, { start: manual.start, end: manual.end, breakMinutes: Math.max(0, Math.min(1440, Number(event.target.value) || 0)), note: manual.note })} />分</label><label className="mobile-work-note">備考<input value={editDraft?.note ?? ""} placeholder="理由・備考" disabled={Boolean(record && recordEditingLocked(record)) || Boolean(record && approvalLocked(record))} onChange={(event) => record ? updateDraft(record, { note: event.target.value }) : updateManualDraft(date, { start: manual.start, end: manual.end, breakMinutes: manual.breakMinutes, note: event.target.value })} /></label>{record && <><div className="mobile-work-total">実働 {formatMinutes(claimedMinutes(draft))}</div>{record.status === "rejected" && record.managerNote && <p className="work-rejection-note">差戻し理由：{record.managerNote}</p>}{!recordEditingLocked(record) && (["working", "unsubmitted", "rejected"].includes(record.status) || (record.status === "submitted" && hasDraftChanges(record, draft))) && (record.endedAt || draft?.end || draft?.note?.trim()) && <button className="primary-button mobile-work-submit" disabled={busy} onClick={() => void submit(record)}>申請</button>}</>}{!record && (manual.start || manual.end || manual.note?.trim()) && <button className="primary-button mobile-work-submit" disabled={busy} onClick={() => void createManualClaim(date, manual)}>申請</button>}</div> : <p className="mobile-work-future">過去日になると入力できます。</p>}
               </article>;
             })}
           </div>
@@ -1110,7 +1138,7 @@ export default function WorkRecordsPanel({
                         )}
                         {planned && (
                           record
-                            ? !record.monthlyClosedAt && !approvalLocked(record) && (
+                            ? !recordEditingLocked(record) && !approvalLocked(record) && (
                                 <button
                                   className="small-action work-shift-as-scheduled"
                                   disabled={busy}
@@ -1143,7 +1171,7 @@ export default function WorkRecordsPanel({
                               value={draft?.start ?? ""}
                               date={date}
                               label={`${date} 申告開始`}
-                              disabled={Boolean(record.monthlyClosedAt) || approvalLocked(record)}
+                              disabled={recordEditingLocked(record) || approvalLocked(record)}
                               onChange={(value) =>
                                 updateDraft(record, {
                                   start: value,
@@ -1156,7 +1184,7 @@ export default function WorkRecordsPanel({
                               value={draft?.end ?? ""}
                               date={date}
                               label={`${date} 申告終了`}
-                              disabled={Boolean(record.monthlyClosedAt) || approvalLocked(record)}
+                              disabled={recordEditingLocked(record) || approvalLocked(record)}
                               onChange={(value) =>
                                 updateDraft(record, {
                                   start: draft?.start ?? "",
@@ -1167,7 +1195,7 @@ export default function WorkRecordsPanel({
                             </div>
                             {record.status === "rejected" && record.managerNote && <div className="work-rejection-note">差戻し理由：{record.managerNote}</div>}
                           </>
-                        ) : past ? (
+                        ) : past && !monthlyLocked ? (
                           <div className="claim-time-fields monthly-claim">
                             <TimeSelect
                               value={manual.start}
@@ -1193,7 +1221,7 @@ export default function WorkRecordsPanel({
                               }
                             />
                           </div>
-                        ) : !record && past && (manual.start || manual.end || manual.note?.trim()) ? (
+                        ) : !record && past && !monthlyLocked && (manual.start || manual.end || manual.note?.trim()) ? (
                           <button
                             className="small-action"
                             disabled={busy}
@@ -1201,7 +1229,7 @@ export default function WorkRecordsPanel({
                           >
                             申請
                           </button>
-                        ) : !record && past && (manual.start || manual.end || manual.note?.trim()) ? (
+                        ) : !record && past && !monthlyLocked && (manual.start || manual.end || manual.note?.trim()) ? (
                           <button
                             className="small-action"
                             disabled={busy}
@@ -1222,7 +1250,7 @@ export default function WorkRecordsPanel({
                               max={1440}
                               step={1}
                               value={draft?.breakMinutes ?? 0}
-                              disabled={Boolean(record.monthlyClosedAt) || approvalLocked(record)}
+                              disabled={recordEditingLocked(record) || approvalLocked(record)}
                               aria-label={`${date} 申告休憩`}
                               onChange={(event) =>
                                 updateDraft(record, {
@@ -1238,7 +1266,7 @@ export default function WorkRecordsPanel({
                             />
                             <span>分</span>
                           </div>
-                        ) : past ? (
+                        ) : past && !monthlyLocked ? (
                           <div className="claim-break-field">
                             <input
                               type="number"
@@ -1271,7 +1299,7 @@ export default function WorkRecordsPanel({
                             className="monthly-note"
                             value={draft?.note ?? ""}
                             placeholder="理由・備考"
-                            disabled={Boolean(record.monthlyClosedAt) || approvalLocked(record)}
+                            disabled={recordEditingLocked(record) || approvalLocked(record)}
                             maxLength={500}
                             aria-label={`${date} 備考`}
                             onChange={(event) =>
@@ -1323,7 +1351,7 @@ export default function WorkRecordsPanel({
                         )}
                       </td>
                       <td>
-                        {record && approvalLocked(record) && !record.monthlyClosedAt ? (
+                        {record && approvalLocked(record) && !recordEditingLocked(record) ? (
                           <button
                             className="small-action"
                             disabled={busy}
@@ -1331,7 +1359,7 @@ export default function WorkRecordsPanel({
                           >
                             申告を修正
                           </button>
-                        ) : record &&
+                        ) : record && !recordEditingLocked(record) &&
                         (["working", "unsubmitted", "rejected"].includes(record.status) ||
                           (record.status === "submitted" && hasDraftChanges(record, draft))) &&
                         (record.endedAt || draft?.end || draft?.note?.trim()) ? (
@@ -1342,7 +1370,7 @@ export default function WorkRecordsPanel({
                           >
                             申請
                           </button>
-                        ) : !record && past && (manual.start || manual.end || manual.note?.trim()) ? (
+                        ) : !record && past && !monthlyLocked && (manual.start || manual.end || manual.note?.trim()) ? (
                           <button
                             className="small-action"
                             disabled={busy}
@@ -1374,7 +1402,9 @@ function ManagerView({
   pendingRecords,
   review,
   reviewMany,
+  savePlannedBreak,
   monthAction,
+  approvedMonthlyUserEmails,
   page,
   hasNext,
   onPageChange,
@@ -1390,6 +1420,7 @@ function ManagerView({
   review: (id: string, status: "approved" | "rejected", managerNote?: string) => Promise<boolean>;
   reviewMany: (ids: string[]) => Promise<void>;
   savePlannedBreak: (id: string, minutes: number) => Promise<boolean>;
+  approvedMonthlyUserEmails: string[];
   monthAction: (
     action: "close-month" | "reopen-month",
     monthKey: string,
@@ -1443,9 +1474,7 @@ function ManagerView({
   const monthLocked =
     monthRecords.length > 0 &&
     monthRecords.every((record) => Boolean(record.monthlyClosedAt));
-  const monthReadyToClose =
-    monthRecords.length > 0 &&
-    monthRecords.every((record) => record.status === "approved");
+  const monthCanClose = monthRecords.length > 0;
   const days = Array.from(
     new Set(monthRecords.map((record) => record.scheduledDate)),
   ).sort();
@@ -1480,7 +1509,10 @@ function ManagerView({
     );
   });
   const pendingFiltered = filtered.filter(
-    (record) => record.status === "submitted",
+    (record) =>
+      record.status === "submitted" &&
+      !record.monthlyClosedAt &&
+      !approvedMonthlyUserEmails.includes(record.userEmail),
   );
   const selectedPending = selected.filter((id) =>
     pendingFiltered.some((record) => record.id === id),
@@ -1506,6 +1538,10 @@ function ManagerView({
       return;
     void reviewMany(selectedPending).then(() => setSelected([]));
   }
+  const detailMonthlyApproved =
+    detail !== null &&
+    (Boolean(detail.monthlyClosedAt) ||
+      approvedMonthlyUserEmails.includes(detail.userEmail));
   function monthLabelFor(key: string) {
     const [year, value] = key.split("-").map(Number);
     return `${year}年${value}月`;
@@ -1529,10 +1565,10 @@ function ManagerView({
         ) : (
           <button
             className="primary-button"
-            disabled={!monthReadyToClose}
+            disabled={!monthCanClose}
             title={
-              !monthReadyToClose
-                ? "すべて承認済みになると締められます。"
+              !monthCanClose
+                ? "対象月の勤務記録がありません。"
                 : undefined
             }
             onClick={() => {
@@ -1670,6 +1706,10 @@ function ManagerView({
                 const plannedSummary = plannedSummaryForRecord(record);
                 const planned = effectivePlannedMinutes(record, plannedSummary);
                 const claimed = claimedRangeMinutes(record, breaks);
+                const monthlyApproved =
+                  Boolean(record.monthlyClosedAt) ||
+                  approvedMonthlyUserEmails.includes(record.userEmail);
+                const reviewable = record.status === "submitted" && !monthlyApproved;
                 const diff =
                   planned !== null && claimed !== null
                     ? claimed - planned
@@ -1681,7 +1721,7 @@ function ManagerView({
                     className={tone ? `approval-row-${tone}` : ""}
                   >
                     <td>
-                      {record.status === "submitted" ? (
+                      {reviewable ? (
                         <input
                           type="checkbox"
                           aria-label={`${record.scheduledDate} ${names.get(record.userEmail)}を選択`}
@@ -1732,7 +1772,7 @@ function ManagerView({
                     </td>
                     <td>
                       <span
-                        className={`work-status work-status-${record.status}${record.status === "submitted" ? " work-status-manager-pending" : ""}`}
+                        className={`work-status work-status-${record.status}${reviewable ? " work-status-manager-pending" : ""}`}
                       >
                         {record.attendanceExpired
                           ? "打刻漏れ"
@@ -1749,7 +1789,7 @@ function ManagerView({
                       >
                         詳細
                       </button>
-                      {record.status === "submitted" && (
+                      {reviewable && (
                         <>
                           <button
                             className="small-action"
@@ -1825,6 +1865,7 @@ function ManagerView({
                     min={0}
                     max={1440}
                     value={plannedBreakDraft}
+                    disabled={detailMonthlyApproved}
                     onChange={(event) =>
                       setPlannedBreakDraft(
                         Math.max(0, Math.min(1440, Number(event.target.value) || 0)),
@@ -1834,6 +1875,7 @@ function ManagerView({
                   <span>分</span>
                   <button
                     className="small-action"
+                    disabled={detailMonthlyApproved}
                     onClick={async () => {
                       if (await savePlannedBreak(detail.id, plannedBreakDraft)) {
                         setDetail((current) =>
@@ -1846,6 +1888,9 @@ function ManagerView({
                   >
                     保存
                   </button>
+                  {detailMonthlyApproved && (
+                    <small className="work-lock-note">月次承認済み</small>
+                  )}
                 </div>
               </div>
               <div>
