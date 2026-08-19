@@ -19,6 +19,24 @@ if ((Test-Path -LiteralPath $destinationRoot) -and -not $Update) {
 
 $changes = New-Object System.Collections.Generic.List[string]
 
+function Get-TemplateFileHash {
+  param(
+    [Parameter(Mandatory)] [string]$Path
+  )
+
+  $sha256 = [System.Security.Cryptography.SHA256]::Create()
+  try {
+    $stream = [System.IO.File]::OpenRead($Path)
+    try {
+      return ([System.BitConverter]::ToString($sha256.ComputeHash($stream))).Replace('-', '')
+    } finally {
+      $stream.Dispose()
+    }
+  } finally {
+    $sha256.Dispose()
+  }
+}
+
 function Sync-TemplateNode {
   param(
     [Parameter(Mandatory)] [System.IO.FileSystemInfo]$Source,
@@ -45,8 +63,8 @@ function Sync-TemplateNode {
 
   $status = "created"
   if (Test-Path -LiteralPath $Target) {
-    $sourceHash = (Get-FileHash -LiteralPath $Source.FullName -Algorithm SHA256).Hash
-    $targetHash = (Get-FileHash -LiteralPath $Target -Algorithm SHA256).Hash
+    $sourceHash = Get-TemplateFileHash -Path $Source.FullName
+    $targetHash = Get-TemplateFileHash -Path $Target
     $status = if ($sourceHash -eq $targetHash) { "unchanged" } else { "updated" }
   }
   Copy-Item -LiteralPath $Source.FullName -Destination $Target -Force

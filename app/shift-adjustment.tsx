@@ -195,7 +195,7 @@ export default function ShiftAdjustment({
   });
   const [dutyDirectoryOpen, setDutyDirectoryOpen] = useState(false);
   const [dutyDirectoryScope, setDutyDirectoryScope] = useState<"visible" | "all">("all");
-  const [viewMode, setViewMode] = useState<"preview" | "list" | "calendar">("preview");
+  const [viewMode, setViewMode] = useState<"preview" | "list" | "calendar" | "member">("preview");
   const [scenarios, setScenarios] = useState<AssignmentScenario[]>([]);
   const [selectedScenarioId, setSelectedScenarioId] = useState("");
   const [scenarioName, setScenarioName] = useState("");
@@ -711,6 +711,85 @@ export default function ShiftAdjustment({
       </div>
     );
   }
+  const memberViewSlotGroups = useMemo(
+    () => {
+      const groups = new Map<string, { key: string; date: string; startTime: string; endTime: string; slots: Slot[] }>();
+      [...visibleSlots]
+        .sort((left, right) =>
+          `${left.date}|${left.startTime}|${left.endTime}|${left.role}`.localeCompare(
+            `${right.date}|${right.startTime}|${right.endTime}|${right.role}`,
+          ),
+        )
+        .forEach((slot) => {
+          const key = `${slot.date}|${slot.startTime}|${slot.endTime}`;
+          const group = groups.get(key);
+          if (group) group.slots.push(slot);
+          else groups.set(key, { key, date: slot.date, startTime: slot.startTime, endTime: slot.endTime, slots: [slot] });
+        });
+      return [...groups.values()];
+    },
+    [visibleSlots],
+  );
+  function cycleMemberViewAssignment(group: (typeof memberViewSlotGroups)[number], userEmail: string) {
+    setDetail((currentDetail) => {
+      if (!currentDetail) return currentDetail;
+      const assignedSlots = group.slots.filter((slot) =>
+        currentDetail.assignments.some((row) => row.slotId === slot.id && row.userEmail === userEmail),
+      );
+      const currentIndex = assignedSlots.length === 1
+        ? group.slots.findIndex((slot) => slot.id === assignedSlots[0].id)
+        : -1;
+      const nextIndex = currentIndex < 0 ? 0 : currentIndex + 1 < group.slots.length ? currentIndex + 1 : -1;
+      const groupSlotIds = new Set(group.slots.map((slot) => slot.id));
+      const nextAssignments = currentDetail.assignments.filter(
+        (row) => !(groupSlotIds.has(row.slotId) && row.userEmail === userEmail),
+      );
+      if (nextIndex >= 0) nextAssignments.push({ slotId: group.slots[nextIndex].id, userEmail });
+      return { ...currentDetail, assignments: nextAssignments };
+    });
+  }
+  function renderMemberViewCell(member: Member, group: (typeof memberViewSlotGroups)[number]) {
+    const assignedSlots = group.slots.filter((slot) => (assignments[slot.id] ?? []).includes(member.userEmail));
+    const assignedSlot = assignedSlots.length === 1 ? assignedSlots[0] : null;
+    const preference = preferenceFor(group.slots[0], member.userEmail);
+    const groupSlotIds = new Set(group.slots.map((slot) => slot.id));
+    const hasOverlap = assignedSlots.some((slot) => assignmentIssues.some(
+      (issue) => issue.kind === "overlap" && issue.memberEmail === member.userEmail && issue.slotIds.some((id) => groupSlotIds.has(id)),
+    ));
+    const dutyReview = assignedSlots.some((slot) => {
+      const scopeIds = parseDutyScopeIds(slot.dutyScopeIds);
+      return scopeIds.length > 0
+        ? !scopeIds.every((dutyId) => member.dutyIds?.includes(dutyId))
+        : Boolean(slot.dutyId) && !member.dutyIds?.includes(slot.dutyId!);
+    });
+    const laborLabels = assignedSlots.length > 0
+      ? [...new Set(laborWarnings
+        .filter((warning) => warning.memberEmail === member.userEmail && warning.slotIds.some((id) => groupSlotIds.has(id)))
+        .map((warning) => laborWarningLabel(warning.kind)))]
+      : [];
+    const editable = detail?.plan.status !== "published" && selectedScenario?.proposalStatus !== "published";
+    const labels = [
+      ...(hasOverlap ? ["時間重複"] : []),
+      ...(dutyReview && assignedSlots.length > 0 ? ["適性外"] : []),
+      ...laborLabels,
+    ];
+    return (
+      <td className={`assignment-member-cell pref-${preference}${assignedSlots.length ? " is-assigned" : ""}${labels.length ? " has-issue" : ""}`} key={group.key}>
+        <button
+          type="button"
+          className="assignment-member-cell-button"
+          disabled={!editable || busy}
+          aria-pressed={assignedSlots.length > 0}
+          title={`${formatShiftDate(group.date)} ${displayShiftTime(group.startTime)}〜${displayShiftTime(group.endTime)} 担当を切り替え`}
+          onClick={() => cycleMemberViewAssignment(group, member.userEmail)}
+        >
+          <strong>{assignedSlot?.role || (assignedSlots.length > 1 ? "複数担当" : "—")}</strong>
+          <small>{preference === "want" ? "出勤希望" : preference === "possible" ? "可能" : preference === "off" ? "休み希望" : "勤務不可"}</small>
+          {labels.length > 0 && <em>（{labels.join("、")}）</em>}
+        </button>
+      </td>
+    );
+  }
   function selectScenario(value: string) {
     setSelectedScenarioId(value);
     const scenario = scenarios.find((item) => item.id === value);
@@ -1019,6 +1098,13 @@ export default function ShiftAdjustment({
             >
               時刻を列で表示
             </button>
+            <button
+              type="button"
+              className={viewMode === "member" ? "active" : ""}
+              onClick={() => setViewMode("member")}
+            >
+              人を行で表示
+            </button>
           </div>
         )}
       </div>
@@ -1255,6 +1341,45 @@ export default function ShiftAdjustment({
                             .map(renderSlot)}
                         </td>
                       ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : viewMode === "member" ? (
+            <div className="assignment-member-view-wrap">
+              <table className="assignment-member-view-table">
+                <thead>
+                  <tr>
+                    <th className="assignment-member-view-name">メンバー</th>
+                    {memberViewSlotGroups.map((group) => (
+                      <th key={group.key}>
+                        <span>{formatShiftDate(group.date)}</span>
+                        <small>{displayShiftTime(group.startTime)}〜{displayShiftTime(group.endTime)}</small>
+                        {group.slots.map((slot) => (
+                          (() => {
+                            const assignedCount = new Set(assignments[slot.id] ?? []).size;
+                            return (
+                              <small
+                                key={slot.id}
+                                className={assignedCount < slot.requiredCount ? "assignment-member-view-slot-summary is-shortage" : "assignment-member-view-slot-summary"}
+                              >
+                                {slot.role || "共通"}・必要{slot.requiredCount}人（割当{assignedCount}人）
+                              </small>
+                            );
+                          })()
+                        ))}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {detail.members.map((member) => (
+                    <tr key={member.userEmail}>
+                      <th className="assignment-member-view-name">
+                        {member.displayName || member.userEmail.split("@")[0]}
+                      </th>
+                      {memberViewSlotGroups.map((group) => renderMemberViewCell(member, group))}
                     </tr>
                   ))}
                 </tbody>
