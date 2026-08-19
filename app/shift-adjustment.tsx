@@ -7,6 +7,7 @@ import { displayShiftTime, shiftTimeToMinutes } from "./shift-time";
 import { buildLaborWarnings, type LaborRules, type LaborWarning } from "./shift-labor-warnings";
 import { proposalMatchesSlots, proposalMeta, type AssignmentProposalSlot } from "./shift-assignment-proposals";
 import { buildDutyCoverageWarnings, memberCanTakeDuty, parseDutyScopeIds } from "./duty-validation";
+import { formatJapaneseDate } from "./japanese-holidays";
 
 type Group = { id: string; name: string; membership: { role: string } };
 type Plan = {
@@ -145,13 +146,7 @@ function suggestedBreakMinutes(slots: Slot[]) {
   }, 0);
 }
 function formatShiftDate(value: string) {
-  const date = new Date(`${value}T00:00:00+09:00`);
-  if (Number.isNaN(date.getTime())) return value;
-  const weekday = new Intl.DateTimeFormat("ja-JP", {
-    weekday: "short",
-    timeZone: "Asia/Tokyo",
-  }).format(date);
-  return `${value}（${weekday}）`;
+  return formatJapaneseDate(value);
 }
 
 function laborWarningLabel(kind: LaborWarning["kind"]) {

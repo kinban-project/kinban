@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { localApiFetch } from "./local-api";
 import { displayShiftTime, shiftTimeToMinutes } from "./shift-time";
+import { formatJapaneseDate } from "./japanese-holidays";
 
 type Group = { id: string; name: string };
 type Plan = { id: string; groupId: string; name: string; startDate: string; endDate: string; openingTime: string; closingTime: string; status: "draft" | "published"; shortageSlotCount?: number; shortageMemberCount?: number };
@@ -28,7 +29,7 @@ function suggestedBreakMinutes(slots: Slot[]) {
 }
 
 function dateLabel(date: string) {
-  return new Intl.DateTimeFormat("ja-JP", { month: "numeric", day: "numeric", weekday: "short" }).format(new Date(`${date}T00:00:00`));
+  return formatJapaneseDate(date, false);
 }
 
 export default function ShiftRoster({ initialGroupId }: { initialGroupId?: string }) {

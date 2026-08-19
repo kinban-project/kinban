@@ -5,6 +5,7 @@ import { localApiFetch } from "./local-api";
 import { getShiftDisplayLabel, getShiftDisplayStatus } from "./shift-status";
 import { displayShiftTime, minutesToShiftTime, shiftTimeToMinutes } from "./shift-time";
 import { toDateTimeLocal } from "./shift-request-deadline";
+import { formatJapaneseDate } from "./japanese-holidays";
 
 type Group = { id: string; name: string; membership: { role: string } };
 type Duty = { id: string; name: string; description?: string; status: "active" | "inactive" };
@@ -130,11 +131,7 @@ function dateKeys(start: string, end: string) {
 }
 
 function formatDateWithWeekday(date: string) {
-  const [year, month, day] = date.split("-").map(Number);
-  const weekday = ["日", "月", "火", "水", "木", "金", "土"][
-    new Date(year, month - 1, day).getDay()
-  ];
-  return `${date}（${weekday}）`;
+  return formatJapaneseDate(date);
 }
 
 export default function ShiftBuilder({

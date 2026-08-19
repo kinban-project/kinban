@@ -147,6 +147,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const beforeAssignmentChunks = await Promise.all(chunk(slots.map((slot) => slot.id), 50).map((slotIds) => slotIds.length ? db.select().from(shiftAssignments).where(inArray(shiftAssignments.slotId, slotIds)) : Promise.resolve([])));
   const beforeAssignments = beforeAssignmentChunks.flat();
   const [requestPeriod] = await db.select().from(shiftRequestPeriods).where(eq(shiftRequestPeriods.planId, id)).limit(1);
+  const postSaveWarnings: string[] = [];
   if (body.layout) {
     const closedDates = new Set(body.layout.closedDates ?? []);
     const invalidDuty = (body.layout.slots ?? []).find((slot) => {
@@ -175,16 +176,25 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     if (body.requestCloseDate && requestPeriod?.status === "pending") statements.push(db.update(shiftRequestPeriods).set({ closesOn: body.requestCloseDate }).where(eq(shiftRequestPeriods.id, requestPeriod.id)));
     try {
       await db.batch(statements);
-      const prunedRequestCount = await pruneInvalidShiftRequests(db, id);
-      await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: "shift.update", entityType: "shiftPlan", entityId: id, summary: `シフト枠を保存: ${plan.name}`, details: { slotCount: nextSlots.length, closedDates: body.layout.closedDates ?? [] } });
-      if (plan.status === "published") await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: "shift.update", entityType: "shiftPlan", entityId: id, summary: `公開済みシフトの枠を更新: ${plan.name}`, details: { changeType: "layout", reason: body.reason?.trim().slice(0, 300) ?? "", changedSlotCount: layoutChanges.length, changedSlots: layoutChanges.slice(0, 40), closedDates: body.layout.closedDates ?? [] } });
-      if (prunedRequestCount > 0) await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: "shift.request.prune", entityType: "shiftRequestPeriod", entityId: requestPeriod?.id ?? id, summary: "勤務枠変更で無効になった希望を自動破棄", details: { planId: id, count: prunedRequestCount } });
     } catch {
       await restoreVersionAfterFailure();
       return Response.json({ error: "勤務枠の保存に失敗しました。内容を確認して再度お試しください。" }, { status: 500 });
     }
+    let prunedRequestCount = 0;
+    try {
+      prunedRequestCount = await pruneInvalidShiftRequests(db, id);
+    } catch {
+      postSaveWarnings.push("保存後のシフト希望整理に失敗しました。必要に応じて再読み込みしてください。");
+    }
+    try {
+      await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: "shift.update", entityType: "shiftPlan", entityId: id, summary: `シフト枠を保存: ${plan.name}`, details: { slotCount: nextSlots.length, closedDates: body.layout.closedDates ?? [] } });
+      if (plan.status === "published") await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: "shift.update", entityType: "shiftPlan", entityId: id, summary: `公開済みシフトの枠を更新: ${plan.name}`, details: { changeType: "layout", reason: body.reason?.trim().slice(0, 300) ?? "", changedSlotCount: layoutChanges.length, changedSlots: layoutChanges.slice(0, 40), closedDates: body.layout.closedDates ?? [] } });
+      if (prunedRequestCount > 0) await recordAudit({ groupId: plan.groupId, userEmail: user.email, action: "shift.request.prune", entityType: "shiftRequestPeriod", entityId: requestPeriod?.id ?? id, summary: "勤務枠変更で無効になった希望を自動破棄", details: { planId: id, count: prunedRequestCount } });
+    } catch {
+      postSaveWarnings.push("操作ログの記録に失敗しましたが、勤務枠の保存は完了しています。");
+    }
     currentSlots = await db.select().from(shiftSlots).where(eq(shiftSlots.planId, id));
-    if (body.action !== "start-requests" && body.assignments === undefined) return Response.json({ ok: true, slotCount: nextSlots.length });
+    if (body.action !== "start-requests" && body.assignments === undefined) return Response.json({ ok: true, slotCount: nextSlots.length, warnings: postSaveWarnings });
   }
   if (body.action === "start-requests") {
     if (!requestPeriod || requestPeriod.status !== "pending") return Response.json({ error: "この勤務枠はすでに受付開始済みです" }, { status: 409 });
@@ -275,5 +285,5 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const recipients = [...new Set(assignmentChanges.flatMap((change) => [...change.added, ...change.removed]))];
     await createSystemMessagesAndPush(db, { groupId: plan.groupId, recipients, eventId: `shift-change:${id}:${nextVersion}`, eventType: "published_shift_changed", body: "公開済みシフトが更新されました。シフト一覧を確認してください。", pushTitle: "KINBAN", pushBody: "公開済みシフトが更新されました", url: `/?group=${encodeURIComponent(plan.groupId)}&view=roster` });
   }
-  return Response.json({ ok: true, status, warnings, laborWarnings, coverageWarnings });
+  return Response.json({ ok: true, status, warnings: [...warnings, ...postSaveWarnings], laborWarnings, coverageWarnings });
 }

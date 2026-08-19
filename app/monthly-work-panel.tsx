@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { localApiFetch } from "./local-api";
 import { downloadWorkRecordsCsv, type WorkCsvRow } from "./work-record-csv";
+import { formatJapaneseDate } from "./japanese-holidays";
 
 type Summary = {
   userEmail: string;
@@ -48,8 +49,7 @@ function formatMinutes(value: number) {
   return `${sign}${Math.floor(absolute / 60)}時間${absolute % 60}分`;
 }
 function formatDate(value: string) {
-  const date = new Date(`${value}T00:00:00+09:00`);
-  return `${Number(value.slice(8, 10))}日（${week[date.getDay()]}）`;
+  return formatJapaneseDate(value, false);
 }
 function formatDateTime(value?: string | null) {
   if (!value) return "—";

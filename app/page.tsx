@@ -22,6 +22,7 @@ import KnowledgePanel from "./knowledge-panel";
 import { localApiFetch } from "./local-api";
 import { isDemoModeClient } from "./client-demo-mode";
 import { displayShiftTime } from "./shift-time";
+import { formatJapaneseDate, getJapaneseHoliday } from "./japanese-holidays";
 
 type EventItem = {
   id: string;
@@ -126,11 +127,7 @@ function compareEvents(a: EventItem, b: EventItem) {
   );
 }
 function formatDate(key: string) {
-  return new Intl.DateTimeFormat("ja-JP", {
-    month: "long",
-    day: "numeric",
-    weekday: "short",
-  }).format(new Date(`${key}T00:00:00`));
+  return formatJapaneseDate(key, false);
 }
 function daysForMonth(year: number, month: number) {
   const first = new Date(year, month, 1);
@@ -637,13 +634,15 @@ export default function Home() {
               const dayEvents = events
                 .filter((item) => item.date === key)
                 .sort(compareEvents);
+              const holiday = getJapaneseHoliday(key);
               return (
                 <button
-                  className={`day-cell ${day.getMonth() !== cursor.getMonth() ? "muted" : ""} ${key === selectedDate ? "selected" : ""} ${key === todayKeyState ? "today" : ""}`}
+                  className={`day-cell ${day.getMonth() !== cursor.getMonth() ? "muted" : ""} ${key === selectedDate ? "selected" : ""} ${key === todayKeyState ? "today" : ""} ${getJapaneseHoliday(key) ? "holiday" : ""}`}
                   key={key}
                   onClick={() => openDayAgenda(key)}
                 >
-                  <span className="day-number">{day.getDate()}</span>
+                  <span className="day-number" title={holiday?.name}>{day.getDate()}</span>
+                  {holiday && <span className="holiday-label">{holiday.name}</span>}
                   {dayEvents
                     .slice(0, 2)
                     .map((item) => (

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { localApiFetch } from "./local-api";
+import { formatJapaneseDate } from "./japanese-holidays";
 import { displayShiftTime, shiftTimeToMinutes } from "./shift-time";
 
 type Group = { id: string; name: string; membership: { role: string } };
@@ -379,8 +380,7 @@ export default function ShiftRequests({
                 {dates.map((date) => (
                   <tr key={date}>
                     <th>
-                      <span>{date}</span>
-                      <small>（{weekdays[dateDay(date)]}）</small>
+                      <span>{formatJapaneseDate(date)}</span>
                       <select
                         value=""
                         onChange={(event) =>
@@ -438,7 +438,7 @@ export default function ShiftRequests({
             {dates.map((date) => (
               <article className="mobile-request-date" key={date}>
                 <div className="mobile-request-date-head">
-                  <strong>{date}（{weekdays[dateDay(date)]}）</strong>
+                  <strong>{formatJapaneseDate(date)}</strong>
                   <select
                     aria-label={`${date}を一括変更`}
                     defaultValue=""

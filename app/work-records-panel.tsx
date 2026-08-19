@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { localApiFetch } from "./local-api";
 import { shiftDateTime } from "./shift-time";
 import { downloadWorkRecordsCsv, type WorkCsvRow } from "./work-record-csv";
+import { formatJapaneseDate } from "./japanese-holidays";
 
 type RecordRow = {
   id: string;
@@ -231,8 +232,7 @@ function monthLabel(key: string) {
   return `${year}年${month}月`;
 }
 function dayLabel(date: string) {
-  const day = new Date(`${date}T00:00:00+09:00`);
-  return `${Number(date.slice(8, 10))}日（${"日月火水木金土"[day.getDay()]}）`;
+  return formatJapaneseDate(date, false);
 }
 function breakMinutes(rows: BreakRow[]) {
   return rows.reduce(

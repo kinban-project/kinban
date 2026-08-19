@@ -371,6 +371,9 @@ button { cursor: pointer; }
 /* The home screen is month-calendar first; day details open from a calendar cell. */
 .dashboard { grid-template-columns: minmax(0, 1fr); }
 .calendar-card { min-width: 0; }
+.day-cell.holiday { color: #a54d43; }
+.day-cell.holiday .day-number { color: #a54d43; }
+.holiday-label { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #a54d43; font-size: 8px; line-height: 1.3; }
 @media (max-width: 760px) { .member-cards { grid-template-columns: 1fr; }.member-card-head { display: block; }.member-card-badges { justify-content: flex-start; margin-top: 8px; }.group-nickname-setting { align-items: stretch; flex-direction: column; }.group-nickname-setting input { width: 100%; } }
 @media (max-width: 760px) { .preference-days { grid-template-columns: repeat(2, 1fr); }.preference-fields { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 900px) { .request-header-right { flex-direction: column; align-items: stretch; }.request-header-right .request-baseline { max-width: none; }.request-header-right > select { width: 100%; } }
