@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
+const runbook = "PUBLIC_DEMO_RUNBOOK.md";
 const docs = [
   "docs/ARCHITECTURE.md",
   "docs/DOMAIN_MODEL.md",
@@ -33,5 +34,13 @@ test("technical documentation set exists and links to source of truth", async ()
   assert.match(contents[9], /\/api\/groups\/:id\/assistant`/);
   assert.match(contents[9], /お知らせ管理 \| お知らせを作成・配信する.*create_announcement/);
   assert.doesNotMatch(contents[9], /お知らせ管理 \| お知らせを作成・配信する.*send_member_message/);
+  const runbookContent = await readFile(resolve(root, runbook), "utf8");
+  assert.match(runbookContent, /^# 公開デモ構築・復旧手順/m);
+  assert.match(runbookContent, /DEMO_MODE=true/);
+  assert.match(runbookContent, /LOCAL_MODE/);
+  assert.match(runbookContent, /site_users/);
+  assert.match(runbookContent, /公開リモートD1へこのSQLを直接流し込む一発コマンドは.*未整備/);
+  assert.match(runbookContent, /本番でしてはいけないこと/);
+  assert.match(await readFile(resolve(root, "README.md"), "utf8"), /\[公開デモ構築・復旧手順\]\(PUBLIC_DEMO_RUNBOOK\.md\)/);
 });
 
