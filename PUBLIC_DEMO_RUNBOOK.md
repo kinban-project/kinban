@@ -63,7 +63,7 @@ Google OAuth、Resend、VAPID、AIランタイムなどは使う機能を有効�
 
 空の公開D1にはサイト管理者がまだ存在しないため、アプリの「デモデータを初期化」APIは初回seedには使えません。Cloudflareの管理権限（対象D1を編集できる権限）がある開発・運用担当者が、次のCLI経路で初回seedを投入します。アプリのサイト管理者ログインでは、この初回bootstrapの代わりになりません。
 
-まず、デモ専用D1だけを参照する `wrangler.demo.jsonc` を用意します。`database_name`、`database_id`、`DB` バインディングが実際の公開デモD1を指すことを、人が確認してください。本番D1を指定してはいけません。
+まず、デモ専用の `wrangler.demo.jsonc` を用意します。ファイル名は `wrangler.demo*.jsonc` に限定し、`vars.DEMO_MODE=true` と `vars.NEXT_PUBLIC_DEMO_MODE=true` を設定します。`DB` バインディングの `database_name`、`database_id`、選択した `--database` が同じ公開デモD1を指すことを、人が確認してください。本番D1を指定してはいけません。
 
 ```bash
 npx wrangler login
@@ -71,7 +71,7 @@ npm run db:seed:remote:demo -- --config wrangler.demo.jsonc --database kinban-de
 npm run db:seed:remote:demo -- --config wrangler.demo.jsonc --database kinban-demo-db --confirm "SEED DEMO D1"
 ```
 
-`--dry-run` は対象設定とSQL件数だけを確認し、Cloudflareへ書き込みません。実行時は確認文字列を完全一致させる必要があり、スクリプトは設定ファイル内に指定D1名があることを検証し、seed SQLを小さな単位へ分割して実行します。対象を間違えるとリモートD1のデータを置き換えるため、D1名と設定ファイルを必ず確認してください。
+`--dry-run` は対象設定とSQL件数だけを確認し、Cloudflareへ書き込みません。実行時は確認文字列を完全一致させる必要があり、スクリプトはデモ専用ファイル名・デモモード・DB binding/name/idの整合性を検証します。書き込み前にリモートD1の `site_users`、`groups`、`group_members`、`demo_clocks` 件数も確認し、いずれかに既存データがあるD1は拒否します。seed SQLは小さな単位へ分割して実行します。対象を間違えるとリモートD1のデータを置き換えるため、D1名と設定ファイルを必ず確認してください。途中の通信・実行失敗時は部分適用の可能性があるため、再実行前にD1を確認してください。
 
 このCLIは、空のD1から始めるときに限って使用します。初回seed後の通常の公開デモリセットは、サイト管理者でログインしてサイト管理画面の「デモデータを初期化」を使います。
 

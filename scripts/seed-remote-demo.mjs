@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 
 const CONFIRMATION = "SEED DEMO D1";
@@ -85,6 +85,50 @@ function splitSql(sql) {
   return statements;
 }
 
+function parseJsonc(text) {
+  return JSON.parse(
+    text
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "")
+      .replace(/,\s*([}\]])/g, "$1"),
+  );
+}
+
+function isTrue(value) {
+  return value === true || value === "true";
+}
+
+function validateDemoConfig(configPath, configText, database) {
+  const filename = basename(configPath).toLowerCase();
+  if (!/^wrangler\.demo(?:[-.][a-z0-9-]+)?\.jsonc$/.test(filename)) {
+    fail(`config must be a demo-only wrangler.demo*.jsonc file: ${filename}`);
+  }
+
+  let parsed;
+  try {
+    parsed = parseJsonc(configText);
+  } catch (error) {
+    fail(`cannot parse JSONC config ${configPath}: ${error.message}`);
+  }
+
+  if (!isTrue(parsed.vars?.DEMO_MODE) || !isTrue(parsed.vars?.NEXT_PUBLIC_DEMO_MODE)) {
+    fail("demo config must set vars.DEMO_MODE=true and vars.NEXT_PUBLIC_DEMO_MODE=true");
+  }
+
+  const databaseEntry = (parsed.d1_databases ?? []).find((entry) => entry.binding === "DB");
+  if (!databaseEntry || databaseEntry.database_name !== database || !databaseEntry.database_id) {
+    fail("DB binding, database_name, and database_id must identify the selected demo D1");
+  }
+}
+
+function runWrangler(args, options = {}) {
+  const wrangler = resolve("node_modules/wrangler/bin/wrangler.js");
+  return spawnSync(process.execPath, [wrangler, ...args], {
+    encoding: "utf8",
+    stdio: options.capture ? ["ignore", "pipe", "pipe"] : "inherit",
+  });
+}
+
 const options = parseArgs(process.argv.slice(2));
 const configPath = resolve(options.config);
 let config;
@@ -93,12 +137,7 @@ try {
 } catch (error) {
   fail(`cannot read config ${configPath}: ${error.message}`);
 }
-
-const escapedDatabase = options.database.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const databasePattern = new RegExp(`\"(?:database_name|binding)\"\\s*:\\s*\"${escapedDatabase}\"`);
-if (!databasePattern.test(config)) {
-  fail(`database ${options.database} is not declared by ${configPath}; use a demo-only config`);
-}
+validateDemoConfig(configPath, config, options.database);
 
 const seedPath = resolve("scripts/seed-local.sql");
 const statements = splitSql(readFileSync(seedPath, "utf8"));
@@ -114,11 +153,42 @@ if (options.dryRun) {
   process.exit(0);
 }
 
-const wrangler = resolve("node_modules/wrangler/bin/wrangler.js");
+const preflight = runWrangler([
+  "d1",
+  "execute",
+  options.database,
+  "--remote",
+  "--config",
+  configPath,
+  "--command",
+  "SELECT (SELECT count(*) FROM site_users) AS site_users, (SELECT count(*) FROM groups) AS groups, (SELECT count(*) FROM group_members) AS group_members, (SELECT count(*) FROM demo_clocks) AS demo_clocks;",
+  "--json",
+], { capture: true });
+if (preflight.status !== 0) {
+  fail(`remote D1 preflight failed: ${preflight.stderr.trim()}`);
+}
+let preflightRows;
+try {
+  const payload = JSON.parse(preflight.stdout);
+  preflightRows = payload?.[0]?.results ?? payload?.results;
+} catch (error) {
+  fail(`could not parse remote D1 preflight response: ${error.message}`);
+}
+const counts = preflightRows?.[0];
+const existingCounts = Object.fromEntries(
+  ["site_users", "groups", "group_members", "demo_clocks"].map((table) => [table, Number(counts?.[table] ?? NaN)]),
+);
+if (Object.values(existingCounts).some((count) => !Number.isFinite(count))) {
+  fail("remote D1 preflight did not return all required table counts; refusing to seed");
+}
+const existingData = Object.entries(existingCounts).filter(([, count]) => count > 0);
+if (existingData.length > 0) {
+  fail(`remote D1 already contains data (${existingData.map(([table, count]) => `${table}=${count}`).join(", ")}); initial seed only refuses existing data`);
+}
+
 for (let start = 0; start < statements.length; start += BATCH_SIZE) {
   const batch = statements.slice(start, start + BATCH_SIZE).join("\n");
-  const result = spawnSync(process.execPath, [
-    wrangler,
+  const result = runWrangler([
     "d1",
     "execute",
     options.database,

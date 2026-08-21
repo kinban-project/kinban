@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
+import { tmpdir } from "node:os";
 
 const root = resolve(import.meta.dirname, "..");
 const runbook = "PUBLIC_DEMO_RUNBOOK.md";
@@ -44,5 +46,26 @@ test("technical documentation set exists and links to source of truth", async ()
   assert.match(runbookContent, /Cloudflareの管理権限/);
   assert.match(runbookContent, /本番でしてはいけないこと/);
   assert.match(await readFile(resolve(root, "README.md"), "utf8"), /\[公開デモ構築・復旧手順\]\(PUBLIC_DEMO_RUNBOOK\.md\)/);
+});
+
+test("remote demo seed rejects production config and accepts a demo dry-run config", async () => {
+  const temp = await mkdtemp(resolve(tmpdir(), "kinban-seed-test-"));
+  const demoConfig = resolve(temp, "wrangler.demo.jsonc");
+  await writeFile(demoConfig, JSON.stringify({
+    vars: { DEMO_MODE: true, NEXT_PUBLIC_DEMO_MODE: true },
+    d1_databases: [{ binding: "DB", database_name: "demo-db", database_id: "demo-id" }],
+  }));
+  try {
+    const script = resolve(root, "scripts/seed-remote-demo.mjs");
+    const demo = spawnSync(process.execPath, [script, "--config", demoConfig, "--database", "demo-db", "--confirm", "SEED DEMO D1", "--dry-run"], { encoding: "utf8" });
+    assert.equal(demo.status, 0, demo.stderr);
+    assert.match(demo.stdout, /Dry run only/);
+
+    const production = spawnSync(process.execPath, [script, "--config", resolve(root, "wrangler.production.jsonc"), "--database", "kinban-prod-db", "--confirm", "SEED DEMO D1", "--dry-run"], { encoding: "utf8" });
+    assert.notEqual(production.status, 0);
+    assert.match(production.stderr, /demo-only|DEMO_MODE/);
+  } finally {
+    await rm(temp, { recursive: true, force: true });
+  }
 });
 
