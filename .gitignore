@@ -54,6 +54,10 @@ next-env.d.ts
 /qa/acceptance-2026-07-19/mobile-new-surfaces-2026-07-27.md
 /qa/nightclub-3month-2026-07-30/
 
+# MCP acceptance transcripts can include one-time API keys. Keep the scenario
+# script and its report, but never commit the generated raw transcript.
+/qa/acceptance-2026-07-19/logs/mcp-scenarios.jsonl
+
 # Local archives and TypeScript build metadata.
 /kinban-*.tar.gz
 *.tsbuildinfo
