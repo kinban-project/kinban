@@ -39,7 +39,9 @@ test("technical documentation set exists and links to source of truth", async ()
   assert.match(runbookContent, /DEMO_MODE=true/);
   assert.match(runbookContent, /LOCAL_MODE/);
   assert.match(runbookContent, /site_users/);
-  assert.match(runbookContent, /公開リモートD1へこのSQLを直接流し込む一発コマンドは.*未整備/);
+  assert.match(runbookContent, /db:seed:remote:demo/);
+  assert.match(runbookContent, /SEED DEMO D1/);
+  assert.match(runbookContent, /Cloudflareの管理権限/);
   assert.match(runbookContent, /本番でしてはいけないこと/);
   assert.match(await readFile(resolve(root, "README.md"), "utf8"), /\[公開デモ構築・復旧手順\]\(PUBLIC_DEMO_RUNBOOK\.md\)/);
 });

@@ -59,7 +59,23 @@ Google OAuth、Resend、VAPID、AIランタイムなどは使う機能を有効�
 - 本番用Google OAuthのリダイレクトURI
 - 本番用のResend、VAPID、AIランタイムの秘密値
 
-### 2-4. 初期データを入れる
+### 2-4. 空の公開D1へ初回seedを投入する
+
+空の公開D1にはサイト管理者がまだ存在しないため、アプリの「デモデータを初期化」APIは初回seedには使えません。Cloudflareの管理権限（対象D1を編集できる権限）がある開発・運用担当者が、次のCLI経路で初回seedを投入します。アプリのサイト管理者ログインでは、この初回bootstrapの代わりになりません。
+
+まず、デモ専用D1だけを参照する `wrangler.demo.jsonc` を用意します。`database_name`、`database_id`、`DB` バインディングが実際の公開デモD1を指すことを、人が確認してください。本番D1を指定してはいけません。
+
+```bash
+npx wrangler login
+npm run db:seed:remote:demo -- --config wrangler.demo.jsonc --database kinban-demo-db --confirm "SEED DEMO D1" --dry-run
+npm run db:seed:remote:demo -- --config wrangler.demo.jsonc --database kinban-demo-db --confirm "SEED DEMO D1"
+```
+
+`--dry-run` は対象設定とSQL件数だけを確認し、Cloudflareへ書き込みません。実行時は確認文字列を完全一致させる必要があり、スクリプトは設定ファイル内に指定D1名があることを検証し、seed SQLを小さな単位へ分割して実行します。対象を間違えるとリモートD1のデータを置き換えるため、D1名と設定ファイルを必ず確認してください。
+
+このCLIは、空のD1から始めるときに限って使用します。初回seed後の通常の公開デモリセットは、サイト管理者でログインしてサイト管理画面の「デモデータを初期化」を使います。
+
+### 2-5. 初期データを入れる
 
 マイグレーションとseedは別工程です。マイグレーションだけでは、グループ・メンバー・シフト・デモ日時は作成されません。
 
@@ -70,7 +86,7 @@ npm run db:migrate:local
 npm run db:seed:local
 ```
 
-`scripts/seed-local.sql` と `npm run db:seed:local` はローカルD1用です。公開リモートD1へこのSQLを直接流し込む一発コマンドは、現在の正式な運用手順としては未整備です。公開デモでは、デプロイ後にサイト管理者でログインし、サイト管理画面の「デモデータを初期化」を使ってください。
+`scripts/seed-local.sql` と `npm run db:seed:local` はローカルD1用です。公開D1の初回投入は前節のCloudflare管理CLIを使い、初回seed後の通常リセットはサイト管理画面から行います。
 
 初期化には次の条件があります。
 
