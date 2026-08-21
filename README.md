@@ -92,3 +92,9 @@ npm run push:generate-vapid
 ## 開発への参加
 
 変更提案やバグ報告については [CONTRIBUTING.md](CONTRIBUTING.md) を確認してください。
+
+## CIとリリース
+
+`main`へのpushとPull Requestでは、GitHub ActionsがNode.js 22.13.0で依存関係のインストール、テスト、プロダクションビルドを実行します。CIでは外部の本番サービスやリポジトリの秘密情報を使用しません。
+
+リリースはalpha段階ではGitタグとGitHub Releaseを基本とします。初回alphaのタグは `v0.1.0-alpha.1` とし、変更内容は [CHANGELOG.md](CHANGELOG.md) に記録します。alphaは検証用の公開版、betaは主要機能の安定化版、stableは運用上の重大な未解決問題がない正式版として扱います。
