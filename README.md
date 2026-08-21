@@ -6,7 +6,7 @@ KINBANは、グループ単位のシフト希望、勤務枠の作成・割当�
 
 ## 試す
 
-- 公開デモ: <https://kinban-demo.chita256.chatgpt.site/>
+- 公開デモ: <https://demo.kinban.jp/>
 - 利用ガイド: <https://working-buffet-fe0.notion.site/KINBAN-3b4a879cdbf081208738d71375768045>
 
 公開デモはサンプルデータ用です。予告なく初期化されることがあり、実在の個人情報や機密情報は入力しないでください。
