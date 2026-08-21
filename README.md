@@ -85,7 +85,7 @@ npm run push:generate-vapid
 
 ## ライセンスと問い合わせ
 
-コードは [Apache License 2.0](LICENSE) で提供します。ロゴや名称の扱いはコードライセンスとは別に確認してください。
+コードは [Apache License 2.0](LICENSE) で提供します。ロゴや名称については [TRADEMARK.md](TRADEMARK.md) を確認してください。
 
 脆弱性の報告は、公開Issueではなく [SECURITY.md](SECURITY.md) の手順を利用してください。一般的な質問や連絡先は `info@kinban.jp` です。
 
