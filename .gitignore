@@ -67,4 +67,7 @@ next-env.d.ts
 /kinban-manager-agent/.env
 /kinban-manager-agent/workspace/*
 !/kinban-manager-agent/workspace/README.md
+
+# Separate landing page project; not part of the KINBAN application repository.
+/landing/
 qa/shift-evaluation/runs/
