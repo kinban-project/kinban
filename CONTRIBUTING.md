@@ -1,33 +1,33 @@
-# Contributing to KINBAN
+# KINBANへの貢献
 
-Thank you for helping improve KINBAN. The project is in an early alpha stage, so focused reports and small, reviewable changes are especially useful.
+KINBANの改善に関心を持っていただきありがとうございます。本プロジェクトは初期alpha段階のため、対象を絞った報告と確認しやすい変更を歓迎します。
 
-## Before opening an issue
+## Issueを作成する前に
 
-- Search existing Issues and Discussions first.
-- Do not include real personal information, credentials, API keys, or production data.
-- Use a private security report for vulnerabilities; do not publish exploit details in an Issue.
+- 既存のIssueとDiscussionを確認してください。
+- 実在する個人情報、認証情報、APIキー、本番データを含めないでください。
+- 脆弱性は公開Issueに書かず、非公開のセキュリティ報告を利用してください。
 
-## Issues and Discussions
+## IssueとDiscussion
 
-- Issues: reproducible bugs, concrete feature proposals, and implementation tasks.
-- Discussions: questions, operational examples, design alternatives, and general feedback.
-- Include the version or commit, environment, reproduction steps, expected result, and actual result when reporting a bug.
+- Issue：再現可能な不具合、具体的な機能提案、実装作業
+- Discussion：質問、運用例、設計案の比較、一般的なフィードバック
+- 不具合報告には、バージョンまたはコミット、環境、再現手順、期待する結果、実際の結果を記載してください。
 
-## Pull requests
+## Pull Request
 
-1. Create a focused branch from `main`.
-2. Keep unrelated formatting and generated artifacts out of the change.
-3. Add or update contract tests for behavior changes.
-4. Run `npm test` and `npm run build` locally when applicable.
-5. Explain data migrations, seed changes, and deployment-specific settings in the pull request.
+1. `main`から変更内容を絞ったブランチを作成します。
+2. 無関係な整形や生成物を変更に含めないでください。
+3. 動作を変更する場合は、必要な契約テストを追加または更新します。
+4. 可能な範囲で`npm test`と`npm run build`を実行します。
+5. データ移行、シード変更、デプロイ固有の設定を説明します。
 
-The `main` branch should remain buildable. Force-pushes to shared branches are discouraged.
+`main`はビルド可能な状態を保ってください。共有ブランチへの強制プッシュは避けてください。
 
-## Local setup
+## ローカル環境
 
-See the root [README](README.md). Keep local `.env` files and deployment secrets outside Git.
+起動方法はルートの[README](README.md)を確認してください。ローカルの`.env`ファイルとデプロイ先の秘密情報はGitの管理対象外にしてください。
 
-## License
+## ライセンス
 
-By submitting a contribution, you agree that it may be distributed under the Apache-2.0 license used by this project.
+貢献された変更は、本プロジェクトで使用するApache-2.0ライセンスの条件で配布できるものとします。

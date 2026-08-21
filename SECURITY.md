@@ -1,20 +1,20 @@
-# Security Policy
+# セキュリティポリシー
 
-## Reporting a vulnerability
+## 脆弱性の報告
 
-Please do not report security vulnerabilities in a public GitHub Issue or Discussion.
+セキュリティ上の問題は、公開IssueやDiscussionには投稿しないでください。
 
-Use GitHub's Private vulnerability reporting when it is available for this repository. If that route is unavailable, contact `info@kinban.jp` and include:
+このリポジトリでGitHub Private vulnerability reportingが利用できる場合は、そちらから報告してください。利用できない場合は、`info@kinban.jp`へ連絡してください。
 
-- a short description of the issue;
-- affected version, route, or configuration;
-- reproduction steps or a minimal proof of concept;
-- impact and any suggested mitigation.
+- 問題の内容と影響
+- 影響するバージョン、ルート、または設定
+- 再現手順または最小限の再現コード
+- 影響と、分かる場合は緩和策
 
-Please do not include live API keys, passwords, personal data, or production records in a report. Redact them before sending.
+APIキー、パスワード、個人情報、本番データは報告内容に含めないでください。送信前に必ず伏せ字にしてください。
 
-We will acknowledge reports when practical, investigate privately, and coordinate disclosure after a fix or mitigation is available. This project is alpha software, so response times and service levels are not guaranteed.
+報告は可能な限り速やかに確認し、修正または緩和策を用意した後の公開方法を調整します。本プロジェクトはalpha段階のため、対応時期やサービスレベルは保証しません。
 
-## Supported versions
+## 対応対象
 
-Only the latest alpha release and the current `main` branch are expected to receive security fixes during the initial public phase.
+初期の公開期間は、最新のalphaリリースと現在の`main`ブランチを主な対応対象とします。

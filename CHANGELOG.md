@@ -1,9 +1,9 @@
-# Changelog
+# 変更履歴
 
-All notable changes to KINBAN will be documented here.
+KINBANの主な変更をこのファイルに記録します。
 
-The project is currently in alpha. Entries may describe incomplete or experimental behavior.
+本プロジェクトはalpha段階です。未完成または試験的な変更を含む場合があります。
 
-## [Unreleased]
+## [未リリース]
 
-- Continued preparation for the first public alpha release.
+- 初回公開alphaに向けたリポジトリとドキュメントの整備を継続。
